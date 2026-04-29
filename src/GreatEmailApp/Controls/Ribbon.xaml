@@ -75,6 +75,64 @@
             </Setter>
         </Style>
 
+        <!-- Large primary button (icon block on top, label below) -->
+        <Style x:Key="RibbonLargeButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="MinWidth" Value="68" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ActiveBackgroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Standard ribbon item: icon on top, single-line label below, all in one row -->
+        <Style x:Key="RibbonItemButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="MinWidth" Value="56" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ActiveBackgroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="RibbonIconButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
@@ -144,228 +202,136 @@
                 <!-- HOME -->
                 <Grid Visibility="{Binding ActiveRibbonTab, Converter={StaticResource StrEqVis}, ConverterParameter=Home}">
                     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                        <StackPanel Orientation="Horizontal" Margin="8,0">
-                            <Button Style="{StaticResource RibbonIconButton}" MinWidth="74">
+                        <StackPanel Orientation="Horizontal" Margin="8,0" VerticalAlignment="Center">
+                            <Button Style="{StaticResource RibbonLargeButton}">
                                 <StackPanel>
-                                    <Border Width="32" Height="32" CornerRadius="6"
-                                            Background="{DynamicResource AccentBrush}" Margin="0,2,0,4">
+                                    <Border Width="28" Height="28" CornerRadius="6"
+                                            Background="{DynamicResource AccentBrush}" Margin="0,0,0,2">
                                         <TextBlock Text="{StaticResource IconNewMail}" Style="{StaticResource IconGlyph}"
-                                                   Foreground="White" FontSize="16" />
+                                                   Foreground="White" FontSize="15" />
                                     </Border>
                                     <TextBlock Text="New Email" FontSize="11" HorizontalAlignment="Center"
                                                Foreground="{DynamicResource PrimaryTextBrush}" />
                                 </StackPanel>
                             </Button>
                             <Border Style="{StaticResource GroupSep}" />
-
-                            <StackPanel Orientation="Vertical" Margin="2,4">
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconTrash}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Delete" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconArchive}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Archive" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconJunk}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Junk" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconTrash}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Delete" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconArchive}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Archive" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconJunk}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Junk" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
                             <Border Style="{StaticResource GroupSep}" />
-
-                            <StackPanel Orientation="Vertical" Margin="2,4">
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconReply}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Reply" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconReplyAll}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Reply All" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconForward}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Forward" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconReply}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Reply" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconReplyAll}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Reply All" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconForward}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Forward" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
                             <Border Style="{StaticResource GroupSep}" />
-
-                            <StackPanel Orientation="Vertical" Margin="2,4">
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconMove}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Move" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconRules}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Rules" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconUnread}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Mark Unread" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconMove}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Move" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconRules}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Rules" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconUnread}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Mark Unread" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
                             <Border Style="{StaticResource GroupSep}" />
-
-                            <StackPanel Orientation="Vertical" Margin="2,4">
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconCategorize}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Categorize" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconFollowUp}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Follow Up" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconContact}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Search People" FontSize="12" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconCategorize}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Categorize" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconFollowUp}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Follow Up" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource RibbonItemButton}">
+                                <StackPanel><TextBlock Text="{StaticResource IconContact}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Search People" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
 
                 <!-- SEND / RECEIVE -->
                 <Grid Visibility="{Binding ActiveRibbonTab, Converter={StaticResource StrEqVis}, ConverterParameter=SendReceive}">
-                    <StackPanel Orientation="Horizontal" Margin="8,0">
-                        <Button Style="{StaticResource RibbonIconButton}" MinWidth="92">
+                    <StackPanel Orientation="Horizontal" Margin="8,0" VerticalAlignment="Center">
+                        <Button Style="{StaticResource RibbonLargeButton}">
                             <StackPanel>
-                                <Border Width="32" Height="32" CornerRadius="6"
-                                        Background="{DynamicResource AccentSoftBrush}" Margin="0,2,0,4">
+                                <Border Width="28" Height="28" CornerRadius="6"
+                                        Background="{DynamicResource AccentSoftBrush}" Margin="0,0,0,2">
                                     <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource IconGlyph}"
-                                               Foreground="{DynamicResource AccentBrush}" FontSize="16" />
+                                               Foreground="{DynamicResource AccentBrush}" FontSize="15" />
                                 </Border>
-                                <TextBlock Text="Send/Receive All" FontSize="11" HorizontalAlignment="Center" />
+                                <TextBlock Text="Send/Receive" FontSize="11" HorizontalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <Border Style="{StaticResource GroupSep}" />
-                        <StackPanel Orientation="Vertical" Margin="2,4">
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconRefresh}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Update Folder" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconSent}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Send All" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconOffline}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Work Offline" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
+                        <Button Style="{StaticResource RibbonItemButton}">
+                            <StackPanel><TextBlock Text="{StaticResource IconRefresh}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Update Folder" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RibbonItemButton}">
+                            <StackPanel><TextBlock Text="{StaticResource IconSent}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Send All" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RibbonItemButton}">
+                            <StackPanel><TextBlock Text="{StaticResource IconOffline}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Work Offline" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
                     </StackPanel>
                 </Grid>
 
                 <!-- VIEW -->
                 <Grid Visibility="{Binding ActiveRibbonTab, Converter={StaticResource StrEqVis}, ConverterParameter=View}">
-                    <StackPanel Orientation="Horizontal" Margin="8,0">
-                        <StackPanel Orientation="Vertical" Margin="2,4">
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconReadingPane}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Reading Pane" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconFolder}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Folder Pane" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconRefresh}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Reset View" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="8,0" VerticalAlignment="Center">
+                        <Button Style="{StaticResource RibbonItemButton}">
+                            <StackPanel><TextBlock Text="{StaticResource IconReadingPane}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Reading Pane" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RibbonItemButton}">
+                            <StackPanel><TextBlock Text="{StaticResource IconFolder}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Folder Pane" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RibbonItemButton}">
+                            <StackPanel><TextBlock Text="{StaticResource IconRefresh}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Reset View" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
                         <Border Style="{StaticResource GroupSep}" />
-                        <StackPanel Orientation="Vertical" Margin="2,4">
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconChevronDown}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Sort By" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconChevronDown}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Arrange By" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconChevronDown}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Density" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
+                        <Button Style="{StaticResource RibbonItemButton}">
+                            <StackPanel><TextBlock Text="{StaticResource IconChevronDown}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Sort By" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RibbonItemButton}">
+                            <StackPanel><TextBlock Text="{StaticResource IconChevronDown}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Arrange By" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RibbonItemButton}">
+                            <StackPanel><TextBlock Text="{StaticResource IconChevronDown}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Density" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
                     </StackPanel>
                 </Grid>
 
                 <!-- HELP -->
                 <Grid Visibility="{Binding ActiveRibbonTab, Converter={StaticResource StrEqVis}, ConverterParameter=Help}">
-                    <StackPanel Orientation="Horizontal" Margin="8,0">
-                        <Button Style="{StaticResource RibbonIconButton}" MinWidth="74">
+                    <StackPanel Orientation="Horizontal" Margin="8,0" VerticalAlignment="Center">
+                        <Button Style="{StaticResource RibbonLargeButton}">
                             <StackPanel>
-                                <Border Width="32" Height="32" CornerRadius="6"
-                                        Background="{DynamicResource AccentSoftBrush}" Margin="0,2,0,4">
+                                <Border Width="28" Height="28" CornerRadius="6"
+                                        Background="{DynamicResource AccentSoftBrush}" Margin="0,0,0,2">
                                     <TextBlock Text="{StaticResource IconHelp}" Style="{StaticResource IconGlyph}"
-                                               Foreground="{DynamicResource AccentBrush}" FontSize="16" />
+                                               Foreground="{DynamicResource AccentBrush}" FontSize="15" />
                                 </Border>
                                 <TextBlock Text="Help" FontSize="11" HorizontalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <Border Style="{StaticResource GroupSep}" />
-                        <StackPanel Orientation="Vertical" Margin="2,4">
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left" Click="OnSettings_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconSettings}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Settings" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconContact}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Account Settings" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource RibbonIconButton}" Padding="6,2" HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconRefresh}" Style="{StaticResource IconGlyph}" FontSize="14" Margin="0,0,8,0" />
-                                    <TextBlock Text="Check for Updates" FontSize="12" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
+                        <Button Style="{StaticResource RibbonItemButton}" Click="OnSettings_Click">
+                            <StackPanel><TextBlock Text="{StaticResource IconSettings}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Settings" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RibbonItemButton}">
+                            <StackPanel><TextBlock Text="{StaticResource IconContact}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Account Settings" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RibbonItemButton}">
+                            <StackPanel><TextBlock Text="{StaticResource IconRefresh}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Check for Updates" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Grid>
