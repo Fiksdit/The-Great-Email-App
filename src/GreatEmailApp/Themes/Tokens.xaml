@@ -1,0 +1,37 @@
+<!-- FILE: src/GreatEmailApp/Themes/Tokens.xaml
+     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+     Changed by: Claude Opus 4.7 on behalf of James Reed
+     Non-color design tokens (radii, fonts, sizes). Mirrors :root values in
+     docs/design/styles.css. Color brushes live in Light.xaml / Dark.xaml. -->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Radii -->
+    <CornerRadius x:Key="RadiusXs">4</CornerRadius>
+    <CornerRadius x:Key="RadiusSm">6</CornerRadius>
+    <CornerRadius x:Key="RadiusMd">8</CornerRadius>
+    <CornerRadius x:Key="RadiusLg">10</CornerRadius>
+    <CornerRadius x:Key="RadiusXl">14</CornerRadius>
+
+    <!-- Fonts -->
+    <FontFamily x:Key="FontSans">Segoe UI Variable, Segoe UI</FontFamily>
+    <FontFamily x:Key="FontDisplay">Segoe UI Variable Display, Segoe UI</FontFamily>
+    <FontFamily x:Key="FontMono">Cascadia Code, Cascadia Mono, Consolas</FontFamily>
+    <FontFamily x:Key="FontIcons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+    <!-- Layout heights -->
+    <sys:Double x:Key="TitleBarHeight">36</sys:Double>
+    <sys:Double x:Key="RibbonTabsHeight">36</sys:Double>
+    <sys:Double x:Key="RibbonSimplifiedHeight">52</sys:Double>
+    <sys:Double x:Key="RibbonClassicHeight">96</sys:Double>
+    <sys:Double x:Key="StatusBarHeight">28</sys:Double>
+
+    <!-- Pane width bounds -->
+    <sys:Double x:Key="SidebarMinWidth">200</sys:Double>
+    <sys:Double x:Key="SidebarMaxWidth">380</sys:Double>
+    <sys:Double x:Key="MailListMinWidth">300</sys:Double>
+    <sys:Double x:Key="MailListMaxWidth">560</sys:Double>
+
+</ResourceDictionary>

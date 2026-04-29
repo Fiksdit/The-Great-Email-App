@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Great Email App — Fluent Desktop Mockup</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="icons.jsx"></script>
+  <script type="text/babel" src="data.jsx"></script>
+  <script type="text/babel" src="ribbon.jsx"></script>
+  <script type="text/babel" src="panes.jsx"></script>
+  <script type="text/babel" src="modals.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "theme": "dark",
+      "accent": "#d4406b",
+      "ribbonStyle": "simplified"
+    }/*EDITMODE-END*/;
+
+    function App() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      const theme = t.theme;
+      const accent = t.accent;
+      const ribbonStyle = t.ribbonStyle;
+      const setTheme = (v) => setTweak('theme', v);
+      const setAccent = (v) => setTweak('accent', v);
+      const setRibbonStyle = (v) => setTweak('ribbonStyle', v);
+
+      const [activeTab, setActiveTab] = useState("Home");
+      const [showSignIn, setShowSignIn] = useState(false);
+      const [showBackstage, setShowBackstage] = useState(false);
+      const [backstageTab, setBackstageTab] = useState("Info");
+      const [showAddAccount, setShowAddAccount] = useState(false);
+      const [showSettings, setShowSettings] = useState(false);
+      const [showAvatarPop, setShowAvatarPop] = useState(false);
+      const [syncOn, setSyncOn] = useState(true);
+      const [density, setDensity] = useState("Cozy");
+      const [filter, setFilter] = useState("All");
+      const [selectedFolder, setSelectedFolder] = useState("inbox");
+      const [selectedEmailId, setSelectedEmailId] = useState("e1");
+      const [zoom, setZoom] = useState(100);
+
+      // Pane widths (resizable)
+      const [sidebarW, setSidebarW] = useState(264);
+      const [maillistW, setMaillistW] = useState(380);
+      const dragRef = useRef(null);
+
+      useEffect(() => {
+        document.documentElement.dataset.theme = (theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches)) ? "dark" : "light";
+      }, [theme]);
+
+      useEffect(() => {
+        document.documentElement.style.setProperty("--accent", accent);
+        // Derive hover/pressed/soft variants
+        const c = accent;
+        document.documentElement.style.setProperty("--accent-hover", lighten(c, 0.12));
+        document.documentElement.style.setProperty("--accent-pressed", darken(c, 0.12));
+        document.documentElement.style.setProperty("--accent-soft", hexA(c, 0.10));
+        document.documentElement.style.setProperty("--accent-softer", hexA(c, 0.06));
+      }, [accent]);
+
+      const onMouseMove = useCallback((e) => {
+        if (!dragRef.current) return;
+        const { which, startX, startW, max, min } = dragRef.current;
+        const dx = e.clientX - startX;
+        const next = clamp(startW + dx, min, max);
+        if (which === "sidebar") setSidebarW(next);
+        if (which === "maillist") setMaillistW(next);
+      }, []);
+      const onMouseUp = useCallback(() => {
+        if (dragRef.current) {
+          dragRef.current.el && dragRef.current.el.classList.remove("dragging");
+        }
+        dragRef.current = null;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      }, []);
+      useEffect(() => {
+        window.addEventListener("mousemove", onMouseMove);
+        window.addEventListener("mouseup", onMouseUp);
+        return () => {
+          window.removeEventListener("mousemove", onMouseMove);
+          window.removeEventListener("mouseup", onMouseUp);
+        };
+      }, [onMouseMove, onMouseUp]);
+
+      const startDrag = (which, e) => {
+        const startW = which === "sidebar" ? sidebarW : maillistW;
+        dragRef.current = {
+          which, startX: e.clientX, startW,
+          min: which === "sidebar" ? 200 : 300,
+          max: which === "sidebar" ? 380 : 560,
+          el: e.currentTarget
+        };
+        e.currentTarget.classList.add("dragging");
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+      };
+
+      const selectedEmail = EMAILS.find(e => e.id === selectedEmailId);
+
+      return (
+        <div className="app-shell">
+          <TitleBar
+            theme={theme}
+            onAvatarClick={() => setShowAvatarPop(p => !p)}
+            onShowSearch={() => {}}
+          />
+          {showAvatarPop && (
+            <AvatarPopover
+              onClose={() => setShowAvatarPop(false)}
+              onSignOut={() => { setShowAvatarPop(false); setShowSignIn(true); }}
+              syncOn={syncOn}
+              setSyncOn={setSyncOn}
+            />
+          )}
+
+          <Ribbon
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            ribbonStyle={ribbonStyle}
+            setRibbonStyle={setRibbonStyle}
+            onFileTab={() => setShowBackstage(true)}
+            onAction={(label) => {
+              if (label === "Settings") setShowSettings(true);
+              else if (label === "Account Settings") { setShowBackstage(true); setBackstageTab("Account"); }
+            }}
+          />
+
+          <div className="app-body">
+            <div className="sidebar" style={{ width: sidebarW }}>
+              <Sidebar
+                accounts={ACCOUNTS}
+                selectedFolder={selectedFolder}
+                onSelectFolder={setSelectedFolder}
+                onAddAccount={() => setShowAddAccount(true)}
+              />
+            </div>
+            <div className="pane-divider" onMouseDown={(e) => startDrag("sidebar", e)} />
+            <div className="maillist" style={{ width: maillistW }}>
+              <MailList
+                emails={EMAILS}
+                selectedId={selectedEmailId}
+                onSelect={setSelectedEmailId}
+                filter={filter}
+                setFilter={setFilter}
+              />
+            </div>
+            <div className="pane-divider" onMouseDown={(e) => startDrag("maillist", e)} />
+            <div className="reading">
+              <ReadingPane email={selectedEmail} />
+            </div>
+          </div>
+
+          <div className="statusbar">
+            <span className="status-dot" />
+            <span>Connected · All folders are up to date · Last sync 2 min ago</span>
+            <span className="status-spacer" />
+            <span>{EMAILS.length} items, {EMAILS.filter(e => e.unread).length} unread</span>
+            <div className="status-zoom">
+              <Icon name="zoomOut" size={13} />
+              <input type="range" className="zoom-slider" min="60" max="160" step="10" value={zoom} onChange={(e) => setZoom(+e.target.value)} />
+              <Icon name="zoomIn" size={13} />
+              <span style={{ width: 36 }}>{zoom}%</span>
+            </div>
+          </div>
+
+          {showBackstage && (
+            <Backstage
+              tab={backstageTab}
+              setTab={setBackstageTab}
+              onClose={() => setShowBackstage(false)}
+              onOpenSettings={() => { setShowBackstage(false); setShowSettings(true); }}
+              onOpenAddAccount={() => { setShowBackstage(false); setShowAddAccount(true); }}
+              onSignOut={() => { setShowBackstage(false); setShowSignIn(true); }}
+            />
+          )}
+          {showAddAccount && <AddAccountModal onClose={() => setShowAddAccount(false)} />}
+          {showSettings && (
+            <SettingsModal
+              onClose={() => setShowSettings(false)}
+              theme={theme} setTheme={setTheme}
+              accent={accent} setAccent={setAccent}
+              density={density} setDensity={setDensity}
+              ribbonStyle={ribbonStyle} setRibbonStyle={setRibbonStyle}
+            />
+          )}
+          {showSignIn && (
+            <SignInScreen
+              onContinue={() => setShowSignIn(false)}
+              onSkip={() => setShowSignIn(false)}
+            />
+          )}
+
+          <TweaksPanel>
+            <TweakSection label="Theme" />
+            <TweakRadio label="Mode" value={theme} options={["light", "dark", "system"]} onChange={(v) => setTheme(v)} />
+            <TweakColor label="Accent color" value={accent} onChange={(v) => setAccent(v)} />
+            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+              {["#3A6FF8", "#14a37f", "#8a5cf5", "#0ea5e9", "#d29014", "#d4406b"].map(c => (
+                <button key={c} onClick={() => setAccent(c)} style={{
+                  width: 22, height: 22, borderRadius: "50%", background: c,
+                  border: accent === c ? "2px solid #29261b" : "2px solid transparent", cursor: "pointer", padding: 0
+                }} />
+              ))}
+            </div>
+            <TweakSection label="Ribbon" />
+            <TweakRadio label="Style" value={ribbonStyle} options={["simplified", "classic"]} onChange={(v) => setRibbonStyle(v)} />
+            <TweakSection label="Quick demo" />
+            <TweakButton label="Open File backstage" onClick={() => setShowBackstage(true)} />
+            <TweakButton label="Open Add Account" onClick={() => setShowAddAccount(true)} />
+            <TweakButton label="Open Settings dialog" onClick={() => setShowSettings(true)} />
+            <TweakButton label="Show first-run sign-in" onClick={() => setShowSignIn(true)} />
+          </TweaksPanel>
+        </div>
+      );
+    }
+
+    // ── helpers ──
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function hexA(hex, a) {
+      const { r, g, b } = parseHex(hex);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+    function parseHex(h) {
+      h = h.replace("#", "");
+      if (h.length === 3) h = h.split("").map(c => c+c).join("");
+      return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+    }
+    function lighten(hex, amt) {
+      const { r, g, b } = parseHex(hex);
+      const f = (x) => Math.round(x + (255 - x) * amt);
+      return `rgb(${f(r)},${f(g)},${f(b)})`;
+    }
+    function darken(hex, amt) {
+      const { r, g, b } = parseHex(hex);
+      const f = (x) => Math.round(x * (1 - amt));
+      return `rgb(${f(r)},${f(g)},${f(b)})`;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

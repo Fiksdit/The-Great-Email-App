@@ -1,0 +1,169 @@
+# The Great Email App — Master Roadmap
+**Created:** 2026-04-29 | **Updated:** 2026-04-29
+**Stack:** WPF + .NET 8 (C#) + MailKit + SQLite + Firebase
+**Owner:** James Reed (coolman0804@outlook.com)
+**Vision:** A clean, fast, native-Windows IMAP email client with Outlook's familiar ribbon UX, dark/light theming, and Firebase-backed settings sync across multiple PCs.
+
+---
+
+## Vision Statement
+
+The Great Email App (TGEA) is a focused desktop email client for power users who run multiple IMAP accounts and want Outlook's familiar ribbon-and-folder layout without the bloat of calendar/tasks/teams. Settings sync via Firebase so installing on a new PC restores all account configs (passwords stay local, in Windows Credential Manager). Built for fiksdit.com IMAP first, but works with any IMAP server.
+
+---
+
+## Priority Tiers
+
+- 🔴 **P0 — Launch Blockers** (must ship before first real user)
+- 🟠 **P1 — High Impact** (core email workflow)
+- 🟡 **P2 — Competitive Parity** (matches Outlook features)
+- 🟢 **P3 — Differentiators** (where TGEA pulls ahead)
+
+---
+
+## 🔴 P0 — Launch Blockers
+
+| ID | Feature | Status | Notes |
+|----|---------|--------|-------|
+| P0-1 | WPF shell — title bar, ribbon, three-pane layout, status bar | 🔧 IN PROGRESS | Phase 1 |
+| P0-2 | Light/dark theme + accent color, tokens from design | 🔧 IN PROGRESS | Phase 1 |
+| P0-3 | Resizable panes (sidebar 200–380, mail list 300–560) | 🔧 IN PROGRESS | Phase 1 |
+| P0-4 | Add Account dialog with IMAP/SMTP fields + Test Connection | 📋 PLANNED | Phase 2 |
+| P0-5 | Windows Credential Manager integration for passwords | 📋 PLANNED | Phase 2 |
+| P0-6 | IMAP connection (MailKit) — list folders, fetch messages | 📋 PLANNED | Phase 2 |
+| P0-7 | Local SQLite cache for messages | 📋 PLANNED | Phase 2 |
+| P0-8 | Send mail via SMTP | 📋 PLANNED | Phase 2 |
+| P0-9 | Settings dialog (General, Accounts, Appearance, Sync) | 📋 PLANNED | Phase 3 |
+| P0-10 | Settings persistence (`settings.json` in `%LOCALAPPDATA%`) | 📋 PLANNED | Phase 3 |
+| P0-11 | Google sign-in (Firebase Auth) | 📋 PLANNED | Phase 4 |
+| P0-12 | Firestore settings sync (push/pull on change + on launch) | 📋 PLANNED | Phase 4 |
+| P0-13 | First-run sign-in screen with skip path | 📋 PLANNED | Phase 4 |
+
+**Status key:** `📋 PLANNED` · `🔧 IN PROGRESS` · `⚠️ PARTIAL` · `✅ DONE`
+
+---
+
+## 🟠 P1 — High Impact
+
+Core email workflow that makes the app actually usable.
+
+| ID | Feature | Status | Notes |
+|----|---------|--------|-------|
+| P1-1 | Compose window (new email, reply, reply all, forward) | 📋 PLANNED | |
+| P1-2 | Attachment handling (download, preview, attach to outgoing) | 📋 PLANNED | |
+| P1-3 | Mark read/unread, flag, archive, delete | 📋 PLANNED | |
+| P1-4 | Move-to-folder | 📋 PLANNED | |
+| P1-5 | Search (server-side IMAP SEARCH + local cache fallback) | 📋 PLANNED | |
+| P1-6 | Auto sync interval (configurable polling per account) | 📋 PLANNED | |
+| P1-7 | IMAP IDLE for real-time push where supported | 📋 PLANNED | |
+| P1-8 | New mail notifications (Windows toast) | 📋 PLANNED | |
+| P1-9 | HTML email rendering with remote-image gating | 📋 PLANNED | |
+| P1-10 | Backstage view (File tab) | 📋 PLANNED | |
+
+---
+
+## 🟡 P2 — Competitive Parity
+
+| ID | Feature | Status | Notes |
+|----|---------|--------|-------|
+| P2-1 | Rules / filters | 📋 PLANNED | |
+| P2-2 | Signatures (per account, per reply-vs-new) | 📋 PLANNED | |
+| P2-3 | Conversation view (threading) | 📋 PLANNED | |
+| P2-4 | Drafts auto-save | 📋 PLANNED | |
+| P2-5 | Address book / contacts | 📋 PLANNED | |
+| P2-6 | Print preview + print | 📋 PLANNED | |
+| P2-7 | Import from .pst / .mbox | 📋 PLANNED | |
+| P2-8 | Export to .eml | 📋 PLANNED | |
+| P2-9 | Multiple identities per account (alias send-as) | 📋 PLANNED | |
+| P2-10 | Density options (Compact / Cozy / Comfortable) | 📋 PLANNED | |
+
+### Technical Debt
+| ID | Item | Status | Notes |
+|----|------|--------|-------|
+| P2-TD-1 | Unit tests for Core (services, parsers) | 📋 PLANNED | xUnit |
+| P2-TD-2 | UI tests (Appium / FlaUI) for critical flows | 📋 PLANNED | |
+| P2-TD-3 | Crash reporting (Sentry or similar) | 📋 PLANNED | |
+| P2-TD-4 | Auto-update mechanism (Squirrel.Windows or velopack) | 📋 PLANNED | |
+
+---
+
+## 🟢 P3 — Differentiators
+
+| ID | Feature | Status | Notes |
+|----|---------|--------|-------|
+| P3-1 | Per-sender remote-image trust list (synced) | 📋 PLANNED | |
+| P3-2 | Quick filters (unread/flagged/has-attachment) as global hotkeys | 📋 PLANNED | |
+| P3-3 | Markdown compose mode | 📋 PLANNED | |
+| P3-4 | OAuth2 IMAP (Google, Microsoft) for accounts that require it | 📋 PLANNED | |
+| P3-5 | End-to-end encrypted notes attached to messages (local-only) | 📋 PLANNED | |
+| P3-6 | Plugin/extension API | 📋 PLANNED | |
+
+---
+
+## Recommended Execution Order
+
+### Phase 1 — Shell (this sprint)
+P0-1, P0-2, P0-3 — visuals match the design with dummy data.
+
+### Phase 2 — IMAP (next)
+P0-4 → P0-8 — accounts can be added, mail flows.
+
+### Phase 3 — Settings
+P0-9, P0-10 — user can configure everything.
+
+### Phase 4 — Firebase sync
+P0-11 → P0-13 — multi-PC parity.
+
+### Phase 5 — P1 polish
+Compose, search, notifications, HTML rendering.
+
+---
+
+## Decision Log
+
+| Decision | Context | Made By | Date | Status |
+|----------|---------|---------|------|--------|
+| Stack: WPF + .NET 8 vs Electron | Windows-native look, MailKit polish, smaller install | James Reed | 2026-04-29 | DECIDED |
+| Passwords stay local (WCM), settings sync via Firebase | Avoids storing creds in cloud; passwords don't leave the IMAP transaction | James Reed | 2026-04-29 | DECIDED |
+| Firebase Auth via Google sign-in only (v1) | Simplest OAuth path; no user-management surface to maintain | James Reed | 2026-04-29 | DECIDED |
+| Last-write-wins for settings sync conflicts | Single user across multiple PCs; CRDT overkill | James Reed | 2026-04-29 | DECIDED |
+| Ribbon style: pro/Outlook-like (vs flat toolbar) | User preference for traditional Outlook look | James Reed | 2026-04-29 | DECIDED |
+
+---
+
+## Known Tech Debt Backlog
+
+| Item | Why Deferred | Target |
+|------|-------------|--------|
+| _(none yet)_ | — | — |
+
+---
+
+## Site / App Health Tracker
+
+| Category | Count | Notes |
+|----------|-------|-------|
+| 🔴 Critical | 0 | |
+| 🟠 High | 0 | |
+| 🟡 Medium | 0 | |
+| ⚪ Low | 0 | |
+| **Total open** | **0** | |
+
+---
+
+## Competitive Analysis
+
+| Competitor | What they do well | Our advantage |
+|------------|------------------|--------------|
+| Microsoft Outlook (classic) | Mature ribbon, calendar integration, Exchange | We're focused: email only, no bloat, free, IMAP-first |
+| Mozilla Thunderbird | OSS, extensible, IMAP-native | We're more polished, Windows-native, ribbon UX |
+| Mailbird | Modern look, multi-account | We sync settings via Firebase, free, no subscription |
+| eM Client | Pro features | We're focused on a single use case, lighter |
+
+---
+
+## Shipped Log
+
+| ID | Feature | Shipped | Notes |
+|----|---------|---------|-------|
+| _(none yet)_ | — | — | — |

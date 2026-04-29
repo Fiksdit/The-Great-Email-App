@@ -1,0 +1,53 @@
+<!-- FILE: src/GreatEmailApp/Controls/StatusBar.xaml
+     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+     Changed by: Claude Opus 4.7 on behalf of James Reed -->
+<UserControl x:Class="GreatEmailApp.Controls.AppStatusBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             Height="{DynamicResource StatusBarHeight}">
+    <Border Background="{DynamicResource Pane2BackgroundBrush}"
+            BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0">
+        <Grid Margin="12,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Connection status -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <Ellipse Width="7" Height="7" Fill="{DynamicResource GreenBrush}" Margin="0,0,8,0" />
+                <TextBlock Text="Connected · All folders are up to date · Last sync 2 min ago"
+                           FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Item count -->
+            <TextBlock Grid.Column="2" VerticalAlignment="Center" Margin="12,0"
+                       FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}">
+                <Run Text="{Binding Messages.Count, Mode=OneWay}" />
+                <Run Text=" items" />
+            </TextBlock>
+
+            <!-- Zoom -->
+            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{StaticResource IconZoomOut}" Style="{StaticResource IconGlyph}"
+                           FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,4,0" />
+                <Slider Width="100"
+                        Minimum="60" Maximum="160" SmallChange="10" LargeChange="10"
+                        Value="{Binding Zoom, Mode=TwoWay}"
+                        VerticalAlignment="Center" />
+                <TextBlock Text="{StaticResource IconZoomIn}" Style="{StaticResource IconGlyph}"
+                           FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="4,0,8,0" />
+                <TextBlock Width="36" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center">
+                    <Run Text="{Binding Zoom, Mode=OneWay}" />
+                    <Run Text="%" />
+                </TextBlock>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

@@ -1,0 +1,66 @@
+<!-- FILE: src/GreatEmailApp/Themes/Icons.xaml
+     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+     Changed by: Claude Opus 4.7 on behalf of James Reed
+     Segoe Fluent Icons glyph codepoints. Reference: https://learn.microsoft.com/en-us/windows/apps/design/style/segoe-fluent-icons-font
+     Use with FontFamily={DynamicResource FontIcons}. -->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Mail / folder -->
+    <sys:String x:Key="IconInbox">&#xE730;</sys:String>          <!-- Inbox -->
+    <sys:String x:Key="IconSent">&#xE724;</sys:String>           <!-- Send -->
+    <sys:String x:Key="IconDrafts">&#xE70F;</sys:String>         <!-- Edit -->
+    <sys:String x:Key="IconTrash">&#xE74D;</sys:String>          <!-- Delete -->
+    <sys:String x:Key="IconArchive">&#xE7B8;</sys:String>        <!-- Archive -->
+    <sys:String x:Key="IconJunk">&#xE730;</sys:String>           <!-- Inbox (junk reuse) -->
+    <sys:String x:Key="IconFolder">&#xE8B7;</sys:String>         <!-- Folder -->
+    <sys:String x:Key="IconMail">&#xE715;</sys:String>           <!-- Mail -->
+    <sys:String x:Key="IconNewMail">&#xE8BD;</sys:String>        <!-- NewMail -->
+
+    <!-- Actions -->
+    <sys:String x:Key="IconReply">&#xE97A;</sys:String>          <!-- Reply -->
+    <sys:String x:Key="IconReplyAll">&#xEE35;</sys:String>       <!-- MailReplyAll -->
+    <sys:String x:Key="IconForward">&#xE72A;</sys:String>        <!-- Forward -->
+    <sys:String x:Key="IconFlag">&#xE7C1;</sys:String>           <!-- Flag -->
+    <sys:String x:Key="IconFlagFilled">&#xEB4B;</sys:String>     <!-- FlagFill -->
+    <sys:String x:Key="IconAttach">&#xE723;</sys:String>         <!-- Attach -->
+    <sys:String x:Key="IconImportant">&#xE171;</sys:String>      <!-- Important -->
+    <sys:String x:Key="IconMore">&#xE712;</sys:String>           <!-- More (...) -->
+    <sys:String x:Key="IconMove">&#xE8DE;</sys:String>           <!-- MoveToFolder -->
+    <sys:String x:Key="IconRules">&#xE8B0;</sys:String>          <!-- Settings (rules placeholder) -->
+
+    <!-- Read state -->
+    <sys:String x:Key="IconRead">&#xE8C3;</sys:String>           <!-- Read -->
+    <sys:String x:Key="IconUnread">&#xE91C;</sys:String>         <!-- MailUnread -->
+
+    <!-- Window -->
+    <sys:String x:Key="IconMin">&#xE921;</sys:String>            <!-- ChromeMinimize -->
+    <sys:String x:Key="IconMax">&#xE922;</sys:String>            <!-- ChromeMaximize -->
+    <sys:String x:Key="IconRestore">&#xE923;</sys:String>        <!-- ChromeRestore -->
+    <sys:String x:Key="IconClose">&#xE8BB;</sys:String>          <!-- ChromeClose -->
+
+    <!-- Misc -->
+    <sys:String x:Key="IconSearch">&#xE721;</sys:String>
+    <sys:String x:Key="IconSync">&#xE895;</sys:String>           <!-- Sync -->
+    <sys:String x:Key="IconChevronDown">&#xE70D;</sys:String>
+    <sys:String x:Key="IconChevronRight">&#xE76C;</sys:String>
+    <sys:String x:Key="IconAdd">&#xE710;</sys:String>
+    <sys:String x:Key="IconSettings">&#xE713;</sys:String>
+    <sys:String x:Key="IconHelp">&#xE897;</sys:String>
+    <sys:String x:Key="IconZoomIn">&#xE8A3;</sys:String>
+    <sys:String x:Key="IconZoomOut">&#xE71F;</sys:String>
+    <sys:String x:Key="IconCheckmark">&#xE73E;</sys:String>
+    <sys:String x:Key="IconPin">&#xE718;</sys:String>
+    <sys:String x:Key="IconCategorize">&#xE7C1;</sys:String>
+    <sys:String x:Key="IconCalendar">&#xE787;</sys:String>
+    <sys:String x:Key="IconContact">&#xE77B;</sys:String>
+    <sys:String x:Key="IconFollowUp">&#xF272;</sys:String>
+    <sys:String x:Key="IconRefresh">&#xE72C;</sys:String>
+    <sys:String x:Key="IconOffline">&#xE703;</sys:String>
+    <sys:String x:Key="IconReadingPane">&#xE161;</sys:String>
+    <sys:String x:Key="IconMicrosoft">&#xE773;</sys:String>
+    <sys:String x:Key="IconStatusOk">&#xE73E;</sys:String>
+
+</ResourceDictionary>

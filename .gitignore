@@ -1,0 +1,50 @@
+# .NET / Visual Studio
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.userprefs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+build/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+!packages/build/
+!packages/repositories.config
+
+# Rider / ReSharper
+.idea/
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# AI session logs — raw shorthand, local only (per project-guidelines)
+Project/sessions/session-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md
+
+# Local app data / runtime
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+appsettings.Development.json
+appsettings.Local.json
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Original design archive (kept extracted under docs/design/)
+Great Email App.zip
