@@ -21,6 +21,7 @@ public partial class Sidebar : UserControl
         if (sender is FrameworkElement fe && fe.Tag is AccountViewModel acc)
         {
             acc.IsExpanded = !acc.IsExpanded;
+            e.Handled = true;
         }
     }
 
@@ -30,6 +31,17 @@ public partial class Sidebar : UserControl
             && DataContext is MainViewModel vm)
         {
             vm.SelectFolderCommand.Execute(folder);
+            e.Handled = true;
+        }
+    }
+
+    private void FolderCaret_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.Tag is FolderViewModel folder && folder.HasChildren)
+        {
+            folder.IsExpanded = !folder.IsExpanded;
+            // Stop the event so it doesn't also fire FolderRow_Click and select the folder.
+            e.Handled = true;
         }
     }
 

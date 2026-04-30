@@ -9,6 +9,7 @@ public enum SpecialFolder
     None,
     Inbox,
     Drafts,
+    Outbox,    // client-side virtual folder — no IMAP equivalent
     Sent,
     Deleted,
     Junk,
@@ -25,4 +26,5 @@ public sealed class Folder
     public int UnreadCount { get; set; }
     public int TotalCount { get; set; }
     public bool IsNested { get; set; }
+    public List<Folder> Children { get; set; } = new();
 }

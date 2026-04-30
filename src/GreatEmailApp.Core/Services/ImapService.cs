@@ -38,8 +38,31 @@ public sealed class ImapService : IImapService
             await ConnectAndAuthenticateAsync(client, account, password, ct);
 
             var result = new List<Folder>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // NOTE: many servers (Dovecot, fiksdit.com) place INBOX OUTSIDE the personal
+            // namespace's subfolder tree — it sits at the root. Always include it explicitly.
+            try
+            {
+                var inbox = client.Inbox;
+                await inbox.StatusAsync(StatusItems.Count | StatusItems.Unread, ct);
+                result.Add(new Folder
+                {
+                    Id = inbox.FullName,
+                    Name = "Inbox",
+                    AccountId = account.Id,
+                    FullPath = inbox.FullName,
+                    Special = Models.SpecialFolder.Inbox,
+                    UnreadCount = inbox.Unread,
+                    TotalCount = inbox.Count,
+                    IsNested = false,
+                });
+                seen.Add(inbox.FullName);
+            }
+            catch { /* if INBOX is genuinely missing the recursion below will catch it */ }
+
             var personal = client.GetFolder(client.PersonalNamespaces[0]);
-            await CollectFoldersAsync(personal, result, account.Id, isNested: false, ct);
+            await CollectFoldersTreeAsync(personal, result, account.Id, isNested: false, ct, seen);
 
             await client.DisconnectAsync(true, ct);
             return Result.Ok(result);
@@ -148,40 +171,54 @@ public sealed class ImapService : IImapService
         await client.AuthenticateAsync(account.Username, password, ct);
     }
 
-    private static async Task CollectFoldersAsync(
-        IMailFolder parent, List<Folder> outList, string accountId, bool isNested, CancellationToken ct)
+    /// <summary>
+    /// Recursively walks the IMAP folder tree, returning a hierarchical list:
+    /// each folder's Children populated with its sub-folders. NoSelect parents
+    /// are skipped but their children are flattened up to the next selectable
+    /// ancestor.
+    /// </summary>
+    private static async Task CollectFoldersTreeAsync(
+        IMailFolder parent, List<Folder> outList, string accountId, bool isNested,
+        CancellationToken ct, HashSet<string> seen)
     {
-        // Top-level enumeration: parent.GetSubfoldersAsync includes nested children depth=1.
         var children = await parent.GetSubfoldersAsync(false, ct);
         foreach (var c in children)
         {
+            if (seen.Contains(c.FullName)) continue;
+            if ((c.Attributes & FolderAttributes.NonExistent) != 0) continue;
+
+            // Non-selectable container: skip the node itself, but keep walking
+            // its children so they show up under whatever real parent we last had.
+            if ((c.Attributes & FolderAttributes.NoSelect) != 0)
+            {
+                if ((c.Attributes & FolderAttributes.HasChildren) != 0)
+                    await CollectFoldersTreeAsync(c, outList, accountId, isNested, ct, seen);
+                continue;
+            }
+
             try
             {
-                if ((c.Attributes & FolderAttributes.NonExistent) != 0) continue;
-                if ((c.Attributes & FolderAttributes.NoSelect) != 0) { /* still recurse */ }
-                else
-                {
-                    await c.StatusAsync(StatusItems.Count | StatusItems.Unread, ct);
-                }
+                await c.StatusAsync(StatusItems.Count | StatusItems.Unread, ct);
             }
             catch { /* status fetch is best-effort */ }
 
-            outList.Add(new Folder
+            var f = new Folder
             {
                 Id = c.FullName,
                 Name = c.Name,
                 AccountId = accountId,
                 FullPath = c.FullName,
                 Special = MapSpecial(c),
-                UnreadCount = (c.Attributes & FolderAttributes.NoSelect) != 0 ? 0 : c.Unread,
-                TotalCount = (c.Attributes & FolderAttributes.NoSelect) != 0 ? 0 : c.Count,
+                UnreadCount = c.Unread,
+                TotalCount = c.Count,
                 IsNested = isNested,
-            });
+            };
+            outList.Add(f);
+            seen.Add(c.FullName);
 
-            // Recurse one level deep (matches design — Newsletters/Receipts/Travel etc.)
             if ((c.Attributes & FolderAttributes.HasChildren) != 0)
             {
-                await CollectFoldersAsync(c, outList, accountId, isNested: true, ct);
+                await CollectFoldersTreeAsync(c, f.Children, accountId, isNested: true, ct, seen);
             }
         }
     }

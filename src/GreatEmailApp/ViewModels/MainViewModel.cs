@@ -125,7 +125,40 @@ public partial class MainViewModel : ObservableObject
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 accountVm.Folders.Clear();
-                foreach (var f in ok.Value)
+
+                // ok.Value contains the top-level folders; each folder's Children
+                // collection holds its sub-tree (FolderViewModel ctor recurses).
+
+                // Inject synthetic Outbox — IMAP doesn't have one, but Outlook UX
+                // expects it. FullPath="" tells SelectFolderAsync to skip IMAP fetch.
+                var roots = ok.Value.ToList();
+                roots.Add(new Folder
+                {
+                    Id = $"{account.Id}:outbox",
+                    Name = "Outbox",
+                    AccountId = account.Id,
+                    FullPath = "",
+                    Special = SpecialFolder.Outbox,
+                });
+
+                // Outlook-style ordering at the root: special folders in fixed order,
+                // everything else alphabetical.
+                var sorted = roots
+                    .OrderBy(f => f.Special switch
+                    {
+                        SpecialFolder.Inbox   => 0,
+                        SpecialFolder.Drafts  => 1,
+                        SpecialFolder.Outbox  => 2,
+                        SpecialFolder.Sent    => 3,
+                        SpecialFolder.Archive => 4,
+                        SpecialFolder.Junk    => 5,
+                        SpecialFolder.Deleted => 6,
+                        _                     => 100,
+                    })
+                    .ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                foreach (var f in sorted)
                 {
                     f.AccountId = account.Id;
                     accountVm.Folders.Add(new FolderViewModel(f));
@@ -176,6 +209,15 @@ public partial class MainViewModel : ObservableObject
 
         // Demo mode: don't hit a server
         if (!HasAccounts) return;
+
+        // Synthetic folders (Outbox) — no IMAP path, just show empty.
+        if (string.IsNullOrEmpty(folder.Model.FullPath))
+        {
+            Messages.Clear();
+            SelectedMessage = null;
+            StatusMessage = $"{folder.Name}: empty.";
+            return;
+        }
 
         var account = Accounts.FirstOrDefault(a => a.Model.Id == folder.Model.AccountId)?.Model;
         if (account is null) return;
