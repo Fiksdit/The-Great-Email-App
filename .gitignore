@@ -52,3 +52,6 @@ desktop.ini
 
 # Original design archive (kept extracted under docs/design/)
 Great Email App.zip
+
+# Release output of scripts/publish.ps1 — uploaded to GitHub Releases, not committed.
+dist/

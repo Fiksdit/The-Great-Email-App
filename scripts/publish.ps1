@@ -27,7 +27,7 @@ $ErrorActionPreference = "Stop"
 $Root      = Split-Path -Parent $PSScriptRoot
 $Csproj    = Join-Path $Root "src/GreatEmailApp/GreatEmailApp.csproj"
 $DistDir   = Join-Path $Root "dist"
-$PublishDir = Join-Path $Root "src/GreatEmailApp/bin/$Configuration/net8.0-windows/publish"
+$PublishDir = Join-Path $Root "src/GreatEmailApp/bin/$Configuration/net8.0-windows/win-x64/publish"
 
 if ($Version) {
     Write-Host "→ Bumping version to $Version in $Csproj" -ForegroundColor Cyan
