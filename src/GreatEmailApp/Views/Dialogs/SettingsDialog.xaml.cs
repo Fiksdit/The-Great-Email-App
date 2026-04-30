@@ -26,6 +26,9 @@ public partial class SettingsDialog : Window
         DataContext = _vm;
     }
 
+    /// <summary>Programmatic tab switch — call before <c>ShowDialog</c>.</summary>
+    public void OpenOnTab(string tag) => _vm.ActiveTab = tag;
+
     private void Close_Click(object sender, RoutedEventArgs e)
     {
         // Persist on close. Theme/accent already applied live.

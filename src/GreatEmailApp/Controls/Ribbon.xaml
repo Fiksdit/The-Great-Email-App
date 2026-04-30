@@ -329,7 +329,7 @@
                         <Button Style="{StaticResource RibbonItemButton}">
                             <StackPanel><TextBlock Text="{StaticResource IconContact}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Account Settings" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                         </Button>
-                        <Button Style="{StaticResource RibbonItemButton}">
+                        <Button Style="{StaticResource RibbonItemButton}" Click="OnCheckForUpdates_Click">
                             <StackPanel><TextBlock Text="{StaticResource IconRefresh}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Check for Updates" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                         </Button>
                     </StackPanel>

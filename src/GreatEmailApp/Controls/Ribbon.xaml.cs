@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/Ribbon.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Windows;
@@ -44,6 +44,21 @@ public partial class Ribbon : UserControl
         {
             Owner = Window.GetWindow(this),
         };
+        dlg.ShowDialog();
+        if (dlg.AccountsChanged && DataContext is MainViewModel vm)
+        {
+            vm.ReloadAccounts();
+        }
+    }
+
+    /// <summary>
+    /// Help → Check for Updates: just open Settings on the About tab.
+    /// All update logic lives there; ribbon button is a shortcut, not a duplicate.
+    /// </summary>
+    private void OnCheckForUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new SettingsDialog { Owner = Window.GetWindow(this) };
+        dlg.OpenOnTab("About");
         dlg.ShowDialog();
         if (dlg.AccountsChanged && DataContext is MainViewModel vm)
         {
