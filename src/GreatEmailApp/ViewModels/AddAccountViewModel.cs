@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/AddAccountViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Threading;
@@ -90,8 +90,11 @@ public partial class AddAccountViewModel : ObservableObject
         try
         {
             if (!_userEditedUsername)    Username = value;
-            if (!_userEditedImapHost)    ImapHost = $"imap.{domain}";
-            if (!_userEditedSmtpHost)    SmtpHost = $"smtp.{domain}";
+            // Both IMAP and SMTP live on mail.{domain} for our hosting (fiksdit.com
+            // and most cPanel-style providers). Users on Gmail/Outlook will edit
+            // these manually, which is fine — _userEditedXHost stops the autofill.
+            if (!_userEditedImapHost)    ImapHost = $"mail.{domain}";
+            if (!_userEditedSmtpHost)    SmtpHost = $"mail.{domain}";
             if (!_userEditedDisplayName) DisplayName = char.ToUpper(value[0]) + value[1..at];
         }
         finally { _autoFilling = false; }
