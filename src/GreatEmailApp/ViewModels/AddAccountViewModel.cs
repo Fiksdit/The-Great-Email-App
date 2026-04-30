@@ -36,25 +36,44 @@ public partial class AddAccountViewModel : ObservableObject
     [ObservableProperty] private TestStatus testStatus = TestStatus.Idle;
     [ObservableProperty] private string testMessage = "";
 
+    // NOTE: track which fields the user has manually edited so we can keep
+    // refreshing the auto-fill from the email address as they type, but stop
+    // overwriting once they've taken control of a field.
+    private bool _autoFilling;
+    private bool _userEditedDisplayName;
+    private bool _userEditedUsername;
+    private bool _userEditedImapHost;
+    private bool _userEditedSmtpHost;
+
     public AddAccountViewModel(IImapService imap)
     {
         _imap = imap;
     }
 
-    /// <summary>Auto-populate IMAP/SMTP from the email domain on first plausible value.</summary>
+    /// <summary>Auto-populate IMAP/SMTP/username/display name from the email
+    /// domain on every keystroke — until the user manually edits a field.</summary>
     partial void OnEmailAddressChanged(string value)
     {
         var at = value.IndexOf('@');
         if (at <= 0 || at == value.Length - 1) return;
-
-        // Only pre-fill if user hasn't typed anything yet.
-        if (string.IsNullOrWhiteSpace(Username)) Username = value;
         var domain = value[(at + 1)..].Trim();
-        if (string.IsNullOrWhiteSpace(ImapHost)) ImapHost = $"imap.{domain}";
-        if (string.IsNullOrWhiteSpace(SmtpHost)) SmtpHost = $"smtp.{domain}";
-        if (string.IsNullOrWhiteSpace(DisplayName))
-            DisplayName = char.ToUpper(value[0]) + value[1..at];
+        if (string.IsNullOrEmpty(domain)) return;
+
+        _autoFilling = true;
+        try
+        {
+            if (!_userEditedUsername)    Username = value;
+            if (!_userEditedImapHost)    ImapHost = $"imap.{domain}";
+            if (!_userEditedSmtpHost)    SmtpHost = $"smtp.{domain}";
+            if (!_userEditedDisplayName) DisplayName = char.ToUpper(value[0]) + value[1..at];
+        }
+        finally { _autoFilling = false; }
     }
+
+    partial void OnDisplayNameChanged(string value) { if (!_autoFilling) _userEditedDisplayName = true; }
+    partial void OnUsernameChanged(string value)    { if (!_autoFilling) _userEditedUsername = true; }
+    partial void OnImapHostChanged(string value)    { if (!_autoFilling) _userEditedImapHost = true; }
+    partial void OnSmtpHostChanged(string value)    { if (!_autoFilling) _userEditedSmtpHost = true; }
 
     public async Task<Result<bool>> TestAsync(string password, CancellationToken ct = default)
     {
