@@ -30,6 +30,22 @@ public partial class AddAccountViewModel : ObservableObject
     [ObservableProperty] private MailEncryption smtpEncryption = MailEncryption.SslTls;
 
     [ObservableProperty] private string username = "";
+
+    // NOTE: ComboBox.SelectedValue + SelectedValuePath proved fragile across XAML init
+    // ordering (the dropdowns rendered blank). Switched to SelectedItem on a wrapper
+    // record; setting the wrapper updates the underlying enum, and on construction we
+    // pre-select the option matching the default enum value.
+    [ObservableProperty] private EncryptionOption? selectedImapOption;
+    [ObservableProperty] private EncryptionOption? selectedSmtpOption;
+
+    partial void OnSelectedImapOptionChanged(EncryptionOption? value)
+    {
+        if (value is not null) ImapEncryption = value.Value;
+    }
+    partial void OnSelectedSmtpOptionChanged(EncryptionOption? value)
+    {
+        if (value is not null) SmtpEncryption = value.Value;
+    }
     // NOTE: password is NOT stored on this VM beyond the dialog's lifetime.
     // The dialog reads it from a PasswordBox at save-time and hands it to the
     // credential store, then clears it. See rulebook §7.
@@ -57,6 +73,8 @@ public partial class AddAccountViewModel : ObservableObject
     public AddAccountViewModel(IImapService imap)
     {
         _imap = imap;
+        SelectedImapOption = EncryptionOptions.First(o => o.Value == ImapEncryption);
+        SelectedSmtpOption = EncryptionOptions.First(o => o.Value == SmtpEncryption);
     }
 
     /// <summary>Auto-populate IMAP/SMTP/username/display name from the email
