@@ -1,8 +1,10 @@
 // FILE: src/GreatEmailApp/App.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 3
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
+using System.IO;
 using System.Windows;
+using GreatEmailApp.Core.Config;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Services;
 using GreatEmailApp.Core.Storage;
@@ -20,12 +22,15 @@ public partial class App : Application
     public static IAccountStore Accounts { get; private set; } = null!;
     public static ISettingsStore SettingsStore { get; private set; } = null!;
     public static AppSettings Settings { get; set; } = null!;
+    public static AppConfig Config { get; private set; } = null!;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         AppPaths.EnsureRoot();
+
+        Config = AppConfig.Load(Path.Combine(AppContext.BaseDirectory, "appsettings.json"));
 
         Imap = new ImapService();
         Credentials = new WindowsCredentialStore();
