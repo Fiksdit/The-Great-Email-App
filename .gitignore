@@ -16,6 +16,10 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# Project/logs/ is the permanent fix log per rulebook §16 — committed.
+!Project/logs/
+!Project/logs/**
+
 # NuGet
 *.nupkg
 *.snupkg
