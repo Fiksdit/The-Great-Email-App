@@ -91,14 +91,21 @@
                                 </StackPanel>
                             </Button>
                             <Border Width="1" Margin="8,4" Background="{DynamicResource DividerBrush}" />
-                            <Button Style="{StaticResource SubtleButton}" Padding="8,7">
+                            <Button Style="{StaticResource SubtleButton}" Padding="8,7" ToolTip="Archive"
+                                    Command="{Binding DataContext.ArchiveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                 <TextBlock Text="{StaticResource IconArchive}" Style="{StaticResource IconGlyph}" FontSize="13" />
                             </Button>
-                            <Button Style="{StaticResource SubtleButton}" Padding="8,7">
+                            <Button Style="{StaticResource SubtleButton}" Padding="8,7" ToolTip="Delete"
+                                    Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                 <TextBlock Text="{StaticResource IconTrash}" Style="{StaticResource IconGlyph}" FontSize="13" />
                             </Button>
-                            <Button Style="{StaticResource SubtleButton}" Padding="8,7">
+                            <Button Style="{StaticResource SubtleButton}" Padding="8,7" ToolTip="Flag"
+                                    Command="{Binding DataContext.ToggleFlagCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                 <TextBlock Text="{StaticResource IconFlag}" Style="{StaticResource IconGlyph}" FontSize="13" />
+                            </Button>
+                            <Button Style="{StaticResource SubtleButton}" Padding="8,7" ToolTip="Mark read/unread"
+                                    Command="{Binding DataContext.ToggleReadCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <TextBlock Text="{StaticResource IconUnread}" Style="{StaticResource IconGlyph}" FontSize="13" />
                             </Button>
                             <Button Style="{StaticResource SubtleButton}" Padding="8,7">
                                 <TextBlock Text="{StaticResource IconMore}" Style="{StaticResource IconGlyph}" FontSize="13" />

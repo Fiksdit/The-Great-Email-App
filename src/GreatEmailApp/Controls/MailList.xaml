@@ -96,7 +96,26 @@
 
                                 <Border x:Name="Row" Background="Transparent" CornerRadius="6"
                                         Margin="6,1" Padding="0"
-                                        MouseLeftButtonDown="Row_Click" Tag="{Binding}">
+                                        MouseLeftButtonDown="Row_Click"
+                                        PreviewMouseRightButtonDown="Row_RightClick"
+                                        Tag="{Binding}">
+                                    <Border.ContextMenu>
+                                        <ContextMenu Opened="MessageMenu_Opened">
+                                            <MenuItem Header="Reply" Click="Reply_Click" />
+                                            <MenuItem Header="Reply All" Click="ReplyAll_Click" />
+                                            <MenuItem Header="Forward" Click="Forward_Click" />
+                                            <Separator Style="{StaticResource MenuSeparatorStyle}" />
+                                            <MenuItem Header="Mark Read / Unread" Click="ToggleRead_Click" />
+                                            <MenuItem Header="Flag / Unflag" Click="ToggleFlag_Click" />
+                                            <Separator Style="{StaticResource MenuSeparatorStyle}" />
+                                            <MenuItem Header="Archive" Click="Archive_Click" />
+                                            <MenuItem x:Name="MoveToMenu" Header="Move to…" />
+                                            <MenuItem Header="Junk" Click="Junk_Click" />
+                                            <MenuItem Header="Delete" Click="Delete_Click" />
+                                            <Separator Style="{StaticResource MenuSeparatorStyle}" />
+                                            <MenuItem Header="Create rule from sender…" Click="CreateRule_Click" />
+                                        </ContextMenu>
+                                    </Border.ContextMenu>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="3" />

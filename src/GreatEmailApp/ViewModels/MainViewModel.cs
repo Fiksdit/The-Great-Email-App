@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GreatEmailApp.Core.Models;
@@ -40,6 +41,8 @@ public partial class MainViewModel : ObservableObject
 
     private CancellationTokenSource? _messageLoadCts;
     private CancellationTokenSource? _bodyLoadCts;
+    private DispatcherTimer? _markReadTimer;
+    private MessageViewModel? _markReadPending;
 
     public MainViewModel() : this(App.Imap, App.Credentials, App.Accounts) { }
 
@@ -269,6 +272,10 @@ public partial class MainViewModel : ObservableObject
         message.IsSelected = true;
         SelectedMessage = message;
 
+        // Cancel any pending mark-as-read for the previously selected message,
+        // then arm a new timer for THIS one.
+        CancelPendingMarkRead();
+
         if (!HasAccounts) return;
         if (string.IsNullOrEmpty(message.Model.AccountId)) return;
 
@@ -290,11 +297,253 @@ public partial class MainViewModel : ObservableObject
         {
             message.Model.BodyPlain = ok.Value.PlainText;
             message.Model.BodyHtml = ok.Value.Html;
-            // Force a re-bind via OnPropertyChanged
             message.OnBodyLoaded();
-            // SelectedMessage didn't change, but the body did — re-emit to refresh reading pane bindings.
             OnPropertyChanged(nameof(SelectedMessage));
         }
+
+        // Auto-mark-as-read after the configured delay (settings.MarkReadDelaySeconds).
+        // -1 = never; 0 = immediately; otherwise wait N seconds and confirm we're
+        // still on this same message before marking.
+        ArmMarkReadTimer(message);
+    }
+
+    private void ArmMarkReadTimer(MessageViewModel message)
+    {
+        if (!message.Unread) return;
+        var delay = App.Settings.MarkReadDelaySeconds;
+        if (delay < 0) return;
+        if (delay == 0) { _ = MarkAsReadAsync(message); return; }
+
+        _markReadPending = message;
+        _markReadTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(delay) };
+        _markReadTimer.Tick += async (_, _) =>
+        {
+            _markReadTimer?.Stop();
+            _markReadTimer = null;
+            // Only mark if the user is still looking at this message.
+            if (_markReadPending == message && SelectedMessage == message)
+            {
+                await MarkAsReadAsync(message);
+            }
+            _markReadPending = null;
+        };
+        _markReadTimer.Start();
+    }
+
+    private void CancelPendingMarkRead()
+    {
+        _markReadTimer?.Stop();
+        _markReadTimer = null;
+        _markReadPending = null;
+    }
+
+    private async Task MarkAsReadAsync(MessageViewModel message)
+    {
+        if (!message.Unread) return;
+        await SetReadStateAsync(message, seen: true, silent: true);
+    }
+
+    private async Task SetReadStateAsync(MessageViewModel message, bool seen, bool silent)
+    {
+        var account = Accounts.FirstOrDefault(a => a.Model.Id == message.Model.AccountId)?.Model;
+        if (account is null) return;
+        var creds = _creds.Read(account.Id);
+        if (creds is null) return;
+        if (!uint.TryParse(message.Model.Id, out var uid)) return;
+
+        var res = await _imap.SetSeenAsync(account, creds.Value.Password, message.Model.FolderId, uid, seen);
+        if (res.IsOk)
+        {
+            message.Model.Unread = !seen;
+            message.OnReadStateChanged();
+            // Update the folder's unread count in the sidebar
+            UpdateFolderUnreadCount(message.Model.FolderId, seen ? -1 : +1);
+        }
+        else if (!silent)
+        {
+            StatusMessage = $"Failed: {res.AsError}";
+        }
+    }
+
+    private void UpdateFolderUnreadCount(string folderPath, int delta)
+    {
+        foreach (var acc in Accounts)
+        {
+            var match = FindFolder(acc.Folders, folderPath);
+            if (match is not null)
+            {
+                match.Model.UnreadCount = Math.Max(0, match.Model.UnreadCount + delta);
+                match.OnUnreadChanged();
+                return;
+            }
+        }
+    }
+
+    private static FolderViewModel? FindFolder(IEnumerable<FolderViewModel> folders, string path)
+    {
+        foreach (var f in folders)
+        {
+            if (f.Model.FullPath == path) return f;
+            var inner = FindFolder(f.Children, path);
+            if (inner is not null) return inner;
+        }
+        return null;
+    }
+
+    [RelayCommand]
+    private async Task ToggleReadAsync(MessageViewModel? message)
+    {
+        var m = message ?? SelectedMessage;
+        if (m is null) return;
+        await SetReadStateAsync(m, seen: m.Unread, silent: false);
+    }
+
+    [RelayCommand]
+    private async Task ToggleFlagAsync(MessageViewModel? message)
+    {
+        var m = message ?? SelectedMessage;
+        if (m is null) return;
+        var account = Accounts.FirstOrDefault(a => a.Model.Id == m.Model.AccountId)?.Model;
+        if (account is null) return;
+        var creds = _creds.Read(account.Id);
+        if (creds is null) return;
+        if (!uint.TryParse(m.Model.Id, out var uid)) return;
+
+        var newFlagged = !m.Flagged;
+        var res = await _imap.SetFlaggedAsync(account, creds.Value.Password, m.Model.FolderId, uid, newFlagged);
+        if (res.IsOk)
+        {
+            m.Model.Flagged = newFlagged;
+            m.OnFlagStateChanged();
+        }
+        else
+        {
+            StatusMessage = $"Failed: {res.AsError}";
+        }
+    }
+
+    [RelayCommand]
+    private Task ArchiveAsync(MessageViewModel? message)
+        => MoveToSpecialAsync(message ?? SelectedMessage, SpecialFolder.Archive, "Archived");
+
+    [RelayCommand]
+    private Task DeleteAsync(MessageViewModel? message)
+        => MoveToSpecialAsync(message ?? SelectedMessage, SpecialFolder.Deleted, "Deleted");
+
+    [RelayCommand]
+    private Task JunkAsync(MessageViewModel? message)
+        => MoveToSpecialAsync(message ?? SelectedMessage, SpecialFolder.Junk, "Marked as junk");
+
+    private async Task MoveToSpecialAsync(MessageViewModel? m, SpecialFolder dst, string verb)
+    {
+        if (m is null) return;
+        var account = Accounts.FirstOrDefault(a => a.Model.Id == m.Model.AccountId)?.Model;
+        if (account is null) return;
+        var creds = _creds.Read(account.Id);
+        if (creds is null) return;
+        if (!uint.TryParse(m.Model.Id, out var uid)) return;
+
+        StatusMessage = $"Moving to {dst}…";
+        var res = await _imap.MoveToSpecialAsync(account, creds.Value.Password, m.Model.FolderId, uid, dst);
+        if (res is Result<string>.Ok)
+        {
+            // Optimistic UI: drop the message from the current list.
+            if (m.Unread) UpdateFolderUnreadCount(m.Model.FolderId, -1);
+            Messages.Remove(m);
+            if (SelectedMessage == m) SelectedMessage = Messages.FirstOrDefault();
+            MarkGroupTransitions();
+            StatusMessage = verb;
+        }
+        else if (res is Result<string>.Fail f)
+        {
+            StatusMessage = $"Couldn't move: {f.Error}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task MoveToFolderAsync((MessageViewModel msg, FolderViewModel folder) p)
+    {
+        var (m, f) = p;
+        if (m is null || f is null || string.IsNullOrEmpty(f.Model.FullPath)) return;
+        var account = Accounts.FirstOrDefault(a => a.Model.Id == m.Model.AccountId)?.Model;
+        if (account is null) return;
+        var creds = _creds.Read(account.Id);
+        if (creds is null) return;
+        if (!uint.TryParse(m.Model.Id, out var uid)) return;
+        if (m.Model.FolderId == f.Model.FullPath) return;
+
+        StatusMessage = $"Moving to {f.Name}…";
+        var res = await _imap.MoveToFolderAsync(account, creds.Value.Password,
+            m.Model.FolderId, uid, f.Model.FullPath);
+        if (res.IsOk)
+        {
+            if (m.Unread) UpdateFolderUnreadCount(m.Model.FolderId, -1);
+            Messages.Remove(m);
+            if (SelectedMessage == m) SelectedMessage = Messages.FirstOrDefault();
+            MarkGroupTransitions();
+            StatusMessage = $"Moved to {f.Name}.";
+        }
+        else
+        {
+            StatusMessage = $"Couldn't move: {res.AsError}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task MarkFolderReadAsync(FolderViewModel? folder)
+    {
+        if (folder is null || folder.UnreadCount == 0) return;
+        if (string.IsNullOrEmpty(folder.Model.FullPath)) return;
+
+        // Walk the currently loaded message list and mark each unread one.
+        // NOTE: doesn't touch messages that are on the server but not loaded
+        // (the §14 fetch limit is 200). A full server-side STORE on all uids
+        // lands when we add the SQLite cache.
+        var unread = Messages.Where(m => m.Unread && m.Model.FolderId == folder.Model.FullPath).ToList();
+        foreach (var m in unread)
+            await SetReadStateAsync(m, seen: true, silent: true);
+        StatusMessage = $"{folder.Name}: {unread.Count} message(s) marked read.";
+    }
+
+    [RelayCommand]
+    private void CreateRuleFromMessage(MessageViewModel? message)
+    {
+        if (message is null) return;
+        // P3-AI-1: opens a Rule Builder dialog with sender/subject pre-populated.
+        // For now, surface a placeholder so the menu item is wired.
+        MessageBox.Show(
+            $"Rule from {message.SenderEmail}\n\nThe rules engine arrives in a future release. " +
+            "It'll let you say things like 'when from this sender → move to Vendors / mark read / flag'.",
+            "Create rule",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    [RelayCommand]
+    private void NewSubfolder(FolderViewModel? parent)
+    {
+        MessageBox.Show("New subfolder UI lands soon.", "New subfolder",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    [RelayCommand]
+    private void RenameFolder(FolderViewModel? folder)
+    {
+        MessageBox.Show("Rename folder UI lands soon.", "Rename folder",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    [RelayCommand]
+    private void DeleteFolder(FolderViewModel? folder)
+    {
+        MessageBox.Show("Delete folder UI lands soon.", "Delete folder",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    [RelayCommand]
+    private void EmptyFolder(FolderViewModel? folder)
+    {
+        MessageBox.Show("Empty folder UI lands soon.", "Empty folder",
+            MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     [RelayCommand]

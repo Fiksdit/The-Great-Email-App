@@ -98,6 +98,16 @@ Core email workflow that makes the app actually usable.
 | P3-5 | End-to-end encrypted notes attached to messages (local-only) | 📋 PLANNED | |
 | P3-6 | Plugin/extension API | 📋 PLANNED | |
 
+### AI / Automation
+
+| ID | Feature | Status | Notes |
+|----|---------|--------|-------|
+| P3-AI-1 | **Rules engine** — user-defined IF/THEN rules (sender / subject / body / has-attachment → move / flag / mark read / forward / run-rule) | 📋 PLANNED | Server-side IMAP filters where possible, client-side fallback. UI: Rules dialog with rule list + builder. |
+| P3-AI-2 | **Ollama integration** — local LLM helps prioritize and sort the inbox throughout the day | 📋 PLANNED | Background service polls Inbox at the SyncInterval, asks a local Ollama model (e.g. `llama3.1:8b` or `qwen2.5:7b`) to score importance / category. Writes a per-message metadata sidecar (priority 1-5, suggested folder, summary). UI surfaces priority badge in mail list + a "Triage" view. |
+| P3-AI-3 | **AI-suggested replies** — Ollama drafts a reply the user can edit | 📋 PLANNED | Reply button gets an AI dropdown alongside the regular send. Draft sits in the compose window for review — never auto-sent. |
+| P3-AI-4 | **AI summarization** — long thread → 3-bullet summary in reading pane | 📋 PLANNED | Lazy: only when user clicks "Summarize". Cached per message id. |
+| P3-AI-5 | **Privacy-first AI settings** — Ollama endpoint / model picker / opt-in per feature | 📋 PLANNED | All AI off by default. Endpoint defaults to `http://localhost:11434`. Each feature has its own toggle. No data leaves the LAN unless user explicitly points at a remote endpoint. |
+
 ---
 
 ## Recommended Execution Order

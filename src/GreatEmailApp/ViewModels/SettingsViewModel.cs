@@ -22,6 +22,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private DensityMode density;
     [ObservableProperty] private RibbonStyle ribbon;
 
+    [ObservableProperty] private bool showHtml;
+    [ObservableProperty] private int markReadDelaySeconds;
+    [ObservableProperty] private int syncIntervalMinutes;
+
     public string[] Accents { get; } = new[]
     {
         "#3A6FF8", "#14a37f", "#8a5cf5", "#0ea5e9", "#d29014", "#d4406b",
@@ -41,6 +45,9 @@ public partial class SettingsViewModel : ObservableObject
         accent = settings.Accent;
         density = settings.Density;
         ribbon = settings.Ribbon;
+        showHtml = settings.ShowHtml;
+        markReadDelaySeconds = settings.MarkReadDelaySeconds;
+        syncIntervalMinutes = settings.SyncIntervalMinutes;
 
         foreach (var a in _accountStore.LoadAll())
             ManagedAccounts.Add(a);
@@ -60,6 +67,9 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnDensityChanged(DensityMode value) => _settings.Density = value;
     partial void OnRibbonChanged(RibbonStyle value) => _settings.Ribbon = value;
+    partial void OnShowHtmlChanged(bool value) => _settings.ShowHtml = value;
+    partial void OnMarkReadDelaySecondsChanged(int value) => _settings.MarkReadDelaySeconds = value;
+    partial void OnSyncIntervalMinutesChanged(int value) => _settings.SyncIntervalMinutes = value;
 
     private void ApplyLive()
     {

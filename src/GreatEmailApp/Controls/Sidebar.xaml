@@ -22,7 +22,21 @@
             <StackPanel>
                 <Border x:Name="FolderRow" Background="Transparent" CornerRadius="6"
                         Margin="6,1" Cursor="Hand"
-                        MouseLeftButtonDown="FolderRow_Click" Tag="{Binding}">
+                        MouseLeftButtonDown="FolderRow_Click"
+                        PreviewMouseRightButtonDown="FolderRow_RightClick"
+                        Tag="{Binding}">
+                    <Border.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Open" Click="OpenFolder_Click" />
+                            <MenuItem Header="Mark all as read" Click="MarkFolderRead_Click" />
+                            <Separator Style="{StaticResource MenuSeparatorStyle}" />
+                            <MenuItem Header="New subfolder…" Click="NewSubfolder_Click" />
+                            <MenuItem Header="Rename folder…" Click="RenameFolder_Click" />
+                            <MenuItem Header="Delete folder…" Click="DeleteFolder_Click" />
+                            <Separator Style="{StaticResource MenuSeparatorStyle}" />
+                            <MenuItem Header="Empty folder…" Click="EmptyFolder_Click" />
+                        </ContextMenu>
+                    </Border.ContextMenu>
                     <Grid Height="28">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="20" />     <!-- caret area -->

@@ -23,6 +23,13 @@ public partial class FolderViewModel : ObservableObject
     public bool IsNested => Model.IsNested;
     public bool HasChildren => Children.Count > 0;
 
+    /// <summary>Re-emit unread bindings so the sidebar chip refreshes.</summary>
+    public void OnUnreadChanged()
+    {
+        OnPropertyChanged(nameof(UnreadCount));
+        OnPropertyChanged(nameof(HasUnread));
+    }
+
     public string IconKey => Model.Special switch
     {
         SpecialFolder.Inbox => "IconInbox",

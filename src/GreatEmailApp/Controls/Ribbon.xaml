@@ -215,13 +215,13 @@
                                 </StackPanel>
                             </Button>
                             <Border Style="{StaticResource GroupSep}" />
-                            <Button Style="{StaticResource RibbonItemButton}">
+                            <Button Style="{StaticResource RibbonItemButton}" Command="{Binding DeleteCommand}">
                                 <StackPanel><TextBlock Text="{StaticResource IconTrash}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Delete" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
-                            <Button Style="{StaticResource RibbonItemButton}">
+                            <Button Style="{StaticResource RibbonItemButton}" Command="{Binding ArchiveCommand}">
                                 <StackPanel><TextBlock Text="{StaticResource IconArchive}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Archive" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
-                            <Button Style="{StaticResource RibbonItemButton}">
+                            <Button Style="{StaticResource RibbonItemButton}" Command="{Binding JunkCommand}">
                                 <StackPanel><TextBlock Text="{StaticResource IconJunk}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Junk" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
                             <Border Style="{StaticResource GroupSep}" />
@@ -241,15 +241,15 @@
                             <Button Style="{StaticResource RibbonItemButton}">
                                 <StackPanel><TextBlock Text="{StaticResource IconRules}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Rules" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
-                            <Button Style="{StaticResource RibbonItemButton}">
-                                <StackPanel><TextBlock Text="{StaticResource IconUnread}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Mark Unread" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            <Button Style="{StaticResource RibbonItemButton}" Command="{Binding ToggleReadCommand}">
+                                <StackPanel><TextBlock Text="{StaticResource IconUnread}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Mark Read/Unread" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
                             <Border Style="{StaticResource GroupSep}" />
                             <Button Style="{StaticResource RibbonItemButton}">
                                 <StackPanel><TextBlock Text="{StaticResource IconCategorize}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Categorize" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
-                            <Button Style="{StaticResource RibbonItemButton}">
-                                <StackPanel><TextBlock Text="{StaticResource IconFollowUp}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Follow Up" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            <Button Style="{StaticResource RibbonItemButton}" Command="{Binding ToggleFlagCommand}">
+                                <StackPanel><TextBlock Text="{StaticResource IconFollowUp}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Flag" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
                             <Button Style="{StaticResource RibbonItemButton}">
                                 <StackPanel><TextBlock Text="{StaticResource IconContact}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Search People" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>

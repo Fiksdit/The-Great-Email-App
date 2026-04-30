@@ -27,4 +27,23 @@ public interface IImapService
     Task<Result<(string PlainText, string Html)>> FetchBodyAsync(
         Account account, string password, string folderFullPath, uint uid,
         CancellationToken ct = default);
+
+    /// <summary>Add or remove the \Seen flag.</summary>
+    Task<Result<bool>> SetSeenAsync(Account account, string password,
+        string folderFullPath, uint uid, bool seen, CancellationToken ct = default);
+
+    /// <summary>Add or remove the \Flagged flag.</summary>
+    Task<Result<bool>> SetFlaggedAsync(Account account, string password,
+        string folderFullPath, uint uid, bool flagged, CancellationToken ct = default);
+
+    /// <summary>Move a message to a destination folder by full path.</summary>
+    Task<Result<bool>> MoveToFolderAsync(Account account, string password,
+        string srcFolderFullPath, uint uid, string dstFolderFullPath,
+        CancellationToken ct = default);
+
+    /// <summary>Move a message to the account's special-use folder
+    /// (Archive / Trash / Junk). Returns the destination path actually used.</summary>
+    Task<Result<string>> MoveToSpecialAsync(Account account, string password,
+        string srcFolderFullPath, uint uid, SpecialFolder dst,
+        CancellationToken ct = default);
 }

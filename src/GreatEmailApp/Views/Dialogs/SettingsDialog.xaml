@@ -183,6 +183,62 @@
                                           DisplayMemberPath="EmailAddress" />
                             </StackPanel>
                         </Border>
+
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Mark as read after" />
+                                    <TextBlock Style="{StaticResource RowDescription}"
+                                               Text="Wait this many seconds before marking a previewed message as read. -1 to never auto-mark; 0 to mark immediately." />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBox Text="{Binding MarkReadDelaySeconds, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="60" HorizontalContentAlignment="Center" />
+                                    <TextBlock Text=" seconds" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource SecondaryTextBrush}" Margin="6,0,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Auto Send/Receive" />
+                                    <TextBlock Style="{StaticResource RowDescription}"
+                                               Text="Check for new mail at this interval (in minutes). 0 = manual only. (Auto-sync timer is wired in Phase 5.)" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBox Text="{Binding SyncIntervalMinutes, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="60" HorizontalContentAlignment="Center" />
+                                    <TextBlock Text=" minutes" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource SecondaryTextBrush}" Margin="6,0,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Render HTML email bodies" />
+                                    <TextBlock Style="{StaticResource RowDescription}"
+                                               Text="When off, fall back to plain-text rendering. (HTML rendering surface lands in Phase 5.)" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" VerticalAlignment="Center" IsChecked="{Binding ShowHtml}" />
+                            </Grid>
+                        </Border>
+
                         <TextBlock Margin="0,24,0,0" FontSize="12"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
                                    Text="More general settings (auto-archive, conversation view, etc.) will land in upcoming releases." />

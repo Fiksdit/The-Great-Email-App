@@ -51,6 +51,19 @@ public partial class MessageViewModel : ObservableObject
         OnPropertyChanged(nameof(BodyDisplay));
     }
 
+    /// <summary>Re-emit Unread / HasUnread when the read flag flips so the
+    /// list row's bold/blue-bar formatting refreshes.</summary>
+    public void OnReadStateChanged()
+    {
+        OnPropertyChanged(nameof(Unread));
+    }
+
+    /// <summary>Re-emit Flagged so the flag icon updates.</summary>
+    public void OnFlagStateChanged()
+    {
+        OnPropertyChanged(nameof(Flagged));
+    }
+
     public MessageViewModel(Message model)
     {
         Model = model;

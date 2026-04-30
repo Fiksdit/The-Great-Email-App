@@ -37,7 +37,20 @@ public sealed class AppSettings
 
     public int Zoom { get; set; } = 100;
 
-    // Sync
+    // Reading
+    /// <summary>Render HTML email bodies (Phase 5 plumbs the WebView2 surface).
+    /// Until then this gates whether HTML or plain-text body is preferred.</summary>
+    public bool ShowHtml { get; set; } = true;
+    /// <summary>Wait this many seconds before marking a message as read after
+    /// it's selected. 0 = mark immediately; -1 = never auto-mark.</summary>
+    public int MarkReadDelaySeconds { get; set; } = 2;
+
+    // Send / Receive
+    /// <summary>Auto Send/Receive interval in minutes. 0 = manual only.
+    /// (Auto-sync timer lands alongside IMAP IDLE in Phase 5.)</summary>
+    public int SyncIntervalMinutes { get; set; } = 5;
+
+    // Sync (Firebase — Phase 4)
     public bool SyncEnabled { get; set; } = false;
     public string? SignedInEmail { get; set; }
 }

@@ -123,6 +123,142 @@ public sealed class ImapService : IImapService
         }
     }
 
+    public async Task<Result<bool>> SetSeenAsync(
+        Account account, string password, string folderFullPath, uint uid, bool seen,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+            var folder = await GetFolderByPathAsync(client, folderFullPath, ct);
+            if (folder is null) return Result.Fail<bool>($"Folder not found: {folderFullPath}");
+            await folder.OpenAsync(FolderAccess.ReadWrite, ct);
+
+            var ids = new[] { new UniqueId(uid) };
+            if (seen)
+                await folder.AddFlagsAsync(ids, MessageFlags.Seen, silent: true, ct);
+            else
+                await folder.RemoveFlagsAsync(ids, MessageFlags.Seen, silent: true, ct);
+
+            await client.DisconnectAsync(true, ct);
+            return Result.Ok(true);
+        }
+        catch (Exception ex) { return Result.Fail<bool>(SanitizeError(ex), ex); }
+    }
+
+    public async Task<Result<bool>> SetFlaggedAsync(
+        Account account, string password, string folderFullPath, uint uid, bool flagged,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+            var folder = await GetFolderByPathAsync(client, folderFullPath, ct);
+            if (folder is null) return Result.Fail<bool>($"Folder not found: {folderFullPath}");
+            await folder.OpenAsync(FolderAccess.ReadWrite, ct);
+
+            var ids = new[] { new UniqueId(uid) };
+            if (flagged)
+                await folder.AddFlagsAsync(ids, MessageFlags.Flagged, silent: true, ct);
+            else
+                await folder.RemoveFlagsAsync(ids, MessageFlags.Flagged, silent: true, ct);
+
+            await client.DisconnectAsync(true, ct);
+            return Result.Ok(true);
+        }
+        catch (Exception ex) { return Result.Fail<bool>(SanitizeError(ex), ex); }
+    }
+
+    public async Task<Result<bool>> MoveToFolderAsync(
+        Account account, string password, string srcFolderFullPath, uint uid, string dstFolderFullPath,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+            var src = await GetFolderByPathAsync(client, srcFolderFullPath, ct);
+            if (src is null) return Result.Fail<bool>($"Source folder not found: {srcFolderFullPath}");
+            var dst = await GetFolderByPathAsync(client, dstFolderFullPath, ct);
+            if (dst is null) return Result.Fail<bool>($"Destination folder not found: {dstFolderFullPath}");
+
+            await src.OpenAsync(FolderAccess.ReadWrite, ct);
+            await src.MoveToAsync(new UniqueId(uid), dst, ct);
+            await client.DisconnectAsync(true, ct);
+            return Result.Ok(true);
+        }
+        catch (Exception ex) { return Result.Fail<bool>(SanitizeError(ex), ex); }
+    }
+
+    public async Task<Result<string>> MoveToSpecialAsync(
+        Account account, string password, string srcFolderFullPath, uint uid,
+        Models.SpecialFolder dst, CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+
+            // Find the destination folder by IMAP \Special-Use, with a fallback
+            // to common name patterns since not every server flags them.
+            IMailFolder? dstFolder = TryGetSpecial(client, dst);
+            dstFolder ??= await FindByNameAsync(client, dst, ct);
+            if (dstFolder is null)
+                return Result.Fail<string>($"No {dst} folder found on this account.");
+
+            var src = await GetFolderByPathAsync(client, srcFolderFullPath, ct);
+            if (src is null) return Result.Fail<string>($"Source folder not found: {srcFolderFullPath}");
+
+            await src.OpenAsync(FolderAccess.ReadWrite, ct);
+            await src.MoveToAsync(new UniqueId(uid), dstFolder, ct);
+            await client.DisconnectAsync(true, ct);
+            return Result.Ok(dstFolder.FullName);
+        }
+        catch (Exception ex) { return Result.Fail<string>(SanitizeError(ex), ex); }
+    }
+
+    private static IMailFolder? TryGetSpecial(ImapClient client, Models.SpecialFolder s)
+    {
+        try
+        {
+            return s switch
+            {
+                Models.SpecialFolder.Archive => client.GetFolder(MailKit.SpecialFolder.Archive),
+                Models.SpecialFolder.Drafts  => client.GetFolder(MailKit.SpecialFolder.Drafts),
+                Models.SpecialFolder.Sent    => client.GetFolder(MailKit.SpecialFolder.Sent),
+                Models.SpecialFolder.Junk    => client.GetFolder(MailKit.SpecialFolder.Junk),
+                Models.SpecialFolder.Deleted => client.GetFolder(MailKit.SpecialFolder.Trash),
+                _ => null,
+            };
+        }
+        catch { return null; }
+    }
+
+    private static async Task<IMailFolder?> FindByNameAsync(
+        ImapClient client, Models.SpecialFolder s, CancellationToken ct)
+    {
+        var personal = client.GetFolder(client.PersonalNamespaces[0]);
+        var candidates = s switch
+        {
+            Models.SpecialFolder.Archive => new[] { "Archive", "Archives", "All Mail" },
+            Models.SpecialFolder.Drafts  => new[] { "Drafts" },
+            Models.SpecialFolder.Sent    => new[] { "Sent", "Sent Items", "Sent Messages" },
+            Models.SpecialFolder.Junk    => new[] { "Junk", "Spam", "Junk Email" },
+            Models.SpecialFolder.Deleted => new[] { "Trash", "Deleted", "Deleted Items", "Deleted Messages" },
+            _ => Array.Empty<string>(),
+        };
+
+        var children = await personal.GetSubfoldersAsync(false, ct);
+        foreach (var name in candidates)
+        {
+            var match = children.FirstOrDefault(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (match is not null) return match;
+        }
+        return null;
+    }
+
     public async Task<Result<(string PlainText, string Html)>> FetchBodyAsync(
         Account account, string password, string folderFullPath, uint uid,
         CancellationToken ct = default)
