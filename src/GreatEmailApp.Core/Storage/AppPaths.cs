@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Storage/AppPaths.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Storage;
@@ -24,6 +24,13 @@ public static class AppPaths
     /// Written by IAuthService after a successful Google sign-in. Per rulebook §7A.
     /// </summary>
     public static string AuthDat     => Path.Combine(Root, "auth.dat");
+
+    /// <summary>
+    /// SyncCoordinator's local bookkeeping (last-pushed timestamp, etc).
+    /// Used to detect "local has unpushed changes" so a stale cloud pull
+    /// doesn't clobber edits the user just made — see FIX-2026-04-30-002.
+    /// </summary>
+    public static string SyncMetaJson => Path.Combine(Root, "sync-meta.json");
 
     /// <summary>Ensures the root folder exists. Safe to call repeatedly.</summary>
     public static void EnsureRoot()

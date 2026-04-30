@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncCoordinator.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 1
+// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Glue between local saves, sign-in events, window focus, and Firestore.
@@ -41,6 +41,7 @@ public sealed class SyncCoordinator : IDisposable
     private bool _suppressPush;
     private DateTimeOffset _lastPullAt = DateTimeOffset.MinValue;
     private readonly TimeSpan _activatePullCooldown = TimeSpan.FromSeconds(30);
+    private SyncMetadata _meta = SyncMetadata.Load();
 
     public event EventHandler<SyncEvent>? StateChanged;
 
@@ -141,15 +142,23 @@ public sealed class SyncCoordinator : IDisposable
         if (!_auth.IsSignedIn) return;
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Pushing));
 
+        var pushedAt = DateTimeOffset.UtcNow;
         var snapshot = new SyncSnapshot(
             _settings,
             _accountStore.LoadAll().ToList(),
-            DateTimeOffset.UtcNow);
+            pushedAt);
 
         var result = await _sync.PushAsync(snapshot).ConfigureAwait(false);
-        StateChanged?.Invoke(this, result is Result<bool>.Ok
-            ? new SyncEvent(SyncEventKind.Pushed)
-            : new SyncEvent(SyncEventKind.Failed, ((Result<bool>.Fail)result).Error));
+        if (result is Result<bool>.Ok)
+        {
+            _meta.LastSyncedAt = pushedAt;
+            _meta.Save();
+            StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Pushed));
+        }
+        else
+        {
+            StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Failed, ((Result<bool>.Fail)result).Error));
+        }
     }
 
     private async Task PullAsync()
@@ -166,6 +175,13 @@ public sealed class SyncCoordinator : IDisposable
         }
         var remote = ((Result<SyncSnapshot?>.Ok)pull).Value;
         if (remote is null) return; // No remote yet — nothing to apply.
+
+        if (ShouldPreferLocalOver(remote))
+        {
+            // Local has unpushed edits newer than what's on the cloud. Push, don't apply.
+            await PushAsync().ConfigureAwait(false);
+            return;
+        }
 
         ApplyRemote(remote);
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Applied, RemoteUpdatedAt: remote.UpdatedAt));
@@ -192,8 +208,37 @@ public sealed class SyncCoordinator : IDisposable
             return;
         }
 
+        if (ShouldPreferLocalOver(remote))
+        {
+            // Cloud has stale state, local has unpushed edits — protect them.
+            await PushAsync().ConfigureAwait(false);
+            return;
+        }
+
         ApplyRemote(remote);
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Applied, RemoteUpdatedAt: remote.UpdatedAt));
+    }
+
+    /// <summary>
+    /// Returns true when the cloud snapshot should be ignored in favor of pushing
+    /// our local state. Triggered by FIX-2026-04-30-002: a stale empty cloud
+    /// snapshot was overwriting a non-empty local accounts roster on every startup.
+    /// </summary>
+    private bool ShouldPreferLocalOver(SyncSnapshot remote)
+    {
+        // 1. Local has writes newer than the last successful sync → unpushed edits.
+        if (_meta.HasUnpushedLocalChanges()) return true;
+
+        // 2. Belt-and-suspenders: never replace a non-empty local account roster
+        //    with an empty cloud one unless the cloud is *clearly* fresher than
+        //    our last sync. "Clearly fresher" = strictly newer than LastSyncedAt.
+        var localCount = _accountStore.LoadAll().Count;
+        if (localCount > 0 && remote.Accounts.Count == 0)
+        {
+            if (_meta.LastSyncedAt is null) return true;
+            if (remote.UpdatedAt <= _meta.LastSyncedAt.Value) return true;
+        }
+        return false;
     }
 
     private void ApplyRemote(SyncSnapshot remote)
@@ -221,6 +266,11 @@ public sealed class SyncCoordinator : IDisposable
             _accountStore.Save(remote.Accounts);
         }
         finally { _suppressPush = false; }
+
+        // Record the timestamp we just adopted so subsequent
+        // HasUnpushedLocalChanges checks have the right baseline.
+        _meta.LastSyncedAt = remote.UpdatedAt;
+        _meta.Save();
 
         RemotePullApplied?.Invoke(this, EventArgs.Empty);
     }

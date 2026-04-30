@@ -11,7 +11,6 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GreatEmailApp.Core.Models;
-using GreatEmailApp.Core.Sample;
 using GreatEmailApp.Core.Services;
 
 namespace GreatEmailApp.ViewModels;
@@ -57,19 +56,15 @@ public partial class MainViewModel : ObservableObject
     private void LoadAccounts()
     {
         Accounts.Clear();
+        Messages.Clear();
         var stored = _accountStore.LoadAll();
 
         if (stored.Count == 0)
         {
-            // First-run / empty state: show the design's sample data so the UI
-            // isn't blank. As soon as the user adds a real account, sample data
-            // is wiped and replaced. NOTE: sample data is read-only — clicks
-            // don't try to fetch from a server.
+            // Empty state: real, not faked. The sidebar shows the welcome
+            // template; clicking "Add account" opens AddAccountDialog.
             HasAccounts = false;
-            foreach (var a in SampleData.GetAccounts())
-                Accounts.Add(new AccountViewModel(a));
-            LoadSampleMessages();
-            StatusMessage = "Demo data — click \"Add account\" to connect a real IMAP account.";
+            StatusMessage = "No accounts yet — click \"Add account\" to get started.";
             return;
         }
 
@@ -81,30 +76,7 @@ public partial class MainViewModel : ObservableObject
             // Kick off folder load. Fire-and-forget; UI updates on completion.
             _ = LoadFoldersAsync(vm);
         }
-        Messages.Clear();
         StatusMessage = $"Loaded {stored.Count} account(s).";
-    }
-
-    private void LoadSampleMessages()
-    {
-        Messages.Clear();
-        foreach (var m in SampleData.GetMessages())
-            Messages.Add(new MessageViewModel(m));
-        MarkGroupTransitions();
-
-        var firstInbox = Accounts.FirstOrDefault()?.Folders
-            .FirstOrDefault(f => f.Model.Special == SpecialFolder.Inbox);
-        if (firstInbox is not null)
-        {
-            firstInbox.IsSelected = true;
-            SelectedFolder = firstInbox;
-        }
-        var firstMsg = Messages.FirstOrDefault();
-        if (firstMsg is not null)
-        {
-            firstMsg.IsSelected = true;
-            SelectedMessage = firstMsg;
-        }
     }
 
     private async Task LoadFoldersAsync(AccountViewModel accountVm)
