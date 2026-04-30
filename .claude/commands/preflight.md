@@ -45,11 +45,24 @@ dotnet build   GreatEmailApp.sln -c Debug
 
 **Per-machine state that does NOT live in the repo:**
 - IMAP/SMTP passwords are stored in **Windows Credential Manager** (per rulebook auth pattern). Each new PC needs accounts re-added through the in-app Add Account dialog — credentials don't sync across machines.
-- User settings persist locally (per-user); expect first-launch defaults on a new box.
+- `auth.dat` (DPAPI-encrypted Firebase refresh token) is keyed to the Windows user — it doesn't roam.
+- `sync-meta.json` (last-pushed timestamp, see FIX-2026-04-30-002) is local-only and intentionally never synced. Don't ship it across machines.
+- User settings persist locally; first-launch defaults on a new box pull the cloud snapshot down via Firebase Auth, see "Fast path" below.
+
+**Fast path for a new user PC (no rebuild needed)** — the user almost never wants to clone + build on every PC. The shipping path is:
+1. Download the latest release zip from https://github.com/Fiksdit/The-Great-Email-App/releases (look for `GreatEmailApp-vX.Y.Z.zip`).
+2. Extract anywhere; run `GreatEmailApp.exe`. Requires the .NET 8 Desktop Runtime (winget: `Microsoft.DotNet.DesktopRuntime.8`).
+3. Settings → Sync → Sign in with Google. The SyncCoordinator pulls the user's accounts/settings from Firestore automatically (`users/{uid}/settings/profile`).
+4. Re-enter the IMAP password once per account (Credential Manager doesn't roam).
+5. Future code updates land via Settings → About → Check for updates → Download & install.
+
+Only build from source when actively developing.
 
 **Output:** ".NET 8 SDK [installed / already present]. Build: [N errors / N warnings]. App launched: [PID]."
 
 **Known launch symptom — pure-white window:** if the launched app shows a pure-white client area with no chrome but the cursor turns to a pointer over interactive zones, this is a WPF hardware-rendering pipeline bug — already mitigated. The `RenderOptions.ProcessRenderMode = SoftwareOnly` line at the top of `App.OnStartup` is the fix; do not remove it. See FIX-2026-04-30-001 in `Project/logs/fix_log.md`.
+
+**Known sync hazard — never push an empty roster to seed:** if the user signs in before adding accounts, the cloud document gets seeded with `accounts: []`. With auto-sync on, every later device launch could overwrite local edits. Mitigated by `SyncCoordinator.ShouldPreferLocalOver` + `sync-meta.json`. See FIX-2026-04-30-002 in `Project/logs/fix_log.md`. Do NOT bypass these guards "just to make sync simpler" — they exist because the simpler version cost the user real data.
 
 ---
 
