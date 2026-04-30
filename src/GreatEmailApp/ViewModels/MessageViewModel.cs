@@ -42,6 +42,15 @@ public partial class MessageViewModel : ObservableObject
 
     public Brush AvatarBrush { get; }
 
+    /// <summary>Called by MainViewModel after a body fetch completes so the
+    /// reading pane re-binds to BodyDisplay.</summary>
+    public void OnBodyLoaded()
+    {
+        OnPropertyChanged(nameof(BodyHtml));
+        OnPropertyChanged(nameof(BodyPlain));
+        OnPropertyChanged(nameof(BodyDisplay));
+    }
+
     public MessageViewModel(Message model)
     {
         Model = model;

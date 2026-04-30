@@ -84,6 +84,14 @@ public sealed class HexToBrushConverter : IValueConverter
         => throw new NotImplementedException();
 }
 
+public sealed class NonEmptyStringToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => (value is string s && !string.IsNullOrEmpty(s)) ? Visibility.Visible : Visibility.Collapsed;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
 public sealed class NullToVisibilityConverter : IValueConverter
 {
     /// <summary>parameter="invert" makes null → Visible, non-null → Collapsed.</summary>

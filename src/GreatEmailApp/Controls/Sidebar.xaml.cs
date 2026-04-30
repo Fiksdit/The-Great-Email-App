@@ -35,9 +35,14 @@ public partial class Sidebar : UserControl
 
     private void AddAccount_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show(
-            "Add Account dialog arrives in Phase 2 (IMAP setup).",
-            "Add Account",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        var dlg = new GreatEmailApp.Views.Dialogs.AddAccountDialog(App.Imap, App.Credentials, App.Accounts)
+        {
+            Owner = Window.GetWindow(this),
+        };
+        if (dlg.ShowDialog() == true && dlg.Result is not null
+            && DataContext is ViewModels.MainViewModel vm)
+        {
+            vm.OnAccountAdded(dlg.Result);
+        }
     }
 }

@@ -1,0 +1,235 @@
+<!-- FILE: src/GreatEmailApp/Views/Dialogs/AddAccountDialog.xaml
+     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+     Changed by: Claude Opus 4.7 on behalf of James Reed
+     Modal for IMAP/SMTP account setup. Mirrors the design's AddAccountModal layout:
+     name + email at the top, IMAP block, SMTP block, sync toggle, footer with
+     Cancel / Test Connection / Add Account. -->
+<Window x:Class="GreatEmailApp.Views.Dialogs.AddAccountDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:GreatEmailApp.ViewModels"
+        xmlns:m="clr-namespace:GreatEmailApp.Core.Models;assembly=GreatEmailApp.Core"
+        xmlns:conv="clr-namespace:GreatEmailApp.Converters"
+        xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+        Title="Add IMAP Account"
+        Height="640" Width="600"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource AppBackgroundBrush}"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <conv:NullToVisibilityConverter x:Key="NullVis" />
+        <conv:NonEmptyStringToVisibilityConverter x:Key="StrVis" />
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
+            <Setter Property="Margin" Value="0,4,0,8" />
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+        </Style>
+        <Style TargetType="PasswordBox">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost" Padding="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1"
+                Background="{DynamicResource Pane2BackgroundBrush}" Padding="20,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Add IMAP Account" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="Configure incoming IMAP and outgoing SMTP. Test before saving."
+                               FontSize="12" Foreground="{DynamicResource TertiaryTextBrush}" Margin="0,2,0,0" />
+                </StackPanel>
+                <Button Grid.Column="1" Style="{StaticResource SubtleButton}" Padding="6"
+                        Click="Close_Click" VerticalAlignment="Center">
+                    <TextBlock Text="{StaticResource IconClose}" Style="{StaticResource IconGlyph}" FontSize="11" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- Body -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20,14">
+            <StackPanel>
+                <!-- Name + email -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="DISPLAY NAME" />
+                        <TextBox Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="EMAIL ADDRESS" />
+                        <TextBox Text="{Binding EmailAddress, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- IMAP -->
+                <TextBlock Style="{StaticResource SectionLabel}" Text="INCOMING · IMAP" Margin="0,16,0,8" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="SERVER" />
+                        <TextBox Text="{Binding ImapHost, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="PORT" />
+                        <TextBox Text="{Binding ImapPort, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="ENCRYPTION" />
+                        <ComboBox SelectedValue="{Binding ImapEncryption}"
+                                  SelectedValuePath="Tag">
+                            <ComboBoxItem Content="SSL/TLS" Tag="{x:Static m:MailEncryption.SslTls}" />
+                            <ComboBoxItem Content="STARTTLS" Tag="{x:Static m:MailEncryption.StartTls}" />
+                            <ComboBoxItem Content="None" Tag="{x:Static m:MailEncryption.None}" />
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="USERNAME" />
+                        <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="PASSWORD" />
+                        <PasswordBox x:Name="PasswordBox" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- SMTP -->
+                <TextBlock Style="{StaticResource SectionLabel}" Text="OUTGOING · SMTP" Margin="0,18,0,8" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="SERVER" />
+                        <TextBox Text="{Binding SmtpHost, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="PORT" />
+                        <TextBox Text="{Binding SmtpPort, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="ENCRYPTION" />
+                        <ComboBox SelectedValue="{Binding SmtpEncryption}" SelectedValuePath="Tag">
+                            <ComboBoxItem Content="SSL/TLS" Tag="{x:Static m:MailEncryption.SslTls}" />
+                            <ComboBoxItem Content="STARTTLS" Tag="{x:Static m:MailEncryption.StartTls}" />
+                            <ComboBoxItem Content="None" Tag="{x:Static m:MailEncryption.None}" />
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Sync toggle -->
+                <Border Background="{DynamicResource Pane2BackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="6" Padding="14,12" Margin="0,18,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Sync this account's settings via Google" FontWeight="SemiBold" FontSize="13" />
+                            <TextBlock Text="Server config syncs across devices. Passwords stay local."
+                                       FontSize="11" Foreground="{DynamicResource TertiaryTextBrush}" Margin="0,2,0,0" />
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" IsChecked="{Binding SyncSettings}" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
+                <!-- Test result message -->
+                <Border Margin="0,14,0,0" Padding="10,8" CornerRadius="6"
+                        Background="{DynamicResource ChipBackgroundBrush}"
+                        Visibility="{Binding TestMessage, Converter={StaticResource StrVis}}">
+                    <TextBlock Text="{Binding TestMessage}" TextWrapping="Wrap" FontSize="12"
+                               Foreground="{DynamicResource SecondaryTextBrush}" />
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Border Grid.Row="2" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0"
+                Background="{DynamicResource Pane2BackgroundBrush}" Padding="20,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="1" Style="{StaticResource SubtleButton}" Content="Cancel"
+                        Padding="14,7" Click="Close_Click" Margin="0,0,8,0" />
+                <Button Grid.Column="2" x:Name="TestBtn" Style="{StaticResource SubtleButton}"
+                        Padding="14,7" Click="Test_Click" Margin="0,0,8,0" Content="Test Connection" />
+                <Button Grid.Column="3" x:Name="SaveBtn" Style="{StaticResource AccentButton}"
+                        Content="Add Account" Click="Save_Click" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

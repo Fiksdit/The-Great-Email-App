@@ -8,4 +8,8 @@
     <RootNamespace>GreatEmailApp.Core</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="MailKit" Version="4.13.0" />
+  </ItemGroup>
+
 </Project>
