@@ -53,4 +53,7 @@ public sealed class AppSettings
     // Sync (Firebase — Phase 4)
     public bool SyncEnabled { get; set; } = false;
     public string? SignedInEmail { get; set; }
+
+    // First-run UX: once the sign-in/skip screen has been shown, don't show it again.
+    public bool HasShownFirstRun { get; set; } = false;
 }

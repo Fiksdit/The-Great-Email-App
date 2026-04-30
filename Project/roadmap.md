@@ -1,5 +1,5 @@
 # The Great Email App — Master Roadmap
-**Created:** 2026-04-29 | **Updated:** 2026-04-29
+**Created:** 2026-04-29 | **Updated:** 2026-04-30
 **Stack:** WPF + .NET 8 (C#) + MailKit + SQLite + Firebase
 **Owner:** James Reed (coolman0804@outlook.com)
 **Vision:** A clean, fast, native-Windows IMAP email client with Outlook's familiar ribbon UX, dark/light theming, and Firebase-backed settings sync across multiple PCs.
@@ -25,19 +25,19 @@ The Great Email App (TGEA) is a focused desktop email client for power users who
 
 | ID | Feature | Status | Notes |
 |----|---------|--------|-------|
-| P0-1 | WPF shell — title bar, ribbon, three-pane layout, status bar | 🔧 IN PROGRESS | Phase 1 |
-| P0-2 | Light/dark theme + accent color, tokens from design | 🔧 IN PROGRESS | Phase 1 |
-| P0-3 | Resizable panes (sidebar 200–380, mail list 300–560) | 🔧 IN PROGRESS | Phase 1 |
-| P0-4 | Add Account dialog with IMAP/SMTP fields + Test Connection | 📋 PLANNED | Phase 2 |
-| P0-5 | Windows Credential Manager integration for passwords | 📋 PLANNED | Phase 2 |
-| P0-6 | IMAP connection (MailKit) — list folders, fetch messages | 📋 PLANNED | Phase 2 |
+| P0-1 | WPF shell — title bar, ribbon, three-pane layout, status bar | ✅ DONE | Phase 1 |
+| P0-2 | Light/dark theme + accent color, tokens from design | ✅ DONE | Phase 1 |
+| P0-3 | Resizable panes (sidebar 200–380, mail list 300–560) | ✅ DONE | Phase 1 |
+| P0-4 | Add Account dialog with IMAP/SMTP fields + Test Connection | ✅ DONE | Phase 2 |
+| P0-5 | Windows Credential Manager integration for passwords | ✅ DONE | Phase 2 |
+| P0-6 | IMAP connection (MailKit) — list folders, fetch messages | ✅ DONE | Phase 2 |
 | P0-7 | Local SQLite cache for messages | 📋 PLANNED | Phase 2 |
 | P0-8 | Send mail via SMTP | 📋 PLANNED | Phase 2 |
-| P0-9 | Settings dialog (General, Accounts, Appearance, Sync) | 📋 PLANNED | Phase 3 |
-| P0-10 | Settings persistence (`settings.json` in `%LOCALAPPDATA%`) | 📋 PLANNED | Phase 3 |
-| P0-11 | Google sign-in (Firebase Auth) | 📋 PLANNED | Phase 4 |
-| P0-12 | Firestore settings sync (push/pull on change + on launch) | 📋 PLANNED | Phase 4 |
-| P0-13 | First-run sign-in screen with skip path | 📋 PLANNED | Phase 4 |
+| P0-9 | Settings dialog (General, Accounts, Appearance, Sync) | ✅ DONE | Phase 3 |
+| P0-10 | Settings persistence (`settings.json` in `%LOCALAPPDATA%`) | ✅ DONE | Phase 3 |
+| P0-11 | Google sign-in (Firebase Auth) | ✅ DONE | Phase 4 — FirebaseAuthService (Google OAuth2 loopback + Firebase REST) |
+| P0-12 | Firestore settings sync (push/pull on change + on launch) | ✅ DONE | Phase 4 — FirestoreSyncService (REST API); push on save, pull on startup |
+| P0-13 | First-run sign-in screen with skip path | ✅ DONE | Phase 4 — FirstRunOverlay shown on first launch; skippable |
 
 **Status key:** `📋 PLANNED` · `🔧 IN PROGRESS` · `⚠️ PARTIAL` · `✅ DONE`
 

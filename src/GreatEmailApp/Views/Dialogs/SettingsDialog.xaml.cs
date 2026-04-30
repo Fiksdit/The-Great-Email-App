@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Views/Dialogs/SettingsDialog.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
+// Changed by: Claude Sonnet 4.6 on behalf of James Reed
 
 using System.Diagnostics;
 using System.Windows;
@@ -22,7 +22,8 @@ public partial class SettingsDialog : Window
     public SettingsDialog()
     {
         InitializeComponent();
-        _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Credentials);
+        _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Credentials,
+                                    App.FirebaseAuth, App.FirestoreSync);
         DataContext = _vm;
     }
 
