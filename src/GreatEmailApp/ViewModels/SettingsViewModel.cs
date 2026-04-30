@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/SettingsViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 3
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -22,6 +22,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly ISettingsStore _settingsStore;
     private readonly IAuthService _auth;
     private readonly IFirestoreSyncService _sync;
+    private readonly SyncCoordinator _coordinator;
     private readonly IUpdateService _updates;
     private readonly IUpdateInstaller _installer;
 
@@ -75,6 +76,7 @@ public partial class SettingsViewModel : ObservableObject
         ISettingsStore settingsStore,
         IAuthService auth,
         IFirestoreSyncService sync,
+        SyncCoordinator coordinator,
         IUpdateService updates,
         IUpdateInstaller installer)
     {
@@ -84,8 +86,10 @@ public partial class SettingsViewModel : ObservableObject
         _settingsStore = settingsStore;
         _auth = auth;
         _sync = sync;
+        _coordinator = coordinator;
         _updates = updates;
         _installer = installer;
+        _coordinator.StateChanged += OnCoordinatorStateChanged;
 
         theme = settings.Theme;
         accent = settings.Accent;
@@ -174,11 +178,8 @@ public partial class SettingsViewModel : ObservableObject
                 SyncStatus = $"Sign-in failed: {f.Error}";
                 return;
             }
-
-            // First sign-in on this PC: pull anything the user has on another device.
-            // No remote? Push current local so this device seeds the cloud.
-            SyncStatus = "Syncing…";
-            await PullOrSeedAsync();
+            // SyncCoordinator handles pull-or-seed automatically via SessionChanged.
+            // Status will arrive through OnCoordinatorStateChanged.
         }
         finally { IsSyncBusy = false; }
     }
@@ -198,86 +199,40 @@ public partial class SettingsViewModel : ObservableObject
     {
         IsSyncBusy = true;
         SyncStatus = "Pushing…";
-        try
-        {
-            // Manual sync = push local. Pull-on-sign-in covers the new-device case;
-            // multi-device merge with auto-pull is deferred (rulebook decision log:
-            // last-write-wins is sufficient for v1).
-            _settingsStore.Save(_settings);
-            var snapshot = new SyncSnapshot(
-                _settings,
-                _accountStore.LoadAll().ToList(),
-                DateTimeOffset.UtcNow);
-            var result = await _sync.PushAsync(snapshot);
-            SyncStatus = result is Result<bool>.Ok
-                ? $"Synced at {DateTime.Now:t}."
-                : $"Sync failed: {((Result<bool>.Fail)result).Error}";
-        }
+        try { await _coordinator.PushNowAsync(); }
         finally { IsSyncBusy = false; }
     }
 
-    private async Task PullOrSeedAsync()
+    private void OnCoordinatorStateChanged(object? sender, SyncEvent e)
     {
-        var pull = await _sync.PullAsync();
-        if (pull is Result<SyncSnapshot?>.Fail pf)
+        // Coordinator events come from background tasks — marshal to UI thread.
+        Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
         {
-            SyncStatus = $"Pull failed: {pf.Error}";
-            return;
-        }
-        var remote = ((Result<SyncSnapshot?>.Ok)pull).Value;
+            // Refresh visible VM properties after a remote pull lands.
+            if (e.Kind == SyncEventKind.Applied)
+            {
+                Theme = _settings.Theme;
+                Accent = _settings.Accent;
+                Density = _settings.Density;
+                Ribbon = _settings.Ribbon;
+                ShowHtml = _settings.ShowHtml;
+                AllowRemoteImages = _settings.AllowRemoteImages;
+                MarkReadDelaySeconds = _settings.MarkReadDelaySeconds;
+                SyncIntervalMinutes = _settings.SyncIntervalMinutes;
+                ManagedAccounts.Clear();
+                foreach (var a in _accountStore.LoadAll()) ManagedAccounts.Add(a);
+            }
 
-        if (remote is null)
-        {
-            // First device on this Google account — seed the cloud.
-            _settingsStore.Save(_settings);
-            var snapshot = new SyncSnapshot(
-                _settings,
-                _accountStore.LoadAll().ToList(),
-                DateTimeOffset.UtcNow);
-            var push = await _sync.PushAsync(snapshot);
-            SyncStatus = push is Result<bool>.Ok
-                ? "Signed in. No prior backup — uploaded current settings."
-                : $"Signed in, but upload failed: {((Result<bool>.Fail)push).Error}";
-            return;
-        }
-
-        // Apply remote → local.
-        ApplyRemote(remote);
-        SyncStatus = $"Signed in. Restored from cloud (saved {remote.UpdatedAt.LocalDateTime:g}). Restart to see all changes.";
-    }
-
-    private void ApplyRemote(SyncSnapshot remote)
-    {
-        // Settings — copy field-by-field so the live AppSettings instance the rest
-        // of the app holds gets updated, not replaced.
-        _settings.Theme = remote.Settings.Theme;
-        _settings.Accent = remote.Settings.Accent;
-        _settings.Ribbon = remote.Settings.Ribbon;
-        _settings.Density = remote.Settings.Density;
-        _settings.SidebarWidth = remote.Settings.SidebarWidth;
-        _settings.MailListWidth = remote.Settings.MailListWidth;
-        _settings.Zoom = remote.Settings.Zoom;
-        _settings.ShowHtml = remote.Settings.ShowHtml;
-        _settings.MarkReadDelaySeconds = remote.Settings.MarkReadDelaySeconds;
-        _settings.SyncIntervalMinutes = remote.Settings.SyncIntervalMinutes;
-        _settingsStore.Save(_settings);
-
-        // Mirror visible VM properties so the dialog reflects pulled values.
-        Theme = _settings.Theme;
-        Accent = _settings.Accent;
-        Density = _settings.Density;
-        Ribbon = _settings.Ribbon;
-        ShowHtml = _settings.ShowHtml;
-        MarkReadDelaySeconds = _settings.MarkReadDelaySeconds;
-        SyncIntervalMinutes = _settings.SyncIntervalMinutes;
-        ApplyLive();
-
-        // Accounts — overwrite local roster. Existing Credential Manager entries
-        // for accounts that match by Id stay valid; new accounts will need a
-        // password re-entry on first connect (rulebook §7B).
-        _accountStore.Save(remote.Accounts);
-        ManagedAccounts.Clear();
-        foreach (var a in remote.Accounts) ManagedAccounts.Add(a);
+            SyncStatus = e.Kind switch
+            {
+                SyncEventKind.Pulling => "Checking cloud…",
+                SyncEventKind.Pushing => "Pushing…",
+                SyncEventKind.Applied => $"Restored from cloud (saved {e.RemoteUpdatedAt?.LocalDateTime:g}).",
+                SyncEventKind.Pushed  => $"Synced at {DateTime.Now:t}.",
+                SyncEventKind.Failed  => $"Sync failed: {e.Detail}",
+                _ => SyncStatus,
+            };
+        }));
     }
 
     // --------------------------------------------------------------------- //

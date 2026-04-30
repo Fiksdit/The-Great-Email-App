@@ -16,6 +16,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
         StateChanged += OnStateChanged;
+        // Pull-on-focus: whenever the user comes back to the window, ask the
+        // coordinator if there's anything new on Firestore. Cooldown lives in
+        // the coordinator so this is safe to fire on every activation.
+        Activated += (_, _) => App.SyncCoordinator?.OnWindowActivated();
     }
 
     // NOTE: with WindowStyle=None, Windows still wants the chrome metrics. Hooking WM_GETMINMAXINFO

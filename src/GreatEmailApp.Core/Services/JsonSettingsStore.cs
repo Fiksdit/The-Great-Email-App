@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Services/JsonSettingsStore.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Text.Json;
@@ -45,6 +45,8 @@ public sealed class JsonSettingsStore : ISettingsStore
         }
     }
 
+    public event EventHandler? Saved;
+
     public void Save(AppSettings settings)
     {
         AppPaths.EnsureRoot();
@@ -52,5 +54,6 @@ public sealed class JsonSettingsStore : ISettingsStore
         var tmp = AppPaths.SettingsJson + ".tmp";
         File.WriteAllText(tmp, json);
         File.Move(tmp, AppPaths.SettingsJson, overwrite: true);
+        Saved?.Invoke(this, EventArgs.Empty);
     }
 }

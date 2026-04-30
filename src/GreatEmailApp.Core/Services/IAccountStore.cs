@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Services/IAccountStore.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using GreatEmailApp.Core.Models;
@@ -14,4 +14,7 @@ public interface IAccountStore
 {
     IReadOnlyList<Account> LoadAll();
     void Save(IEnumerable<Account> accounts);
+
+    /// <summary>Fires after a successful Save. Used by SyncCoordinator to debounced-push.</summary>
+    event EventHandler? Saved;
 }

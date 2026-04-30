@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Services/JsonAccountStore.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 // Persists Account[] to %LOCALAPPDATA%\GreatEmailApp\accounts.json. No passwords.
 // Folders[] inside Account are NOT persisted (server is the source of truth) — see [JsonIgnore]
@@ -49,6 +49,8 @@ public sealed class JsonAccountStore : IAccountStore
         }
     }
 
+    public event EventHandler? Saved;
+
     public void Save(IEnumerable<Account> accounts)
     {
         AppPaths.EnsureRoot();
@@ -59,6 +61,7 @@ public sealed class JsonAccountStore : IAccountStore
         var tmp = AppPaths.AccountsJson + ".tmp";
         File.WriteAllText(tmp, json);
         File.Move(tmp, AppPaths.AccountsJson, overwrite: true);
+        Saved?.Invoke(this, EventArgs.Empty);
     }
 
     // DTO keeps serialization decoupled from the model so we can evolve either independently

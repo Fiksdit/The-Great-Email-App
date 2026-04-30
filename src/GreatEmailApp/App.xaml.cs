@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/App.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 7
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 8
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.IO;
@@ -28,6 +28,7 @@ public partial class App : Application
     public static AppConfig Config { get; private set; } = null!;
     public static IAuthService Auth { get; private set; } = null!;
     public static IFirestoreSyncService Sync { get; private set; } = null!;
+    public static SyncCoordinator SyncCoordinator { get; private set; } = null!;
     public static IUpdateService Updates { get; private set; } = null!;
     public static IUpdateInstaller UpdateInstaller { get; private set; } = null!;
 
@@ -55,19 +56,42 @@ public partial class App : Application
         Settings = SettingsStore.Load();
         Auth = new FirebaseAuthService(Config, new DpapiTokenVault());
         Sync = new FirestoreSyncService(Config, Auth);
+        SyncCoordinator = new SyncCoordinator(Settings, SettingsStore, Accounts, Auth, Sync);
+        SyncCoordinator.RemotePullApplied += OnRemotePullApplied;
         Updates = new GitHubUpdateService();
         UpdateInstaller = new UpdateInstaller();
 
         Theme.Apply(Settings.Theme, Settings.Accent);
 
-        // Best-effort silent re-auth from the encrypted refresh token. Fire and
-        // forget — UI stays usable whether this succeeds or not.
-        _ = Auth.TryRestoreAsync();
+        // Silent re-auth → SyncCoordinator picks up SessionChanged and pulls.
+        _ = RestoreAndStartSyncAsync();
 
         // Silent update probe. Result is logged via UpdateAvailable for UI to
         // surface a badge later; here we just warm the cache so the About tab
         // shows results instantly when the user opens it.
         _ = CheckForUpdatesSilentAsync();
+    }
+
+    private static async Task RestoreAndStartSyncAsync()
+    {
+        // SessionChanged fires inside TryRestoreAsync if it succeeds; the
+        // coordinator subscribes to that and pulls. StartAsync covers the case
+        // where the session is already restored (e.g. fast restart).
+        await Auth.TryRestoreAsync();
+        await SyncCoordinator.StartAsync();
+    }
+
+    private static void OnRemotePullApplied(object? sender, EventArgs e)
+    {
+        // Marshal to UI thread — the coordinator can fire from a background
+        // pull task. Re-applying the theme picks up Theme/Accent changes;
+        // MainViewModel.ReloadAccounts pulls the freshly-saved accounts.json.
+        Current.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            Theme.Apply(Settings.Theme, Settings.Accent);
+            if (Current.MainWindow?.DataContext is ViewModels.MainViewModel mvm)
+                mvm.ReloadAccounts();
+        }));
     }
 
     private static async Task CheckForUpdatesSilentAsync()
@@ -90,7 +114,7 @@ public partial class App : Application
     /// </summary>
     public static void PersistSettings()
     {
-        SettingsStore.Save(Settings);
+        SettingsStore.Save(Settings); // Saved event → SyncCoordinator debounced push.
         Theme.Apply(Settings.Theme, Settings.Accent);
     }
 }
