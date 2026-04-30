@@ -1,9 +1,10 @@
 // FILE: src/GreatEmailApp/App.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 4
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 5
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.IO;
 using System.Windows;
+using GreatEmailApp.Core.Auth;
 using GreatEmailApp.Core.Config;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Services;
@@ -23,6 +24,7 @@ public partial class App : Application
     public static ISettingsStore SettingsStore { get; private set; } = null!;
     public static AppSettings Settings { get; set; } = null!;
     public static AppConfig Config { get; private set; } = null!;
+    public static IAuthService Auth { get; private set; } = null!;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -37,8 +39,13 @@ public partial class App : Application
         Accounts = new JsonAccountStore();
         SettingsStore = new JsonSettingsStore();
         Settings = SettingsStore.Load();
+        Auth = new FirebaseAuthService(Config, new DpapiTokenVault());
 
         Theme.Apply(Settings.Theme, Settings.Accent);
+
+        // Best-effort silent re-auth from the encrypted refresh token. Fire and
+        // forget — UI stays usable whether this succeeds or not.
+        _ = Auth.TryRestoreAsync();
     }
 
     /// <summary>
