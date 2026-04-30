@@ -38,9 +38,16 @@ public sealed class AppSettings
     public int Zoom { get; set; } = 100;
 
     // Reading
-    /// <summary>Render HTML email bodies (Phase 5 plumbs the WebView2 surface).
-    /// Until then this gates whether HTML or plain-text body is preferred.</summary>
+    /// <summary>Render HTML email bodies in WebView2. False falls back to plain text.</summary>
     public bool ShowHtml { get; set; } = true;
+
+    /// <summary>
+    /// Allow remote http(s) resources (images, CSS, fonts) referenced by HTML email
+    /// bodies. Default OFF for privacy — most "remote images" are tracking pixels
+    /// that confirm to senders that the message was opened. The user can flip this
+    /// in Settings → Security.
+    /// </summary>
+    public bool AllowRemoteImages { get; set; } = false;
     /// <summary>Wait this many seconds before marking a message as read after
     /// it's selected. 0 = mark immediately; -1 = never auto-mark.</summary>
     public int MarkReadDelaySeconds { get; set; } = 2;

@@ -1,9 +1,10 @@
 <!-- FILE: src/GreatEmailApp/Controls/ReadingPane.xaml
-     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 2
+     Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 3
      Changed by: Claude Opus 4.7 on behalf of James Reed -->
 <UserControl x:Class="GreatEmailApp.Controls.ReadingPane"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:GreatEmailApp.Controls"
              xmlns:conv="clr-namespace:GreatEmailApp.Converters"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -145,13 +146,7 @@
                     </StackPanel>
                 </Border>
 
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,16">
-                    <TextBlock Text="{Binding BodyDisplay}"
-                               TextWrapping="Wrap"
-                               LineHeight="20"
-                               Foreground="{DynamicResource PrimaryTextBrush}"
-                               FontSize="13" />
-                </ScrollViewer>
+                <c:MessageBodyView Message="{Binding}" />
             </DockPanel>
         </Grid>
     </Border>

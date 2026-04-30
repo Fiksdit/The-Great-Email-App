@@ -152,6 +152,9 @@
                     <ToggleButton Style="{StaticResource RailItem}" Content="Notifications"
                                   IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Notifications, Mode=OneWay}"
                                   Click="Tab_Click" Tag="Notifications" />
+                    <ToggleButton Style="{StaticResource RailItem}" Content="Security"
+                                  IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Security, Mode=OneWay}"
+                                  Click="Tab_Click" Tag="Security" />
                     <ToggleButton Style="{StaticResource RailItem}" Content="Advanced"
                                   IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Advanced, Mode=OneWay}"
                                   Click="Tab_Click" Tag="Advanced" />
@@ -446,6 +449,52 @@
                         <TextBlock Margin="0,24,0,0" FontSize="12"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
                                    Text="Wired up alongside push/IDLE in Phase 5." />
+                    </StackPanel>
+
+                    <!-- Security -->
+                    <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Security}">
+                        <TextBlock Text="Security" Style="{StaticResource SectionTitle}" />
+
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Render HTML email" />
+                                    <TextBlock Style="{StaticResource RowDescription}"
+                                               Text="Use the Edge engine to render HTML message bodies. Off falls back to plain-text view." />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0"
+                                          IsChecked="{Binding ShowHtml}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Allow remote images and content" />
+                                    <TextBlock Style="{StaticResource RowDescription}"
+                                               TextWrapping="Wrap"
+                                               Text="Off (recommended): images and external resources in HTML email are blocked by default. Most remote images are tracking pixels that confirm to senders that you opened the message. Each message gets a one-click 'Show images' banner if you want to see them just that once." />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0"
+                                          IsChecked="{Binding AllowRemoteImages}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingsRow}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="JavaScript and embedded forms" />
+                                <TextBlock Style="{StaticResource RowDescription}"
+                                           Text="Always disabled. There is no toggle for this — running JS from email is not safe and never will be." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- Advanced -->

@@ -33,6 +33,7 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private RibbonStyle ribbon;
 
     [ObservableProperty] private bool showHtml;
+    [ObservableProperty] private bool allowRemoteImages;
     [ObservableProperty] private int markReadDelaySeconds;
     [ObservableProperty] private int syncIntervalMinutes;
 
@@ -91,6 +92,7 @@ public partial class SettingsViewModel : ObservableObject
         density = settings.Density;
         ribbon = settings.Ribbon;
         showHtml = settings.ShowHtml;
+        allowRemoteImages = settings.AllowRemoteImages;
         markReadDelaySeconds = settings.MarkReadDelaySeconds;
         syncIntervalMinutes = settings.SyncIntervalMinutes;
 
@@ -112,6 +114,7 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnDensityChanged(DensityMode v)  => _settings.Density = v;
     partial void OnRibbonChanged(RibbonStyle v)   => _settings.Ribbon = v;
     partial void OnShowHtmlChanged(bool v)        => _settings.ShowHtml = v;
+    partial void OnAllowRemoteImagesChanged(bool v) => _settings.AllowRemoteImages = v;
     partial void OnMarkReadDelaySecondsChanged(int v) => _settings.MarkReadDelaySeconds = v;
     partial void OnSyncIntervalMinutesChanged(int v)  => _settings.SyncIntervalMinutes = v;
 
