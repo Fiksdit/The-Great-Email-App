@@ -184,6 +184,13 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Reload accounts from the store. Called after the Settings dialog
+    /// adds/removes accounts so the sidebar mirrors disk state.</summary>
+    public void ReloadAccounts()
+    {
+        LoadAccounts();
+    }
+
     /// <summary>Called by AddAccountDialog after a new account has been persisted.</summary>
     public void OnAccountAdded(Account account)
     {

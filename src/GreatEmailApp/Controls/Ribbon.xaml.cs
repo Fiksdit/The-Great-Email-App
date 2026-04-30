@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using GreatEmailApp.ViewModels;
+using GreatEmailApp.Views.Dialogs;
 
 namespace GreatEmailApp.Controls;
 
@@ -27,18 +28,26 @@ public partial class Ribbon : UserControl
 
     private void FileTab_Click(object sender, RoutedEventArgs e)
     {
-        // Phase 3: opens the File Backstage view. For now, ack with a message.
-        MessageBox.Show(
-            "The File backstage view (Account Settings, Rules, Options, Sign In/Out) arrives in Phase 3.",
-            "File",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        // NOTE: full backstage (Account Info, Manage Rules, etc.) is Phase 3.5.
+        // For now, File opens the Settings dialog which has the same surfaces.
+        var dlg = new SettingsDialog { Owner = Window.GetWindow(this) };
+        dlg.ShowDialog();
+        if (dlg.AccountsChanged && DataContext is MainViewModel vm)
+        {
+            vm.ReloadAccounts();
+        }
     }
 
     private void OnSettings_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show(
-            "Settings dialog arrives in Phase 3.",
-            "Settings",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        var dlg = new GreatEmailApp.Views.Dialogs.SettingsDialog
+        {
+            Owner = Window.GetWindow(this),
+        };
+        dlg.ShowDialog();
+        if (dlg.AccountsChanged && DataContext is MainViewModel vm)
+        {
+            vm.ReloadAccounts();
+        }
     }
 }

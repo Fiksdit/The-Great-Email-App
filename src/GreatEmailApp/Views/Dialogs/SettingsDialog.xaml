@@ -1,0 +1,397 @@
+<!-- FILE: src/GreatEmailApp/Views/Dialogs/SettingsDialog.xaml
+     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+     Changed by: Claude Opus 4.7 on behalf of James Reed
+     Settings modal. Left rail of tabs, content swaps via Visibility binding.
+     All edits write through to App.Settings + are persisted on Close. -->
+<Window x:Class="GreatEmailApp.Views.Dialogs.SettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:GreatEmailApp.ViewModels"
+        xmlns:m="clr-namespace:GreatEmailApp.Core.Models;assembly=GreatEmailApp.Core"
+        xmlns:conv="clr-namespace:GreatEmailApp.Converters"
+        Title="Settings"
+        Height="560" Width="780"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource AppBackgroundBrush}"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <conv:StringEqualsToBoolConverter x:Key="StrEqBool" />
+        <conv:StringEqualsToVisibilityConverter x:Key="StrEqVis" />
+        <conv:HexToBrushConverter x:Key="HexBrush" />
+
+        <Style x:Key="RailItem" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,9" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                Margin="6,1" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="RowLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        </Style>
+        <Style x:Key="RowDescription" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,16" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        </Style>
+        <Style x:Key="SettingsRow" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="0,14" />
+        </Style>
+
+        <!-- Segmented button group (Light / Dark / System, Compact / Cozy / Comfortable) -->
+        <Style x:Key="SegBtn" TargetType="RadioButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+            <Setter Property="Padding" Value="14,5" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1"
+                Background="{DynamicResource Pane2BackgroundBrush}" Padding="20,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Settings" FontSize="16" FontWeight="SemiBold" />
+                <Button Grid.Column="1" Style="{StaticResource SubtleButton}" Padding="6"
+                        Click="Close_Click" VerticalAlignment="Center">
+                    <TextBlock Text="{StaticResource IconClose}" Style="{StaticResource IconGlyph}" FontSize="11" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- Body: rail + content -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{DynamicResource SidebarBackgroundBrush}"
+                    BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
+                <StackPanel Margin="0,12">
+                    <ToggleButton Style="{StaticResource RailItem}" Content="General"
+                                  IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=General, Mode=OneWay}"
+                                  Click="Tab_Click" Tag="General" />
+                    <ToggleButton Style="{StaticResource RailItem}" Content="Accounts"
+                                  IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Accounts, Mode=OneWay}"
+                                  Click="Tab_Click" Tag="Accounts" />
+                    <ToggleButton Style="{StaticResource RailItem}" Content="Appearance"
+                                  IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Appearance, Mode=OneWay}"
+                                  Click="Tab_Click" Tag="Appearance" />
+                    <ToggleButton Style="{StaticResource RailItem}" Content="Sync"
+                                  IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Sync, Mode=OneWay}"
+                                  Click="Tab_Click" Tag="Sync" />
+                    <ToggleButton Style="{StaticResource RailItem}" Content="Notifications"
+                                  IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Notifications, Mode=OneWay}"
+                                  Click="Tab_Click" Tag="Notifications" />
+                    <ToggleButton Style="{StaticResource RailItem}" Content="Advanced"
+                                  IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Advanced, Mode=OneWay}"
+                                  Click="Tab_Click" Tag="Advanced" />
+                </StackPanel>
+            </Border>
+
+            <ScrollViewer Grid.Column="1" Padding="32,24" VerticalScrollBarVisibility="Auto">
+                <Grid>
+                    <!-- General -->
+                    <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=General}">
+                        <TextBlock Text="General" Style="{StaticResource SectionTitle}" />
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Start with Windows" />
+                                    <TextBlock Style="{StaticResource RowDescription}" Text="Open The Great Email App when you sign in." />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" VerticalAlignment="Center" IsEnabled="False" />
+                            </Grid>
+                        </Border>
+                        <Border Style="{StaticResource SettingsRow}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Default account" />
+                                <TextBlock Style="{StaticResource RowDescription}" Text="New emails are sent from this account by default." />
+                                <ComboBox MinWidth="220" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                          ItemsSource="{Binding ManagedAccounts}"
+                                          DisplayMemberPath="EmailAddress" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Margin="0,24,0,0" FontSize="12"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   Text="More general settings (auto-archive, conversation view, etc.) will land in upcoming releases." />
+                    </StackPanel>
+
+                    <!-- Accounts -->
+                    <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Accounts}">
+                        <TextBlock Text="Accounts" Style="{StaticResource SectionTitle}" />
+                        <ItemsControl ItemsSource="{Binding ManagedAccounts}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type m:Account}">
+                                    <Border Background="{DynamicResource Pane2BackgroundBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                            CornerRadius="8" Padding="14,12" Margin="0,0,0,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18"
+                                                    Background="{Binding Color, Converter={StaticResource HexBrush}}"
+                                                    Margin="0,0,12,0">
+                                                <TextBlock Text="{Binding Initials}" Foreground="White"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding EmailAddress}" FontWeight="SemiBold" FontSize="13" />
+                                                <TextBlock FontSize="11" Foreground="{DynamicResource TertiaryTextBrush}">
+                                                    <Run Text="{Binding ImapHost, Mode=OneWay}" />
+                                                    <Run Text=":" />
+                                                    <Run Text="{Binding ImapPort, Mode=OneWay}" />
+                                                    <Run Text=" · IMAP/SMTP" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <Button Grid.Column="2" Style="{StaticResource SubtleButton}" Content="Remove"
+                                                    Padding="12,6" Click="Remove_Click" Tag="{Binding}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Style="{StaticResource AccentButton}" Content="Add Account"
+                                HorizontalAlignment="Left" Margin="0,8,0,0"
+                                Click="AddAccount_Click" />
+                    </StackPanel>
+
+                    <!-- Appearance -->
+                    <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Appearance}">
+                        <TextBlock Text="Appearance" Style="{StaticResource SectionTitle}" />
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Theme" />
+                                    <TextBlock Style="{StaticResource RowDescription}" Text="Match Windows or pick manually." />
+                                </StackPanel>
+                                <Border Grid.Column="1" Background="{DynamicResource ChipBackgroundBrush}"
+                                        CornerRadius="6" Padding="2" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Style="{StaticResource SegBtn}" Content="Light" GroupName="Theme"
+                                                     IsChecked="{Binding Theme, Converter={StaticResource StrEqBool}, ConverterParameter=Light}"
+                                                     Click="ThemeRadio_Click" Tag="Light" />
+                                        <RadioButton Style="{StaticResource SegBtn}" Content="Dark" GroupName="Theme"
+                                                     IsChecked="{Binding Theme, Converter={StaticResource StrEqBool}, ConverterParameter=Dark}"
+                                                     Click="ThemeRadio_Click" Tag="Dark" />
+                                        <RadioButton Style="{StaticResource SegBtn}" Content="System" GroupName="Theme"
+                                                     IsChecked="{Binding Theme, Converter={StaticResource StrEqBool}, ConverterParameter=System}"
+                                                     Click="ThemeRadio_Click" Tag="System" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Accent color" />
+                                    <TextBlock Style="{StaticResource RowDescription}" Text="Buttons, selection, links." />
+                                </StackPanel>
+                                <ItemsControl Grid.Column="1" ItemsSource="{Binding Accents}" VerticalAlignment="Center">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Width="26" Height="26" Margin="0,0,6,0"
+                                                    BorderThickness="2" BorderBrush="Transparent"
+                                                    Background="{Binding Converter={StaticResource HexBrush}}"
+                                                    Click="Accent_Click" Tag="{Binding}" Cursor="Hand">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border CornerRadius="13"
+                                                                Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                BorderThickness="{TemplateBinding BorderThickness}" />
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Density" />
+                                    <TextBlock Style="{StaticResource RowDescription}" Text="How much breathing room in the message list." />
+                                </StackPanel>
+                                <Border Grid.Column="1" Background="{DynamicResource ChipBackgroundBrush}"
+                                        CornerRadius="6" Padding="2" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Style="{StaticResource SegBtn}" Content="Compact" GroupName="Density"
+                                                     IsChecked="{Binding Density, Converter={StaticResource StrEqBool}, ConverterParameter=Compact}"
+                                                     Click="Density_Click" Tag="Compact" />
+                                        <RadioButton Style="{StaticResource SegBtn}" Content="Cozy" GroupName="Density"
+                                                     IsChecked="{Binding Density, Converter={StaticResource StrEqBool}, ConverterParameter=Cozy}"
+                                                     Click="Density_Click" Tag="Cozy" />
+                                        <RadioButton Style="{StaticResource SegBtn}" Content="Comfortable" GroupName="Density"
+                                                     IsChecked="{Binding Density, Converter={StaticResource StrEqBool}, ConverterParameter=Comfortable}"
+                                                     Click="Density_Click" Tag="Comfortable" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Sync -->
+                    <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Sync}">
+                        <TextBlock Text="Settings Sync" Style="{StaticResource SectionTitle}" />
+                        <Border Style="{StaticResource SettingsRow}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Google sign-in" />
+                                <TextBlock Style="{StaticResource RowDescription}"
+                                           Text="Sign in with Google to back up your account configuration across devices. Passwords stay local." />
+                                <Button Style="{StaticResource AccentButton}" Content="Sign in with Google"
+                                        HorizontalAlignment="Left" Margin="0,12,0,0" IsEnabled="False" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Margin="0,24,0,0" FontSize="12"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   Text="Settings sync arrives in Phase 4 (Firebase Auth + Firestore)." />
+                    </StackPanel>
+
+                    <!-- Notifications -->
+                    <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Notifications}">
+                        <TextBlock Text="Notifications" Style="{StaticResource SectionTitle}" />
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="New mail toasts" />
+                                    <TextBlock Style="{StaticResource RowDescription}" Text="Show a Windows notification when a new message arrives." />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" VerticalAlignment="Center" IsEnabled="False" />
+                            </Grid>
+                        </Border>
+                        <TextBlock Margin="0,24,0,0" FontSize="12"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   Text="Wired up alongside push/IDLE in Phase 5." />
+                    </StackPanel>
+
+                    <!-- Advanced -->
+                    <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Advanced}">
+                        <TextBlock Text="Advanced" Style="{StaticResource SectionTitle}" />
+                        <Border Style="{StaticResource SettingsRow}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Local data location" />
+                                <TextBlock Style="{StaticResource RowDescription}" Text="%LOCALAPPDATA%\GreatEmailApp" />
+                                <Button Style="{StaticResource SubtleButton}" Content="Open data folder"
+                                        HorizontalAlignment="Left" Margin="0,8,0,0" Padding="12,6"
+                                        Click="OpenDataFolder_Click" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Footer -->
+        <Border Grid.Row="2" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0"
+                Background="{DynamicResource Pane2BackgroundBrush}" Padding="20,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="1" Style="{StaticResource AccentButton}" Content="Done"
+                        Click="Close_Click" Padding="20,7" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
