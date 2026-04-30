@@ -13,6 +13,44 @@ This skill exists because AI sessions start blank. Without this checklist the AI
 
 ---
 
+## Step 00: New-PC Setup (run once per machine)
+
+Skip if `dotnet --list-sdks` already shows an 8.0.x SDK. Otherwise this is the bootstrap to make the repo buildable on a fresh Windows box.
+
+**Required toolchain**
+- .NET 8 SDK (the runtime alone is NOT enough — `dotnet build` needs the SDK).
+- Git (assumed; the repo is already cloned if you're reading this).
+- Windows 10/11 with WPF support — this app is `net8.0-windows` WPF, **Windows-only**.
+
+**Install via winget (preferred — no admin prompt for current user):**
+```bash
+winget install Microsoft.DotNet.SDK.8 --accept-source-agreements --accept-package-agreements --silent
+```
+After install, `dotnet` lives at `C:\Program Files\dotnet\dotnet.exe`. In a fresh Git Bash session it may not be on PATH yet — either restart the shell or prepend it for the current session:
+```bash
+export PATH="/c/Program Files/dotnet:$PATH"
+```
+
+**Verify, restore, build, run:**
+```bash
+cd "<repo>/src"
+dotnet --version              # expect 8.0.x
+dotnet restore GreatEmailApp.sln
+dotnet build   GreatEmailApp.sln -c Debug
+# launch the built exe (do NOT use `dotnet run` for a WPF WinExe target)
+( cd GreatEmailApp/bin/Debug/net8.0-windows && start "" GreatEmailApp.exe )
+```
+
+**Expected first build:** 0 errors, ~30 warnings (CA1822 / CA1861 / CA1001 / NU1902 MailKit advisory). Warnings are pre-existing — do not "fix" them as part of setup.
+
+**Per-machine state that does NOT live in the repo:**
+- IMAP/SMTP passwords are stored in **Windows Credential Manager** (per rulebook auth pattern). Each new PC needs accounts re-added through the in-app Add Account dialog — credentials don't sync across machines.
+- User settings persist locally (per-user); expect first-launch defaults on a new box.
+
+**Output:** ".NET 8 SDK [installed / already present]. Build: [N errors / N warnings]. App launched: [PID]."
+
+---
+
 ## Step 0: Session Log
 
 Before anything else, make sure today's session log exists.
