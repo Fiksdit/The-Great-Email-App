@@ -16,8 +16,9 @@ public static class AppPaths
 
     public static string AccountsJson => Path.Combine(Root, "accounts.json");
     public static string SettingsJson => Path.Combine(Root, "settings.json");
-    public static string CacheDb     => Path.Combine(Root, "cache.db");
-    public static string LogsFolder  => Path.Combine(Root, "logs");
+    public static string TokenJson    => Path.Combine(Root, "token.json");
+    public static string CacheDb      => Path.Combine(Root, "cache.db");
+    public static string LogsFolder   => Path.Combine(Root, "logs");
 
     /// <summary>Ensures the root folder exists. Safe to call repeatedly.</summary>
     public static void EnsureRoot()

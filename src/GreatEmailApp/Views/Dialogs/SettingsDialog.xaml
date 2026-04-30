@@ -1,6 +1,6 @@
 <!-- FILE: src/GreatEmailApp/Views/Dialogs/SettingsDialog.xaml
-     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
-     Changed by: Claude Opus 4.7 on behalf of James Reed
+     Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
+     Changed by: Claude Sonnet 4.6 on behalf of James Reed
      Settings modal. Left rail of tabs, content swaps via Visibility binding.
      All edits write through to App.Settings + are persisted on Close. -->
 <Window x:Class="GreatEmailApp.Views.Dialogs.SettingsDialog"
@@ -18,9 +18,13 @@
         TextOptions.TextRenderingMode="ClearType"
         ShowInTaskbar="False">
     <Window.Resources>
-        <conv:StringEqualsToBoolConverter x:Key="StrEqBool" />
-        <conv:StringEqualsToVisibilityConverter x:Key="StrEqVis" />
-        <conv:HexToBrushConverter x:Key="HexBrush" />
+        <conv:StringEqualsToBoolConverter        x:Key="StrEqBool" />
+        <conv:StringEqualsToVisibilityConverter  x:Key="StrEqVis" />
+        <conv:HexToBrushConverter               x:Key="HexBrush" />
+        <conv:InvertBoolConverter               x:Key="InvertBool" />
+        <conv:BoolToVisibilityConverter         x:Key="BoolVis" />
+        <conv:InverseBoolToVisibilityConverter  x:Key="InvBoolVis" />
+        <conv:NonEmptyStringToVisibilityConverter x:Key="NonEmptyStrVis" />
 
         <Style x:Key="RailItem" TargetType="ToggleButton">
             <Setter Property="Background" Value="Transparent" />
@@ -385,18 +389,73 @@
                     <!-- Sync -->
                     <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Sync}">
                         <TextBlock Text="Settings Sync" Style="{StaticResource SectionTitle}" />
-                        <Border Style="{StaticResource SettingsRow}">
+
+                        <!-- Not configured warning -->
+                        <Border Background="{DynamicResource ChipBackgroundBrush}"
+                                CornerRadius="6" Padding="12,10" Margin="0,0,0,16"
+                                Visibility="{Binding FirebaseIsConfigured,
+                                    Converter={StaticResource InvBoolVis}}">
+                            <TextBlock TextWrapping="Wrap" FontSize="12"
+                                       Foreground="{DynamicResource TertiaryTextBrush}">
+                                Firebase is not configured. Open
+                                <Run FontFamily="Consolas" Text="FirebaseConfig.cs" />
+                                and fill in your project credentials to enable sync.
+                            </TextBlock>
+                        </Border>
+
+                        <!-- Signed-out state -->
+                        <Border Style="{StaticResource SettingsRow}"
+                                Visibility="{Binding IsSignedIn, Converter={StaticResource InvBoolVis}}">
                             <StackPanel>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Google sign-in" />
                                 <TextBlock Style="{StaticResource RowDescription}"
-                                           Text="Sign in with Google to back up your account configuration across devices. Passwords stay local." />
-                                <Button Style="{StaticResource AccentButton}" Content="Sign in with Google"
-                                        HorizontalAlignment="Left" Margin="0,12,0,0" IsEnabled="False" />
+                                           Text="Back up your account configuration across devices. Passwords always stay local." />
+                                <Button Style="{StaticResource AccentButton}"
+                                        Content="Sign in with Google"
+                                        HorizontalAlignment="Left" Margin="0,12,0,0"
+                                        Command="{Binding SignInCommand}"
+                                        IsEnabled="{Binding IsSyncing, Converter={StaticResource InvertBool}}" />
                             </StackPanel>
                         </Border>
+
+                        <!-- Signed-in state -->
+                        <Border Style="{StaticResource SettingsRow}"
+                                Visibility="{Binding IsSignedIn, Converter={StaticResource BoolVis}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Signed in" />
+                                    <TextBlock Style="{StaticResource RowDescription}"
+                                               Text="{Binding SignedInEmail}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                            VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Button Style="{StaticResource SubtleButton}"
+                                            Content="Sync now"
+                                            Padding="12,6" Margin="0,0,8,0"
+                                            Command="{Binding SyncNowCommand}"
+                                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InvertBool}}" />
+                                    <Button Style="{StaticResource SubtleButton}"
+                                            Content="Sign out"
+                                            Padding="12,6"
+                                            Command="{Binding SignOutCommand}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Status / busy message -->
+                        <TextBlock Text="{Binding SyncStatus}"
+                                   FontSize="12" Margin="0,10,0,0"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   Visibility="{Binding SyncStatus, Converter={StaticResource NonEmptyStrVis}}" />
+
                         <TextBlock Margin="0,24,0,0" FontSize="12"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
-                                   Text="Settings sync arrives in Phase 4 (Firebase Auth + Firestore)." />
+                                   TextWrapping="Wrap"
+                                   Text="Account passwords are stored in Windows Credential Manager and never synced to the cloud." />
                     </StackPanel>
 
                     <!-- Notifications -->

@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/MainWindow.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
+// Changed by: Claude Sonnet 4.6 on behalf of James Reed
 
 using System;
 using System.Runtime.InteropServices;
@@ -16,6 +16,14 @@ public partial class MainWindow : Window
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
         StateChanged += OnStateChanged;
+
+        // Show first-run sign-in overlay if this is the first launch.
+        if (!App.Settings.HasShownFirstRun)
+        {
+            FirstRunOverlay.Visibility = Visibility.Visible;
+            FirstRunOverlay.Dismissed += (_, _) =>
+                FirstRunOverlay.Visibility = Visibility.Collapsed;
+        }
     }
 
     // NOTE: with WindowStyle=None, Windows still wants the chrome metrics. Hooking WM_GETMINMAXINFO

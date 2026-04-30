@@ -1,0 +1,89 @@
+<!-- FILE: src/GreatEmailApp/Views/FirstRunOverlay.xaml
+     Created: 2026-04-30 | Rev: 1
+     Changed by: Claude Sonnet 4.6 on behalf of James Reed
+     P0-13: First-run sign-in screen with skip path.
+     Layered on top of MainWindow content; hides after sign-in or Skip. -->
+<UserControl x:Class="GreatEmailApp.Views.FirstRunOverlay"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:GreatEmailApp.Converters">
+    <UserControl.Resources>
+        <conv:InvertBoolConverter               x:Key="InvertBool" />
+        <conv:NonEmptyStringToVisibilityConverter x:Key="NonEmptyStrVis" />
+    </UserControl.Resources>
+
+    <!-- Semi-transparent backdrop that dims the main window underneath. -->
+    <Grid Background="#C8000000">
+
+        <!-- Centred card -->
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                Width="440"
+                Background="{DynamicResource Pane2BackgroundBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                CornerRadius="12"
+                Padding="40,36">
+            <StackPanel>
+
+                <!-- Icon + app name -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
+                    <Border Width="38" Height="38" CornerRadius="8"
+                            Background="{DynamicResource AccentBrush}" Margin="0,0,10,0">
+                        <TextBlock Text="✉" FontSize="20"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="The Great Email App"
+                               FontSize="18" FontWeight="SemiBold"
+                               Foreground="{DynamicResource PrimaryTextBrush}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock Text="Settings sync"
+                           FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource PrimaryTextBrush}"
+                           HorizontalAlignment="Center"
+                           Margin="0,18,0,10" />
+
+                <TextBlock TextWrapping="Wrap" TextAlignment="Center"
+                           FontSize="13" LineHeight="20"
+                           Foreground="{DynamicResource SecondaryTextBrush}"
+                           Margin="0,0,0,28">
+                    Sign in with Google to back up your account configuration and preferences.
+                    Installing on a new PC will restore everything automatically.
+                    Passwords always stay local — they never leave this device.
+                </TextBlock>
+
+                <!-- Sign in button -->
+                <Button Style="{StaticResource AccentButton}"
+                        HorizontalAlignment="Stretch"
+                        Padding="0,10"
+                        Command="{Binding SignInCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}">
+                    <TextBlock Text="Sign in with Google"
+                               FontSize="13" FontWeight="SemiBold" />
+                </Button>
+
+                <!-- Status / error message -->
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="12" TextAlignment="Center"
+                           Foreground="{DynamicResource TertiaryTextBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,10,0,0"
+                           Visibility="{Binding StatusMessage,
+                               Converter={StaticResource NonEmptyStrVis}}" />
+
+                <!-- Skip link -->
+                <Button Style="{StaticResource SubtleButton}"
+                        Content="Skip for now"
+                        HorizontalAlignment="Center"
+                        Margin="0,14,0,0"
+                        Padding="12,6"
+                        FontSize="12"
+                        Command="{Binding SkipCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}" />
+
+            </StackPanel>
+        </Border>
+
+    </Grid>
+</UserControl>
