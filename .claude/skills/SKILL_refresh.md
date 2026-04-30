@@ -1,9 +1,9 @@
 ---
 name: refresh
-description: "TRIGGER THIS SKILL whenever the AI's context has been compacted, summarized, or reset mid-session on {{PROJECT_NAME}}. Call it when the user says 'refresh', 'reread', 're-read', 'reload', 'rehydrate', 'recompact', 'post-compact', 'compaction recovery', 'context reset', 'restart context', 'you got compacted', 'where were we', 'get back on track', 'catch up', or 'reorient'. This skill forces the AI to re-read the rulebook, fix log, today's session log, and any active files mentioned in the compaction summary so it doesn't drift after losing chat memory."
+description: "TRIGGER THIS SKILL whenever the AI's context has been compacted, summarized, or reset mid-session on The Great Email App. Call it when the user says 'refresh', 'reread', 're-read', 'reload', 'rehydrate', 'recompact', 'post-compact', 'compaction recovery', 'context reset', 'restart context', 'you got compacted', 'where were we', 'get back on track', 'catch up', or 'reorient'. This skill forces the AI to re-read the rulebook, fix log, today's session log, and any active files mentioned in the compaction summary so it doesn't drift after losing chat memory."
 ---
 
-# Refresh — Post-Compaction Recovery
+# Refresh â€” Post-Compaction Recovery
 
 ## Why This Exists
 
@@ -15,7 +15,7 @@ Context compaction silently drops everything in the chat that wasn't in the summ
 - It forgets which files have been touched in this session and which are still pristine
 - It "remembers" snippets of files that may already be out of date
 
-The summary is **lossy by design** — it's a compressed paraphrase, not a snapshot. Treating it as ground truth is how the AI starts editing the wrong rev of the wrong file.
+The summary is **lossy by design** â€” it's a compressed paraphrase, not a snapshot. Treating it as ground truth is how the AI starts editing the wrong rev of the wrong file.
 
 This skill is the hard stop. **When the user says any of the trigger words above, run this checklist before answering anything else.**
 
@@ -25,9 +25,9 @@ This skill is the hard stop. **When the user says any of the trigger words above
 
 Open `Project/rulebook.md`. Re-load at minimum:
 
-- **§1** — AI Session Start Checklist
-- **§2** — Surgical Change Rule
-- The **Known Issues** section (whichever § number it lives at in this project)
+- **Â§1** â€” AI Session Start Checklist
+- **Â§2** â€” Surgical Change Rule
+- The **Known Issues** section (whichever Â§ number it lives at in this project)
 - The **Session Log Protocol** + **Fix Log Protocol** sections
 - Any section the compaction summary flagged as relevant to the current task
 
@@ -41,8 +41,8 @@ Open `Project/logs/fix_log.md`. Read **all of today's entries** plus the last 5 
 
 This re-establishes:
 
-- What's already been fixed in this session — so you don't propose to "fix" it again
-- What was tried and didn't work — so you don't repeat a failed approach
+- What's already been fixed in this session â€” so you don't propose to "fix" it again
+- What was tried and didn't work â€” so you don't repeat a failed approach
 - The next available `FIX-YYYY-MM-DD-NNN` sequence number
 
 **Output:** "Fix log re-read. Today's entries: [FIX-NNN list]. Next sequence: FIX-YYYY-MM-DD-NNN."
@@ -51,14 +51,14 @@ This re-establishes:
 
 ## Step 3: Re-read Today's Session Log
 
-Open `Project/sessions/session-YYYY-MM-DD.md` (replace with actual date). Skim every line — it's short by design. This is the raw shorthand of what happened pre-compaction.
+Open `Project/sessions/session-YYYY-MM-DD.md` (replace with actual date). Skim every line â€” it's short by design. This is the raw shorthand of what happened pre-compaction.
 
 If the file doesn't exist, the previous session never opened it. Create it now and log the compaction event:
 ```
 HH:MM  REFRESH  context compacted, re-syncing
 ```
 
-**Output:** "Session log re-read — N entries. Last activity: [last line]."
+**Output:** "Session log re-read â€” N entries. Last activity: [last line]."
 
 ---
 
@@ -66,12 +66,12 @@ HH:MM  REFRESH  context compacted, re-syncing
 
 The compaction summary should list which files were being touched. For **each** file mentioned:
 
-1. **Read it with the Read tool.** Do not trust your memory or the summary's snippet — both are lossy.
+1. **Read it with the Read tool.** Do not trust your memory or the summary's snippet â€” both are lossy.
 2. Note the rev number from the file header.
-3. If the summary said the rev was X but the current rev is Y, the file moved while you weren't looking — flag it.
-4. If the summary mentions an edit you "just made" but the file doesn't reflect it, the edit never landed — flag it.
+3. If the summary said the rev was X but the current rev is Y, the file moved while you weren't looking â€” flag it.
+4. If the summary mentions an edit you "just made" but the file doesn't reflect it, the edit never landed â€” flag it.
 
-**Output:** "Active files re-verified: [path · current rev · matches summary?]"
+**Output:** "Active files re-verified: [path Â· current rev Â· matches summary?]"
 
 ---
 
@@ -79,10 +79,10 @@ The compaction summary should list which files were being touched. For **each** 
 
 If the in-progress task is roadmap-driven (sprint items, issue tracker IDs, weekly goals):
 
-1. Open `Project/roadmap.md` — confirm the current item's status (open / in-progress / done / blocked).
+1. Open `Project/roadmap.md` â€” confirm the current item's status (open / in-progress / done / blocked).
 2. If working out of a per-user folder (`Project/team/<name>/`), re-scan that folder for items checked off mid-session.
 
-**Output:** "Roadmap re-checked. Current item: [ID] — status: [open / in-progress / done]."
+**Output:** "Roadmap re-checked. Current item: [ID] â€” status: [open / in-progress / done]."
 
 ---
 

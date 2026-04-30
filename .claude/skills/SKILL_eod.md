@@ -1,13 +1,13 @@
 ---
 name: eod
-description: "TRIGGER THIS SKILL at the end of any {{PROJECT_NAME}} work session. Call it when: the user says 'EOD', 'end of day', 'wrap up', 'session summary', 'what did we do today', or 'save progress'. Generates a structured session summary, updates the rulebook and roadmap with anything new discovered, and prepares the handoff for the next session."
+description: "TRIGGER THIS SKILL at the end of any The Great Email App work session. Call it when: the user says 'EOD', 'end of day', 'wrap up', 'session summary', 'what did we do today', or 'save progress'. Generates a structured session summary, updates the rulebook and roadmap with anything new discovered, and prepares the handoff for the next session."
 ---
 
-# End of Day — Session Summary Generator
+# End of Day â€” Session Summary Generator
 
 ## Purpose
 
-Generate a clean session summary at the end of every work session. This file becomes the handoff document between this session and the next. Chat memory is wiped between sessions — this file is not.
+Generate a clean session summary at the end of every work session. This file becomes the handoff document between this session and the next. Chat memory is wiped between sessions â€” this file is not.
 
 The summary captures:
 1. What was changed (files, DB, config)
@@ -21,7 +21,7 @@ The summary captures:
 
 Read `Project/sessions/session-YYYY-MM-DD.md` for today's session.
 
-If the log is empty or missing — reconstruct from conversation history:
+If the log is empty or missing â€” reconstruct from conversation history:
 - Every file created or modified (path + rev)
 - Every database change (SQL run, migrations applied)
 - Every bug found and fixed
@@ -36,8 +36,8 @@ If the log is empty or missing — reconstruct from conversation history:
 
 Before generating the summary, make sure anything that happened after the last log append is captured:
 
-- Last fix or change made → `HH:MM  FIX/COMMIT/DECISION  <summary>`
-- Any open blocker → `HH:MM  BLOCKER  <description>`
+- Last fix or change made â†’ `HH:MM  FIX/COMMIT/DECISION  <summary>`
+- Any open blocker â†’ `HH:MM  BLOCKER  <description>`
 
 Append these to the session log first, then proceed.
 
@@ -48,12 +48,12 @@ Append these to the session log first, then proceed.
 If any new patterns, lessons, or rules emerged this session:
 
 1. Open `Project/rulebook.md`
-2. Add to §16 Lessons Learned (or the appropriate section)
-3. If a Known Issue was resolved → update §8 status to `✅ Fixed YYYY-MM-DD`
-4. If a new Known Issue was discovered → add it to §8
+2. Add to Â§16 Lessons Learned (or the appropriate section)
+3. If a Known Issue was resolved â†’ update Â§8 status to `âœ… Fixed YYYY-MM-DD`
+4. If a new Known Issue was discovered â†’ add it to Â§8
 5. Bump the rulebook revision number and update the date in the header
 
-Do not add verbose prose — keep rulebook entries concise and actionable.
+Do not add verbose prose â€” keep rulebook entries concise and actionable.
 
 ---
 
@@ -62,8 +62,8 @@ Do not add verbose prose — keep rulebook entries concise and actionable.
 If any roadmap items changed status this session:
 
 1. Open `roadmap.md`
-2. Mark completed items `✅ DONE YYYY-MM-DD`
-3. Mark newly started items `🔧 IN PROGRESS`
+2. Mark completed items `âœ… DONE YYYY-MM-DD`
+3. Mark newly started items `ðŸ”§ IN PROGRESS`
 4. Add any new items discovered this session
 5. Move completed items to the Shipped Log section
 6. Update the roadmap date in the header
@@ -75,10 +75,10 @@ If any roadmap items changed status this session:
 Create `Project/sessions/session-summary-YYYY-MM-DD.md` with these sections:
 
 ```markdown
-# Session Summary — YYYY-MM-DD
-**Project:** {{PROJECT_NAME}}
+# Session Summary â€” YYYY-MM-DD
+**Project:** The Great Email App
 **Duration:** ~X hours
-**Engineer:** {{OWNER_NAME}} + {{AI_MODEL}}
+**Engineer:** James Reed + Claude Opus 4.7
 
 ---
 
@@ -86,8 +86,8 @@ Create `Project/sessions/session-summary-YYYY-MM-DD.md` with these sections:
 
 | # | Item | Files Changed | Status |
 |---|------|--------------|--------|
-| 1 | (description) | path/to/file.ts (Rev N→N+1) | ✅ Done |
-| 2 | (description) | — | ✅ Done |
+| 1 | (description) | path/to/file.ts (Rev Nâ†’N+1) | âœ… Done |
+| 2 | (description) | â€” | âœ… Done |
 
 ---
 
@@ -125,14 +125,14 @@ Create `Project/sessions/session-summary-YYYY-MM-DD.md` with these sections:
 
 ## Rulebook Changes
 
-- §X updated: (what changed)
-- §8 Known Issues: (what was added/resolved)
+- Â§X updated: (what changed)
+- Â§8 Known Issues: (what was added/resolved)
 
 ---
 
 ## Roadmap Changes
 
-- (item ID) marked ✅ DONE
+- (item ID) marked âœ… DONE
 - (new item) added as (P1/P2/P3)
 
 ---
@@ -158,11 +158,11 @@ Create `Project/sessions/session-summary-YYYY-MM-DD.md` with these sections:
 
 ```bash
 git add Project/sessions/session-summary-YYYY-MM-DD.md Project/rulebook.md Project/roadmap.md Project/logs/fix_log.md
-git commit -m "docs(eod): session summary YYYY-MM-DD — [one-line summary of main work]"
+git commit -m "docs(eod): session summary YYYY-MM-DD â€” [one-line summary of main work]"
 git push origin main
 ```
 
-The session log itself (`session-YYYY-MM-DD.md`) is gitignored — do not commit it.
+The session log itself (`session-YYYY-MM-DD.md`) is gitignored â€” do not commit it.
 
 ---
 
@@ -174,4 +174,4 @@ Tell the user:
 3. The top priority for the next session
 4. Any blockers that need owner action before next session
 
-Keep it short — the file has the detail. The verbal summary is the headline.
+Keep it short â€” the file has the detail. The verbal summary is the headline.

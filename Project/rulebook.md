@@ -267,6 +267,41 @@ public abstract record Result<T>
 - Never hardcode colors — use `{DynamicResource ...}` brushes
 - All interactive elements: `AutomationProperties.Name` for accessibility
 
+### WPF conventions established in this codebase
+
+**Click handlers on non-Button elements** (Border, ItemsControl rows, etc.):
+- Use `MouseLeftButtonDown="Handler"` + `Tag="{Binding}"` on the Border
+- In code-behind: `if (sender is FrameworkElement fe && fe.Tag is FooViewModel foo) { … }`
+- Don't use Commands on a Border — Border isn't ButtonBase. Use Commands only on Button/ToggleButton/MenuItem/Hyperlink.
+
+**Caret-vs-row click resolution** (sidebar folder + account headers):
+- Caret is a child element of the row Border. Both have `MouseLeftButtonDown` handlers (bubbling).
+- Caret handler runs FIRST (innermost), sets `e.Handled = true` to prevent row selection.
+- This is why we use bubbling, not tunneling (`PreviewMouseLeftButtonDown`) — preview tunnels parent→child, which would fire row first and steal the event.
+
+**Account header is the exception** — uses `PreviewMouseLeftButtonDown` because there's no inner element to coordinate with; the Preview just makes sure the event always fires.
+
+**Context menus** — code-behind pattern:
+- Define `<ContextMenu>` inline in the Border. Each `<MenuItem>` has a `Click="..."` handler.
+- Resolve the target VM by walking up: `sender (MenuItem) → ContextMenu (via parent) → ContextMenu.PlacementTarget (the right-clicked Border) → .Tag (the VM)`.
+- For dynamic submenus (e.g. Move To… listing every folder), populate in the `Opened` event.
+- Always `vm.SelectXxxCommand.Execute(target)` on right-click first so the action is visibly applied to the right item.
+
+**Theme references:**
+- `{DynamicResource ...}` for anything that swaps with theme (brushes, popups). Mandatory for live theme changes to work.
+- `{StaticResource ...}` for sizes, layout doubles, icon glyph strings, fonts, converters — values that don't change at runtime.
+
+**`{x:Static enum}` in `ComboBoxItem.Tag`** is fragile across XAML init ordering. **Don't.** Use the established pattern instead:
+- VM exposes `IReadOnlyList<TOption>` of records like `(MailEncryption Value, string Label)`.
+- ComboBox: `ItemsSource="{Binding Options}"`, `DisplayMemberPath="Label"`, `SelectedItem="{Binding SelectedOption, Mode=TwoWay}"`.
+- A wrapper property on the VM mirrors `SelectedOption.Value` to the underlying enum field.
+
+**`DataTemplate.Triggers`** must be a direct child of `<DataTemplate>`, not nested in any element inside it. Common XAML compile-time trap.
+
+**Recursive data templates** (folder tree): define the `<DataTemplate x:Key="FooTemplate">` at the UserControl level, then reference it inside itself via `ItemTemplate="{DynamicResource FooTemplate}"` on the inner ItemsControl. Use `DynamicResource`, not `StaticResource`, so the lookup happens at runtime.
+
+**Custom ComboBox / ContextMenu / MenuItem** need a full `ControlTemplate` to look right in dark mode — WPF defaults render with system colors and break theming. Templates live in `Themes/Controls.xaml`.
+
 ---
 
 ## 11. Error Handling

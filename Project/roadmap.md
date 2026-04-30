@@ -57,8 +57,12 @@ Core email workflow that makes the app actually usable.
 | P1-6 | Auto sync interval (configurable polling per account) | 📋 PLANNED | |
 | P1-7 | IMAP IDLE for real-time push where supported | 📋 PLANNED | |
 | P1-8 | New mail notifications (Windows toast) | 📋 PLANNED | |
-| P1-9 | HTML email rendering with remote-image gating | 📋 PLANNED | |
+| P1-9 | HTML email rendering with remote-image gating | 📋 PLANNED | WebView2 surface; off when Settings.ShowHtml=false |
 | P1-10 | Backstage view (File tab) | 📋 PLANNED | |
+| P1-11 | Keyboard shortcuts (Ctrl+R reply, Ctrl+Enter send, Del delete, F5 send/receive, Ctrl+Shift+M new) | 📋 PLANNED | |
+| P1-12 | Multi-select in mail list (Ctrl+click, Shift+click) + batch archive/delete/move | 📋 PLANNED | |
+| P1-13 | First-run onboarding when launched with zero accounts | 📋 PLANNED | Replaces sample data with a guided Add Account flow |
+| P1-14 | App icon + branded taskbar/installer presence | 📋 PLANNED | .ico + AppxManifest fields |
 
 ---
 
@@ -75,15 +79,25 @@ Core email workflow that makes the app actually usable.
 | P2-7 | Import from .pst / .mbox | 📋 PLANNED | |
 | P2-8 | Export to .eml | 📋 PLANNED | |
 | P2-9 | Multiple identities per account (alias send-as) | 📋 PLANNED | |
-| P2-10 | Density options (Compact / Cozy / Comfortable) | 📋 PLANNED | |
+| P2-10 | Density options (Compact / Cozy / Comfortable) | 📋 PLANNED | Setting exists; needs row-template adjustment |
+| P2-11 | Drag-and-drop — message → folder, file → compose | 📋 PLANNED | |
+| P2-12 | Conversation/threading view | 📋 PLANNED | Group reply chains by Message-ID/References |
+| P2-13 | Folder operations (real) — New/Rename/Delete/Empty via MailKit | 📋 PLANNED | UI stubs already present in folder context menu |
+| P2-14 | Backup & restore — export/import accounts.json + settings.json | 📋 PLANNED | Useful pre-Firebase-sync, also covers users who skip Firebase |
+| P2-15 | Account import from existing Outlook profile | 📋 PLANNED | Read HKCU registry under Office/Outlook/Profiles, pre-fill IMAP/SMTP. Big "wow" for migrators. |
 
 ### Technical Debt
 | ID | Item | Status | Notes |
 |----|------|--------|-------|
-| P2-TD-1 | Unit tests for Core (services, parsers) | 📋 PLANNED | xUnit |
-| P2-TD-2 | UI tests (Appium / FlaUI) for critical flows | 📋 PLANNED | |
+| P2-TD-1 | Unit tests for Core (services, parsers) | 📋 PLANNED | xUnit. Bare minimum: round-trip JsonAccountStore / JsonSettingsStore / WindowsCredentialStore. |
+| P2-TD-2 | UI tests (Appium / FlaUI) for critical flows | 📋 PLANNED | Add Account, send, receive, archive |
 | P2-TD-3 | Crash reporting (Sentry or similar) | 📋 PLANNED | |
-| P2-TD-4 | Auto-update mechanism (Squirrel.Windows or velopack) | 📋 PLANNED | |
+| P2-TD-4 | Auto-update mechanism (Velopack preferred over Squirrel) | 📋 PLANNED | |
+| P2-TD-5 | Replace `Console.Error.WriteLine` with `Microsoft.Extensions.Logging` per rulebook §11 | 📋 PLANNED | |
+| P2-TD-6 | CI build check — `.github/workflows/build.yml` runs `dotnet build` on push | 📋 PLANNED | Catches broken builds before merge |
+| P2-TD-7 | Code signing for the installer | 📋 PLANNED | Requires cert |
+| P2-TD-8 | Tests project skeleton at `tests/GreatEmailApp.Tests/` | 📋 PLANNED | Referenced in rulebook §3 but doesn't exist yet |
+| P2-TD-9 | MailKit transitive BouncyCastle advisory (GHSA-9j88-vvj5-vhgr) | 📋 PLANNED | Currently a build warning. Track upstream fix in MailKit 4.14+. |
 
 ---
 
