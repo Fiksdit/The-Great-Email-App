@@ -40,6 +40,8 @@ public sealed record AppConfig(
             throw new InvalidDataException("Firebase.ApiKey is required.");
         if (string.IsNullOrWhiteSpace(GoogleOAuth.DesktopClientId))
             throw new InvalidDataException("GoogleOAuth.DesktopClientId is required.");
+        if (string.IsNullOrWhiteSpace(GoogleOAuth.DesktopClientSecret))
+            throw new InvalidDataException("GoogleOAuth.DesktopClientSecret is required.");
     }
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -58,4 +60,4 @@ public sealed record FirebaseOptions(
     string MessagingSenderId,
     string AppId);
 
-public sealed record GoogleOAuthOptions(string DesktopClientId);
+public sealed record GoogleOAuthOptions(string DesktopClientId, string DesktopClientSecret);

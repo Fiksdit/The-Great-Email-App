@@ -140,32 +140,51 @@ public sealed class FirebaseAuthService : IAuthService
             var returnedState = query["state"];
             var error = query["error"];
 
-            // Tell the user they can close the tab — keep it minimal; no external assets.
-            var bodyHtml = error is not null
-                ? $"<h2>Sign-in failed</h2><p>{WebUtility.HtmlEncode(error)}</p>"
-                : "<h2>Signed in to The Great Email App</h2><p>You can close this tab and return to the app.</p>";
-            var bytes = Encoding.UTF8.GetBytes("<!doctype html><meta charset='utf-8'>" + bodyHtml);
-            context.Response.ContentType = "text/html; charset=utf-8";
-            context.Response.ContentLength64 = bytes.Length;
-            await context.Response.OutputStream.WriteAsync(bytes, ct).ConfigureAwait(false);
-            context.Response.OutputStream.Close();
-            listener.Stop();
+            // 4a. Validate redirect params first; bail before holding the browser open
+            // for a token exchange we'd never make.
+            if (error is not null)
+            {
+                await WriteBrowserPageAsync(context, success: false, $"OAuth error: {error}", ct).ConfigureAwait(false);
+                listener.Stop();
+                return Result.Fail<AuthSession>($"OAuth error: {error}");
+            }
+            if (code is null)
+            {
+                await WriteBrowserPageAsync(context, success: false, "Missing code in OAuth response.", ct).ConfigureAwait(false);
+                listener.Stop();
+                return Result.Fail<AuthSession>("OAuth response missing code.");
+            }
+            if (returnedState != state)
+            {
+                await WriteBrowserPageAsync(context, success: false, "State mismatch (possible CSRF).", ct).ConfigureAwait(false);
+                listener.Stop();
+                return Result.Fail<AuthSession>("OAuth state mismatch (possible CSRF).");
+            }
 
-            if (error is not null)   return Result.Fail<AuthSession>($"OAuth error: {error}");
-            if (code is null)        return Result.Fail<AuthSession>("OAuth response missing code.");
-            if (returnedState != state) return Result.Fail<AuthSession>("OAuth state mismatch (possible CSRF).");
-
-            // 5. Exchange code → Google id token
+            // 5. Exchange code → Google id token. Do this BEFORE writing the browser
+            // response so the success page only appears when sign-in actually worked.
             var googleResult = await ExchangeAuthCodeAsync(code, verifier, redirectUri, ct).ConfigureAwait(false);
             if (googleResult is Result<GoogleTokenResponse>.Fail gf)
+            {
+                await WriteBrowserPageAsync(context, success: false, gf.Error, ct).ConfigureAwait(false);
+                listener.Stop();
                 return Result.Fail<AuthSession>(gf.Error);
+            }
             var googleToken = ((Result<GoogleTokenResponse>.Ok)googleResult).Value.IdToken;
 
             // 6. Exchange Google id token → Firebase id+refresh
             var fbResult = await SignInWithIdpAsync(googleToken, ct).ConfigureAwait(false);
             if (fbResult is Result<FirebaseSignInResponse>.Fail ff)
+            {
+                await WriteBrowserPageAsync(context, success: false, ff.Error, ct).ConfigureAwait(false);
+                listener.Stop();
                 return Result.Fail<AuthSession>(ff.Error);
+            }
             var fb = ((Result<FirebaseSignInResponse>.Ok)fbResult).Value;
+
+            // Both exchanges succeeded — show the success page and close the listener.
+            await WriteBrowserPageAsync(context, success: true, null, ct).ConfigureAwait(false);
+            listener.Stop();
 
             var session = new AuthSession(
                 fb.LocalId, fb.Email, fb.DisplayName, fb.PhotoUrl,
@@ -226,6 +245,7 @@ public sealed class FirebaseAuthService : IAuthService
         var form = new FormUrlEncodedContent(new[]
         {
             new KeyValuePair<string, string>("client_id", _oauth.DesktopClientId),
+            new KeyValuePair<string, string>("client_secret", _oauth.DesktopClientSecret),
             new KeyValuePair<string, string>("code", code),
             new KeyValuePair<string, string>("code_verifier", verifier),
             new KeyValuePair<string, string>("grant_type", "authorization_code"),
@@ -330,6 +350,66 @@ public sealed class FirebaseAuthService : IAuthService
 
     private static string Base64Url(byte[] bytes) =>
         Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    private static async Task WriteBrowserPageAsync(
+        HttpListenerContext context, bool success, string? errorDetail, CancellationToken ct)
+    {
+        // Inline, no external assets. Matches the app's dark theme + accent.
+        // window.close() is best-effort — most browsers allow it for tabs the app opened.
+        var (title, headline, subline) = success
+            ? ("Signed in", "You're signed in",
+               "All set. You can close this tab and return to The Great Email App.")
+            : ("Sign-in failed", "Sign-in failed",
+               WebUtility.HtmlEncode(errorDetail ?? "Unknown error"));
+
+        var html = $@"<!doctype html>
+<html lang=""en""><head><meta charset=""utf-8"">
+<title>{title} · The Great Email App</title>
+<meta name=""viewport"" content=""width=device-width,initial-scale=1"">
+<style>
+  :root {{ color-scheme: dark; }}
+  html, body {{ height: 100%; margin: 0; }}
+  body {{
+    background: #1f1f1f;
+    color: #f0f0f0;
+    font: 14px/1.5 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+    display: grid; place-items: center; padding: 32px;
+  }}
+  .card {{
+    width: 100%; max-width: 420px;
+    background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 12px;
+    padding: 32px 28px; text-align: center;
+    box-shadow: 0 8px 28px rgba(0,0,0,.35);
+  }}
+  .badge {{
+    width: 56px; height: 56px; margin: 0 auto 18px;
+    border-radius: 14px; display: grid; place-items: center;
+    background: {(success ? "#1F3A6FF8" : "#3A1F26")};
+    color: {(success ? "#5A8BFF" : "#F36A8E")};
+    font-size: 28px; font-weight: 600;
+  }}
+  h1 {{ margin: 0 0 8px; font-size: 20px; font-weight: 600; }}
+  p  {{ margin: 0; color: #b6b6b6; }}
+  .small {{ margin-top: 18px; font-size: 12px; color: #8a8a8a; }}
+</style>
+</head>
+<body>
+  <main class=""card"" role=""status"">
+    <div class=""badge"" aria-hidden=""true"">{(success ? "✓" : "!")}</div>
+    <h1>{headline}</h1>
+    <p>{subline}</p>
+    <p class=""small"">This window will close automatically.</p>
+  </main>
+  <script>setTimeout(function(){{ try{{window.close();}}catch(e){{}} }}, 1500);</script>
+</body></html>";
+
+        var bytes = Encoding.UTF8.GetBytes(html);
+        context.Response.StatusCode = success ? 200 : 400;
+        context.Response.ContentType = "text/html; charset=utf-8";
+        context.Response.ContentLength64 = bytes.Length;
+        await context.Response.OutputStream.WriteAsync(bytes, ct).ConfigureAwait(false);
+        context.Response.OutputStream.Close();
+    }
 
     private static void OpenBrowser(string url)
     {
