@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/App.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 6
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 7
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.IO;
@@ -10,6 +10,7 @@ using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Services;
 using GreatEmailApp.Core.Storage;
 using GreatEmailApp.Core.Sync;
+using GreatEmailApp.Core.Updates;
 using GreatEmailApp.Services;
 
 namespace GreatEmailApp;
@@ -27,6 +28,8 @@ public partial class App : Application
     public static AppConfig Config { get; private set; } = null!;
     public static IAuthService Auth { get; private set; } = null!;
     public static IFirestoreSyncService Sync { get; private set; } = null!;
+    public static IUpdateService Updates { get; private set; } = null!;
+    public static IUpdateInstaller UpdateInstaller { get; private set; } = null!;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -52,13 +55,34 @@ public partial class App : Application
         Settings = SettingsStore.Load();
         Auth = new FirebaseAuthService(Config, new DpapiTokenVault());
         Sync = new FirestoreSyncService(Config, Auth);
+        Updates = new GitHubUpdateService();
+        UpdateInstaller = new UpdateInstaller();
 
         Theme.Apply(Settings.Theme, Settings.Accent);
 
         // Best-effort silent re-auth from the encrypted refresh token. Fire and
         // forget — UI stays usable whether this succeeds or not.
         _ = Auth.TryRestoreAsync();
+
+        // Silent update probe. Result is logged via UpdateAvailable for UI to
+        // surface a badge later; here we just warm the cache so the About tab
+        // shows results instantly when the user opens it.
+        _ = CheckForUpdatesSilentAsync();
     }
+
+    private static async Task CheckForUpdatesSilentAsync()
+    {
+        try
+        {
+            var result = await Updates.CheckAsync();
+            if (result is Core.Services.Result<Core.Updates.UpdateInfo?>.Ok ok && ok.Value is not null)
+                LatestUpdateInfo = ok.Value;
+        }
+        catch { /* best effort */ }
+    }
+
+    /// <summary>Cached most-recent silent-check result. Null if up to date or unknown.</summary>
+    public static Core.Updates.UpdateInfo? LatestUpdateInfo { get; private set; }
 
     /// <summary>
     /// Persist AppSettings and re-apply any UI-affecting changes (theme/accent).

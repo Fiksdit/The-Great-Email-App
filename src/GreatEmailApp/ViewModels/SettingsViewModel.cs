@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/SettingsViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -10,6 +10,7 @@ using GreatEmailApp.Core.Auth;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Services;
 using GreatEmailApp.Core.Sync;
+using GreatEmailApp.Core.Updates;
 
 namespace GreatEmailApp.ViewModels;
 
@@ -21,6 +22,8 @@ public partial class SettingsViewModel : ObservableObject
     private readonly ISettingsStore _settingsStore;
     private readonly IAuthService _auth;
     private readonly IFirestoreSyncService _sync;
+    private readonly IUpdateService _updates;
+    private readonly IUpdateInstaller _installer;
 
     [ObservableProperty] private string activeTab = "Appearance";
 
@@ -39,6 +42,18 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string syncStatus = "";
     [ObservableProperty] private bool isSyncBusy;
 
+    // --- Updates / About state ---
+    public string CurrentVersionText { get; } = $"v{GitHubUpdateService.CurrentVersion()}";
+    [ObservableProperty] private string updateStatus = "";
+    [ObservableProperty] private bool isUpdateBusy;
+    [ObservableProperty] private UpdateInfo? availableUpdate;
+    public bool HasUpdate => AvailableUpdate is not null;
+    partial void OnAvailableUpdateChanged(UpdateInfo? value)
+    {
+        OnPropertyChanged(nameof(HasUpdate));
+        InstallUpdateCommand.NotifyCanExecuteChanged();
+    }
+
     public string[] Accents { get; } = new[]
     {
         "#3A6FF8", "#14a37f", "#8a5cf5", "#0ea5e9", "#d29014", "#d4406b",
@@ -49,6 +64,8 @@ public partial class SettingsViewModel : ObservableObject
     public IAsyncRelayCommand SignInCommand { get; }
     public IAsyncRelayCommand SignOutCommand { get; }
     public IAsyncRelayCommand SyncNowCommand { get; }
+    public IAsyncRelayCommand CheckForUpdatesCommand { get; }
+    public IAsyncRelayCommand InstallUpdateCommand { get; }
 
     public SettingsViewModel(
         AppSettings settings,
@@ -56,7 +73,9 @@ public partial class SettingsViewModel : ObservableObject
         ICredentialStore creds,
         ISettingsStore settingsStore,
         IAuthService auth,
-        IFirestoreSyncService sync)
+        IFirestoreSyncService sync,
+        IUpdateService updates,
+        IUpdateInstaller installer)
     {
         _settings = settings;
         _accountStore = accountStore;
@@ -64,6 +83,8 @@ public partial class SettingsViewModel : ObservableObject
         _settingsStore = settingsStore;
         _auth = auth;
         _sync = sync;
+        _updates = updates;
+        _installer = installer;
 
         theme = settings.Theme;
         accent = settings.Accent;
@@ -76,9 +97,11 @@ public partial class SettingsViewModel : ObservableObject
         foreach (var a in _accountStore.LoadAll())
             ManagedAccounts.Add(a);
 
-        SignInCommand  = new AsyncRelayCommand(SignInAsync,  () => !IsSyncBusy && !IsSignedIn);
-        SignOutCommand = new AsyncRelayCommand(SignOutAsync, () => !IsSyncBusy &&  IsSignedIn);
-        SyncNowCommand = new AsyncRelayCommand(SyncNowAsync, () => !IsSyncBusy &&  IsSignedIn);
+        SignInCommand           = new AsyncRelayCommand(SignInAsync,         () => !IsSyncBusy && !IsSignedIn);
+        SignOutCommand          = new AsyncRelayCommand(SignOutAsync,        () => !IsSyncBusy &&  IsSignedIn);
+        SyncNowCommand          = new AsyncRelayCommand(SyncNowAsync,        () => !IsSyncBusy &&  IsSignedIn);
+        CheckForUpdatesCommand  = new AsyncRelayCommand(CheckForUpdatesAsync, () => !IsUpdateBusy);
+        InstallUpdateCommand    = new AsyncRelayCommand(InstallUpdateAsync,   () => !IsUpdateBusy && AvailableUpdate is not null);
 
         _auth.SessionChanged += OnSessionChanged;
         ApplySession(_auth.Current);
@@ -252,5 +275,66 @@ public partial class SettingsViewModel : ObservableObject
         _accountStore.Save(remote.Accounts);
         ManagedAccounts.Clear();
         foreach (var a in remote.Accounts) ManagedAccounts.Add(a);
+    }
+
+    // --------------------------------------------------------------------- //
+    // Update commands
+    // --------------------------------------------------------------------- //
+
+    partial void OnIsUpdateBusyChanged(bool value)
+    {
+        CheckForUpdatesCommand.NotifyCanExecuteChanged();
+        InstallUpdateCommand.NotifyCanExecuteChanged();
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        IsUpdateBusy = true;
+        UpdateStatus = "Checking for updates…";
+        try
+        {
+            var result = await _updates.CheckAsync();
+            if (result is Result<UpdateInfo?>.Fail f)
+            {
+                UpdateStatus = $"Update check failed: {f.Error}";
+                AvailableUpdate = null;
+                return;
+            }
+            var info = ((Result<UpdateInfo?>.Ok)result).Value;
+            if (info is null)
+            {
+                UpdateStatus = $"You're up to date ({CurrentVersionText}).";
+                AvailableUpdate = null;
+            }
+            else
+            {
+                UpdateStatus = $"Update available: {info.TagName} (released {info.PublishedAt.LocalDateTime:g}).";
+                AvailableUpdate = info;
+            }
+        }
+        finally { IsUpdateBusy = false; }
+    }
+
+    private async Task InstallUpdateAsync()
+    {
+        var info = AvailableUpdate;
+        if (info is null) return;
+
+        IsUpdateBusy = true;
+        UpdateStatus = $"Downloading {info.TagName}…";
+        try
+        {
+            var result = await _installer.DownloadAndApplyAsync(info);
+            if (result is Result<bool>.Fail f)
+            {
+                UpdateStatus = $"Install failed: {f.Error}";
+                return;
+            }
+            UpdateStatus = $"Update staged. Closing now to finish install — the app will reopen automatically.";
+            // Give WPF a beat to render the status before we shut down.
+            await Task.Delay(800);
+            Application.Current.Shutdown();
+        }
+        finally { IsUpdateBusy = false; }
     }
 }
