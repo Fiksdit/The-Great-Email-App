@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Views/Dialogs/SettingsDialog.xaml
-     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+     Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
      Changed by: Claude Opus 4.7 on behalf of James Reed
      Settings modal. Left rail of tabs, content swaps via Visibility binding.
      All edits write through to App.Settings + are persisted on Close. -->
@@ -21,6 +21,8 @@
         <conv:StringEqualsToBoolConverter x:Key="StrEqBool" />
         <conv:StringEqualsToVisibilityConverter x:Key="StrEqVis" />
         <conv:HexToBrushConverter x:Key="HexBrush" />
+        <conv:BoolToVisibilityConverter x:Key="BoolVis" />
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolVis" />
 
         <Style x:Key="RailItem" TargetType="ToggleButton">
             <Setter Property="Background" Value="Transparent" />
@@ -385,18 +387,41 @@
                     <!-- Sync -->
                     <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Sync}">
                         <TextBlock Text="Settings Sync" Style="{StaticResource SectionTitle}" />
-                        <Border Style="{StaticResource SettingsRow}">
+
+                        <!-- Signed-OUT state -->
+                        <Border Style="{StaticResource SettingsRow}"
+                                Visibility="{Binding IsSignedIn, Converter={StaticResource InvBoolVis}}">
                             <StackPanel>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Google sign-in" />
                                 <TextBlock Style="{StaticResource RowDescription}"
-                                           Text="Sign in with Google to back up your account configuration across devices. Passwords stay local." />
+                                           Text="Sign in with Google to back up your account configuration and app preferences across devices. Passwords always stay local in Windows Credential Manager." />
                                 <Button Style="{StaticResource AccentButton}" Content="Sign in with Google"
-                                        HorizontalAlignment="Left" Margin="0,12,0,0" IsEnabled="False" />
+                                        HorizontalAlignment="Left" Margin="0,12,0,0"
+                                        Command="{Binding SignInCommand}" />
                             </StackPanel>
                         </Border>
-                        <TextBlock Margin="0,24,0,0" FontSize="12"
+
+                        <!-- Signed-IN state -->
+                        <Border Style="{StaticResource SettingsRow}"
+                                Visibility="{Binding IsSignedIn, Converter={StaticResource BoolVis}}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Signed in" />
+                                <TextBlock Style="{StaticResource RowDescription}"
+                                           Text="{Binding SignedInEmail}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Style="{StaticResource AccentButton}" Content="Sync now"
+                                            Command="{Binding SyncNowCommand}" />
+                                    <Button Style="{StaticResource SubtleButton}" Content="Sign out"
+                                            Margin="8,0,0,0" Padding="14,7"
+                                            Command="{Binding SignOutCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Margin="0,16,0,0" FontSize="12"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
-                                   Text="Settings sync arrives in Phase 4 (Firebase Auth + Firestore)." />
+                                   Text="{Binding SyncStatus}"
+                                   TextWrapping="Wrap" />
                     </StackPanel>
 
                     <!-- Notifications -->

@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/App.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 5
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 6
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.IO;
@@ -9,6 +9,7 @@ using GreatEmailApp.Core.Config;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Services;
 using GreatEmailApp.Core.Storage;
+using GreatEmailApp.Core.Sync;
 using GreatEmailApp.Services;
 
 namespace GreatEmailApp;
@@ -25,6 +26,7 @@ public partial class App : Application
     public static AppSettings Settings { get; set; } = null!;
     public static AppConfig Config { get; private set; } = null!;
     public static IAuthService Auth { get; private set; } = null!;
+    public static IFirestoreSyncService Sync { get; private set; } = null!;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -40,6 +42,7 @@ public partial class App : Application
         SettingsStore = new JsonSettingsStore();
         Settings = SettingsStore.Load();
         Auth = new FirebaseAuthService(Config, new DpapiTokenVault());
+        Sync = new FirestoreSyncService(Config, Auth);
 
         Theme.Apply(Settings.Theme, Settings.Accent);
 
