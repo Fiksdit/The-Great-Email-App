@@ -390,7 +390,17 @@ Document inline:
 
 ---
 
-## 17. Lessons Learned
+## 17. Rendering
+
+**WPF process render mode is `SoftwareOnly`** — set in `App.OnStartup` before `base.OnStartup(e)`.
+
+Hardware-accelerated WPF on certain GPU/driver combinations produces pure-white windows even though the visual tree, theme dictionaries, and `DynamicResource` lookups all succeed. See FIX-2026-04-30-001 in the fix log.
+
+**Rule:** don't change `ProcessRenderMode` without testing on every supported PC. Software rasterization is plenty fast for our UI.
+
+---
+
+## 18. Lessons Learned
 
 | Date | Category | Lesson |
 |------|----------|--------|

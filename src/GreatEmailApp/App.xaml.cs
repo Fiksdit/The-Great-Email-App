@@ -30,6 +30,15 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Force software rendering. Hardware-accelerated WPF on certain GPU /
+        // driver combinations renders pure-white windows even though the visual
+        // tree, theme dictionaries, and DynamicResource lookups all succeed
+        // (FIX-2026-04-30-001 — reproduced on a fresh Win11 box, Tier 2 GPU).
+        // SoftwareOnly is plenty fast for an email client and removes a whole
+        // class of GPU-driver-dependent bugs across our target install base.
+        System.Windows.Media.RenderOptions.ProcessRenderMode =
+            System.Windows.Interop.RenderMode.SoftwareOnly;
+
         base.OnStartup(e);
 
         AppPaths.EnsureRoot();

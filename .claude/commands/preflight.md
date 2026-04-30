@@ -49,6 +49,8 @@ dotnet build   GreatEmailApp.sln -c Debug
 
 **Output:** ".NET 8 SDK [installed / already present]. Build: [N errors / N warnings]. App launched: [PID]."
 
+**Known launch symptom — pure-white window:** if the launched app shows a pure-white client area with no chrome but the cursor turns to a pointer over interactive zones, this is a WPF hardware-rendering pipeline bug — already mitigated. The `RenderOptions.ProcessRenderMode = SoftwareOnly` line at the top of `App.OnStartup` is the fix; do not remove it. See FIX-2026-04-30-001 in `Project/logs/fix_log.md`.
+
 ---
 
 ## Step 0: Session Log
