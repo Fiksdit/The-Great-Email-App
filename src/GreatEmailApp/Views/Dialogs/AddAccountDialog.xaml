@@ -132,12 +132,10 @@
                     </StackPanel>
                     <StackPanel Grid.Column="4">
                         <TextBlock Style="{StaticResource FieldLabel}" Text="ENCRYPTION" />
-                        <ComboBox SelectedValue="{Binding ImapEncryption}"
-                                  SelectedValuePath="Tag">
-                            <ComboBoxItem Content="SSL/TLS" Tag="{x:Static m:MailEncryption.SslTls}" />
-                            <ComboBoxItem Content="STARTTLS" Tag="{x:Static m:MailEncryption.StartTls}" />
-                            <ComboBoxItem Content="None" Tag="{x:Static m:MailEncryption.None}" />
-                        </ComboBox>
+                        <ComboBox ItemsSource="{Binding EncryptionOptions}"
+                                  SelectedValuePath="Value"
+                                  DisplayMemberPath="Label"
+                                  SelectedValue="{Binding ImapEncryption, Mode=TwoWay}" />
                     </StackPanel>
                 </Grid>
 
@@ -177,11 +175,10 @@
                     </StackPanel>
                     <StackPanel Grid.Column="4">
                         <TextBlock Style="{StaticResource FieldLabel}" Text="ENCRYPTION" />
-                        <ComboBox SelectedValue="{Binding SmtpEncryption}" SelectedValuePath="Tag">
-                            <ComboBoxItem Content="SSL/TLS" Tag="{x:Static m:MailEncryption.SslTls}" />
-                            <ComboBoxItem Content="STARTTLS" Tag="{x:Static m:MailEncryption.StartTls}" />
-                            <ComboBoxItem Content="None" Tag="{x:Static m:MailEncryption.None}" />
-                        </ComboBox>
+                        <ComboBox ItemsSource="{Binding EncryptionOptions}"
+                                  SelectedValuePath="Value"
+                                  DisplayMemberPath="Label"
+                                  SelectedValue="{Binding SmtpEncryption, Mode=TwoWay}" />
                     </StackPanel>
                 </Grid>
 

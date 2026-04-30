@@ -12,6 +12,8 @@ namespace GreatEmailApp.ViewModels;
 
 public enum TestStatus { Idle, Testing, Ok, Failed }
 
+public sealed record EncryptionOption(MailEncryption Value, string Label);
+
 public partial class AddAccountViewModel : ObservableObject
 {
     private readonly IImapService _imap;
@@ -44,6 +46,13 @@ public partial class AddAccountViewModel : ObservableObject
     private bool _userEditedUsername;
     private bool _userEditedImapHost;
     private bool _userEditedSmtpHost;
+
+    public IReadOnlyList<EncryptionOption> EncryptionOptions { get; } = new[]
+    {
+        new EncryptionOption(MailEncryption.SslTls,   "SSL/TLS"),
+        new EncryptionOption(MailEncryption.StartTls, "STARTTLS"),
+        new EncryptionOption(MailEncryption.None,     "None"),
+    };
 
     public AddAccountViewModel(IImapService imap)
     {
