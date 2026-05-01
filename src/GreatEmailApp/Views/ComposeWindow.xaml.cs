@@ -107,46 +107,65 @@ public partial class ComposeWindow : Window
         _vm.SaveAsDraft();
     }
 
-    private async void Discard_Click(object sender, RoutedEventArgs e)
+    private void Discard_Click(object sender, RoutedEventArgs e)
     {
-        await CaptureBodyAsync();
-        if (_vm.HasContent)
-        {
-            // Three-way: Yes = keep as draft, No = discard, Cancel = stay.
-            var r = MessageBox.Show(this,
-                "Save this message as a draft? Choose No to discard it.",
-                "Close compose",
-                MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-            if (r == MessageBoxResult.Cancel) return;
-            if (r == MessageBoxResult.Yes) _vm.SaveAsDraft();
-            else _vm.DeleteDraft(); // No → discard
-        }
+        // The user explicitly clicked Discard — let OnClosing handle the prompt
+        // by running through the same path Close-X uses. _explicitDiscard skips
+        // the save branch so "Yes" can't preserve content the user just rejected.
+        _explicitDiscard = true;
         Close();
     }
 
     /// <summary>
-    /// Override the X-button close so closing the window without an explicit
-    /// Discard / Save still asks. Sent flow already routes through Sent → Close,
-    /// so HasContent is false at that point and this is a no-op.
+    /// Async-safe close handler. Pattern: synchronously cancel the close, do
+    /// async work (capture body + prompt), then call Close() ourselves.
+    /// Trying to await BEFORE setting e.Cancel = true is a known WPF footgun —
+    /// the window proceeds to dispose while the await is pending.
     /// </summary>
-    protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
-        await CaptureBodyAsync();
-        if (_vm.HasContent && !_promptSuppressed)
-        {
-            var r = MessageBox.Show(this,
-                "Save this message as a draft? Choose No to discard it.",
-                "Close compose",
-                MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-            if (r == MessageBoxResult.Cancel) { e.Cancel = true; return; }
-            if (r == MessageBoxResult.Yes) _vm.SaveAsDraft();
-            else _vm.DeleteDraft();
-            _promptSuppressed = true; // don't prompt twice if Close() is re-entered
-        }
-        base.OnClosing(e);
+        if (_closeConfirmed) { base.OnClosing(e); return; }
+        e.Cancel = true;
+        _ = HandleClosingAsync();
     }
 
-    private bool _promptSuppressed;
+    private async Task HandleClosingAsync()
+    {
+        await CaptureBodyAsync();
+
+        if (_explicitDiscard)
+        {
+            _vm.DeleteDraft();
+            CloseForReal();
+            return;
+        }
+
+        // Skip the prompt entirely if there's nothing worth saving OR if the
+        // user already saved and hasn't touched anything since.
+        if (!_vm.HasContent || !_vm.HasUnsavedChanges)
+        {
+            CloseForReal();
+            return;
+        }
+
+        var r = MessageBox.Show(this,
+            "Save this message as a draft? Choose No to discard it.",
+            "Close compose",
+            MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        if (r == MessageBoxResult.Cancel) return;       // stays open
+        if (r == MessageBoxResult.Yes) _vm.SaveAsDraft();
+        else _vm.DeleteDraft();
+        CloseForReal();
+    }
+
+    private void CloseForReal()
+    {
+        _closeConfirmed = true;
+        Close();
+    }
+
+    private bool _explicitDiscard;
+    private bool _closeConfirmed;
 
     /// <summary>
     /// Open a saved draft directly in compose. Used by the Drafts ribbon button.
@@ -156,10 +175,8 @@ public partial class ComposeWindow : Window
         var vm = new ComposeViewModel(App.Smtp, App.Imap, App.Credentials, App.Contacts, App.Drafts, accounts);
         vm.LoadDraft(draft);
         var win = new ComposeWindow(vm) { Title = string.IsNullOrEmpty(draft.Subject) ? "Draft" : draft.Subject };
-        win._promptSuppressed = false;
-        // Suppress the close-prompt for the draft we're about to send: the Sent
-        // event already deletes the row + closes the window, so the user has
-        // explicitly resolved the draft. (Discard / Close-X still prompt.)
+        // LoadDraft already cleared HasUnsavedChanges, so closing without edits
+        // skips the prompt automatically.
         return win;
     }
 }

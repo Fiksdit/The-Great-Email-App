@@ -36,6 +36,13 @@ public partial class ComposeViewModel : ObservableObject
     /// if the user saves. Lets us update vs. create on every Save.</summary>
     public string DraftId { get; set; } = Guid.NewGuid().ToString("N");
 
+    /// <summary>
+    /// True when the in-memory draft differs from what's persisted (or nothing
+    /// has been persisted yet). Cleared by SaveAsDraft and by LoadDraft; set
+    /// by any field-level OnXxxChanged hook below.
+    /// </summary>
+    public bool HasUnsavedChanges { get; private set; } = true;
+
     public ObservableCollection<Account> AvailableAccounts { get; } = new();
     [ObservableProperty] private Account? fromAccount;
 
@@ -91,7 +98,12 @@ public partial class ComposeViewModel : ObservableObject
         _drafts = drafts;
 
         foreach (var a in accounts) AvailableAccounts.Add(a);
-        fromAccount = defaultAccount
+        // Find the matching account *inside* AvailableAccounts so ComboBox
+        // SelectedItem actually binds (defaultAccount may be a different
+        // instance with the same Id from a fresh LoadAll()).
+        fromAccount = (defaultAccount is not null
+                ? AvailableAccounts.FirstOrDefault(a => a.Id == defaultAccount.Id)
+                : null)
             ?? AvailableAccounts.FirstOrDefault(a => a.IsPrimary)
             ?? AvailableAccounts.FirstOrDefault();
 
@@ -101,8 +113,12 @@ public partial class ComposeViewModel : ObservableObject
         ToggleCcBccCommand = new RelayCommand(() => CcBccVisible = !CcBccVisible);
     }
 
-    partial void OnFromAccountChanged(Account? value) => SendCommand.NotifyCanExecuteChanged();
-    partial void OnToAddressesChanged(string value)   => SendCommand.NotifyCanExecuteChanged();
+    partial void OnFromAccountChanged(Account? value) { HasUnsavedChanges = true; SendCommand.NotifyCanExecuteChanged(); }
+    partial void OnToAddressesChanged(string value)   { HasUnsavedChanges = true; SendCommand.NotifyCanExecuteChanged(); }
+    partial void OnCcAddressesChanged(string value)   => HasUnsavedChanges = true;
+    partial void OnBccAddressesChanged(string value)  => HasUnsavedChanges = true;
+    partial void OnSubjectChanged(string value)       => HasUnsavedChanges = true;
+    partial void OnBodyTextChanged(string value)      => HasUnsavedChanges = true;
     partial void OnIsSendingChanged(bool value)       => SendCommand.NotifyCanExecuteChanged();
 
     private bool CanSend() =>
@@ -381,6 +397,7 @@ public partial class ComposeViewModel : ObservableObject
             UpdatedAt = DateTimeOffset.UtcNow,
         };
         _drafts.Save(draft);
+        HasUnsavedChanges = false;
         StatusMessage = $"Draft saved at {DateTime.Now:t}.";
     }
 
@@ -413,10 +430,11 @@ public partial class ComposeViewModel : ObservableObject
             }
             catch
             {
-                // File gone — keep the path so the user can re-pick if they want.
                 Attachments.Add(new ComposeAttachment { FilePath = path, SizeBytes = 0 });
             }
         }
+        // Just-loaded matches what's on disk → no unsaved changes.
+        HasUnsavedChanges = false;
     }
 
     /// <summary>Remove this compose session's draft row, if any.</summary>
