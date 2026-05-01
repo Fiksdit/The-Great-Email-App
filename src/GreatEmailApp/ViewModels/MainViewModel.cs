@@ -527,13 +527,75 @@ public partial class MainViewModel : ObservableObject
     private void CreateRuleFromMessage(MessageViewModel? message)
     {
         if (message is null) return;
-        // P3-AI-1: opens a Rule Builder dialog with sender/subject pre-populated.
-        // For now, surface a placeholder so the menu item is wired.
-        MessageBox.Show(
-            $"Rule from {message.SenderEmail}\n\nThe rules engine arrives in a future release. " +
-            "It'll let you say things like 'when from this sender → move to Vendors / mark read / flag'.",
-            "Create rule",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        var msg = message.Model;
+
+        // Prefer matching on the sender domain — covers every email from
+        // mobilesentrix.com, not just the specific autoresponder address.
+        var fromValue = msg.SenderEmail;
+        var atIdx = fromValue.IndexOf('@');
+        if (atIdx > 0 && atIdx < fromValue.Length - 1)
+            fromValue = fromValue[(atIdx + 1)..];        // domain only
+        else if (string.IsNullOrEmpty(fromValue))
+            fromValue = msg.Sender ?? "";                // fallback to display name
+
+        // Suggested rule name: prefer the display name, fall back to the domain.
+        var ruleName = string.IsNullOrWhiteSpace(msg.Sender) ? fromValue : msg.Sender;
+
+        // Suggested folder name: TitleCase of the domain root, e.g. mobilesentrix → Mobilesentrix.
+        // The user can rename in the editor — this is just a starting point.
+        var domainRoot = fromValue.Split('.').FirstOrDefault() ?? fromValue;
+        var folderSuggestion = string.IsNullOrEmpty(domainRoot)
+            ? ""
+            : char.ToUpper(domainRoot[0]) + domainRoot[1..];
+
+        var seed = new MailRule
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Name = ruleName,
+            IsEnabled = true,
+            AccountId = string.IsNullOrEmpty(msg.AccountId) ? null : msg.AccountId,
+            Match = RuleMatch.All,
+            Conditions = new List<RuleCondition>
+            {
+                new() { Field = RuleField.From, Op = RuleOp.Contains, Value = fromValue },
+            },
+            Actions = new List<RuleActionItem>
+            {
+                new() { Type = RuleAction.MoveToFolder, Value = folderSuggestion },
+            },
+        };
+
+        // Build the per-account folder dictionary (same pattern Settings dialog
+        // uses) so the editor's folder picker shows real choices.
+        var foldersByAccount = new Dictionary<string, IReadOnlyList<string>>();
+        foreach (var avm in Accounts)
+        {
+            var paths = new List<string>();
+            CollectFolderPaths(avm.Folders, paths);
+            foldersByAccount[avm.Model.Id] = paths;
+        }
+
+        var dlg = new GreatEmailApp.Views.Dialogs.RuleEditorDialog(seed, App.Accounts.LoadAll().ToList(), foldersByAccount)
+        {
+            Owner = Application.Current.MainWindow,
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            var rules = App.Rules.LoadAll().ToList();
+            rules.Add(dlg.Result);
+            App.Rules.Save(rules);
+            StatusMessage = $"Rule '{dlg.Result.Name}' created.";
+        }
+    }
+
+    private static void CollectFolderPaths(
+        ObservableCollection<FolderViewModel> folders, List<string> sink)
+    {
+        foreach (var f in folders)
+        {
+            if (!string.IsNullOrEmpty(f.Model.FullPath)) sink.Add(f.Model.FullPath);
+            CollectFolderPaths(f.Children, sink);
+        }
     }
 
     [RelayCommand]
