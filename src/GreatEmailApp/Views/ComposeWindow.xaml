@@ -30,11 +30,12 @@
         <Style x:Key="FieldBox" TargetType="TextBox">
             <Setter Property="Background" Value="{DynamicResource ElevatedBackgroundBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
-            <Setter Property="BorderThickness" Value="0,0,0,1" />
-            <Setter Property="Padding" Value="6,7" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,6" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="CaretBrush" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="Margin" Value="0,3" />
         </Style>
     </Window.Resources>
 
@@ -92,7 +93,7 @@
 
                 <!-- From -->
                 <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="From" />
-                <ComboBox  Grid.Row="0" Grid.Column="1" Margin="0,4"
+                <ComboBox  Grid.Row="0" Grid.Column="1" Margin="0,3"
                            ItemsSource="{Binding AvailableAccounts}"
                            DisplayMemberPath="EmailAddress"
                            SelectedItem="{Binding FromAccount}" />
