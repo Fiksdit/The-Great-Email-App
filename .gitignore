@@ -49,6 +49,8 @@ appsettings.Local.json
 Thumbs.db
 .DS_Store
 desktop.ini
+Screenshot*.png
+Screenshot*.jpg
 
 # Original design archive (kept extracted under docs/design/)
 Great Email App.zip
