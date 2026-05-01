@@ -18,6 +18,7 @@ public static class AppPaths
     public static string ContactsJson => Path.Combine(Root, "contacts.json");
     public static string RulesJson    => Path.Combine(Root, "rules.json");
     public static string FoldersCacheJson => Path.Combine(Root, "folders-cache.json");
+    public static string DraftsJson    => Path.Combine(Root, "drafts.json");
 
     /// <summary>
     /// Domains the user has explicitly dismissed from rule suggestions.

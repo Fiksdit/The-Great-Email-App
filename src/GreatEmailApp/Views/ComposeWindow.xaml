@@ -65,6 +65,10 @@
                         Padding="14,7" Margin="8,0,0,0"
                         Command="{Binding ToggleCcBccCommand}" />
                 <Button Style="{StaticResource SubtleButton}"
+                        Content="Save draft"
+                        Padding="14,7" Margin="8,0,0,0"
+                        Click="SaveDraft_Click" />
+                <Button Style="{StaticResource SubtleButton}"
                         Content="Discard"
                         Padding="14,7" Margin="8,0,0,0"
                         Click="Discard_Click" />

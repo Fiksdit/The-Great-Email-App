@@ -78,7 +78,7 @@ public partial class ComposeWindow : Window
     private static ComposeWindow Make(ComposeMode mode, IEnumerable<Account> accounts,
         Account? defaultAccount, Message? original)
     {
-        var vm = new ComposeViewModel(App.Smtp, App.Imap, App.Credentials, App.Contacts, accounts, defaultAccount);
+        var vm = new ComposeViewModel(App.Smtp, App.Imap, App.Credentials, App.Contacts, App.Drafts, accounts, defaultAccount);
         if (original is not null)
         {
             switch (mode)
@@ -101,22 +101,65 @@ public partial class ComposeWindow : Window
         return win;
     }
 
-    private void Discard_Click(object sender, RoutedEventArgs e)
+    private async void SaveDraft_Click(object sender, RoutedEventArgs e)
     {
-        if (HasUnsentContent())
+        await CaptureBodyAsync();
+        _vm.SaveAsDraft();
+    }
+
+    private async void Discard_Click(object sender, RoutedEventArgs e)
+    {
+        await CaptureBodyAsync();
+        if (_vm.HasContent)
         {
+            // Three-way: Yes = keep as draft, No = discard, Cancel = stay.
             var r = MessageBox.Show(this,
-                "Discard this message? Anything you've typed will be lost.",
-                "Discard message",
-                MessageBoxButton.OKCancel, MessageBoxImage.Warning);
-            if (r != MessageBoxResult.OK) return;
+                "Save this message as a draft? Choose No to discard it.",
+                "Close compose",
+                MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            if (r == MessageBoxResult.Cancel) return;
+            if (r == MessageBoxResult.Yes) _vm.SaveAsDraft();
+            else _vm.DeleteDraft(); // No → discard
         }
         Close();
     }
 
-    private bool HasUnsentContent() =>
-        !string.IsNullOrWhiteSpace(_vm.ToAddresses) ||
-        !string.IsNullOrWhiteSpace(_vm.Subject) ||
-        !string.IsNullOrWhiteSpace(_vm.BodyText) ||
-        _vm.Attachments.Count > 0;
+    /// <summary>
+    /// Override the X-button close so closing the window without an explicit
+    /// Discard / Save still asks. Sent flow already routes through Sent → Close,
+    /// so HasContent is false at that point and this is a no-op.
+    /// </summary>
+    protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        await CaptureBodyAsync();
+        if (_vm.HasContent && !_promptSuppressed)
+        {
+            var r = MessageBox.Show(this,
+                "Save this message as a draft? Choose No to discard it.",
+                "Close compose",
+                MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            if (r == MessageBoxResult.Cancel) { e.Cancel = true; return; }
+            if (r == MessageBoxResult.Yes) _vm.SaveAsDraft();
+            else _vm.DeleteDraft();
+            _promptSuppressed = true; // don't prompt twice if Close() is re-entered
+        }
+        base.OnClosing(e);
+    }
+
+    private bool _promptSuppressed;
+
+    /// <summary>
+    /// Open a saved draft directly in compose. Used by the Drafts ribbon button.
+    /// </summary>
+    public static ComposeWindow OpenDraft(IEnumerable<Account> accounts, GreatEmailApp.Core.Models.Draft draft)
+    {
+        var vm = new ComposeViewModel(App.Smtp, App.Imap, App.Credentials, App.Contacts, App.Drafts, accounts);
+        vm.LoadDraft(draft);
+        var win = new ComposeWindow(vm) { Title = string.IsNullOrEmpty(draft.Subject) ? "Draft" : draft.Subject };
+        win._promptSuppressed = false;
+        // Suppress the close-prompt for the draft we're about to send: the Sent
+        // event already deletes the row + closes the window, so the user has
+        // explicitly resolved the draft. (Discard / Close-X still prompt.)
+        return win;
+    }
 }

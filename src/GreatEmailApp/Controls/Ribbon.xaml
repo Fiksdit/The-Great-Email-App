@@ -214,6 +214,9 @@
                                                Foreground="{DynamicResource PrimaryTextBrush}" />
                                 </StackPanel>
                             </Button>
+                            <Button Style="{StaticResource RibbonItemButton}" Click="OnDrafts_Click">
+                                <StackPanel><TextBlock Text="{StaticResource IconMail}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Drafts" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                            </Button>
                             <Border Style="{StaticResource GroupSep}" />
                             <Button Style="{StaticResource RibbonItemButton}" Command="{Binding DeleteCommand}">
                                 <StackPanel><TextBlock Text="{StaticResource IconTrash}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Delete" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>

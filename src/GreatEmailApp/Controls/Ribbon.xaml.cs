@@ -70,6 +70,12 @@ public partial class Ribbon : UserControl
 
     // --- Compose -------------------------------------------------------- //
 
+    private void OnDrafts_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new GreatEmailApp.Views.Dialogs.DraftsDialog { Owner = Window.GetWindow(this) };
+        dlg.ShowDialog();
+    }
+
     private void OnNewEmail_Click(object sender, RoutedEventArgs e)
     {
         if (App.Accounts.LoadAll().Count == 0)

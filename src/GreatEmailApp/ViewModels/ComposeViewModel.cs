@@ -30,6 +30,11 @@ public partial class ComposeViewModel : ObservableObject
     private readonly IImapService _imap;
     private readonly ICredentialStore _creds;
     private readonly IContactsStore _contacts;
+    private readonly IDraftStore _drafts;
+
+    /// <summary>Stable id for this compose session — matches the draft row
+    /// if the user saves. Lets us update vs. create on every Save.</summary>
+    public string DraftId { get; set; } = Guid.NewGuid().ToString("N");
 
     public ObservableCollection<Account> AvailableAccounts { get; } = new();
     [ObservableProperty] private Account? fromAccount;
@@ -75,6 +80,7 @@ public partial class ComposeViewModel : ObservableObject
         IImapService imap,
         ICredentialStore creds,
         IContactsStore contacts,
+        IDraftStore drafts,
         IEnumerable<Account> accounts,
         Account? defaultAccount = null)
     {
@@ -82,6 +88,7 @@ public partial class ComposeViewModel : ObservableObject
         _imap = imap;
         _creds = creds;
         _contacts = contacts;
+        _drafts = drafts;
 
         foreach (var a in accounts) AvailableAccounts.Add(a);
         fromAccount = defaultAccount
@@ -215,6 +222,9 @@ public partial class ComposeViewModel : ObservableObject
             // the user can review/clean these in Settings → Contacts.
             try { AutoCollectRecipients(); } catch { /* contacts is best-effort */ }
 
+            // Send succeeded — clean up any draft row this compose was working from.
+            try { _drafts.Delete(DraftId); } catch { /* best-effort */ }
+
             StatusMessage = "Sent.";
             Sent?.Invoke(this, EventArgs.Empty);
         }
@@ -339,5 +349,79 @@ public partial class ComposeViewModel : ObservableObject
     {
         if (a is null) return;
         Attachments.Remove(a);
+    }
+
+    // --------------------------------------------------------------------- //
+    // Drafts
+    // --------------------------------------------------------------------- //
+
+    /// <summary>True if there's anything worth persisting / asking the user about.</summary>
+    public bool HasContent =>
+        !string.IsNullOrWhiteSpace(ToAddresses) ||
+        !string.IsNullOrWhiteSpace(CcAddresses) ||
+        !string.IsNullOrWhiteSpace(BccAddresses) ||
+        !string.IsNullOrWhiteSpace(Subject) ||
+        !string.IsNullOrWhiteSpace(BodyText) ||
+        Attachments.Count > 0;
+
+    public void SaveAsDraft()
+    {
+        var draft = new Draft
+        {
+            Id = DraftId,
+            AccountId = FromAccount?.Id ?? "",
+            To = ToAddresses ?? "",
+            Cc = CcAddresses ?? "",
+            Bcc = BccAddresses ?? "",
+            Subject = Subject ?? "",
+            BodyHtml = BodyHtml ?? "",
+            BodyText = BodyText ?? "",
+            InReplyToMessageId = InReplyToMessageId,
+            AttachmentPaths = Attachments.Select(a => a.FilePath).ToList(),
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        _drafts.Save(draft);
+        StatusMessage = $"Draft saved at {DateTime.Now:t}.";
+    }
+
+    /// <summary>Populate this VM from an existing Draft row.</summary>
+    public void LoadDraft(Draft d)
+    {
+        DraftId = d.Id;
+        var matchingAccount = AvailableAccounts.FirstOrDefault(a => a.Id == d.AccountId);
+        if (matchingAccount is not null) FromAccount = matchingAccount;
+        ToAddresses  = d.To  ?? "";
+        CcAddresses  = d.Cc  ?? "";
+        BccAddresses = d.Bcc ?? "";
+        if (!string.IsNullOrWhiteSpace(CcAddresses) || !string.IsNullOrWhiteSpace(BccAddresses))
+            CcBccVisible = true;
+        Subject = d.Subject ?? "";
+        BodyHtml = d.BodyHtml ?? "";
+        BodyText = d.BodyText ?? "";
+        InReplyToMessageId = d.InReplyToMessageId;
+        Attachments.Clear();
+        foreach (var path in d.AttachmentPaths)
+        {
+            try
+            {
+                var fi = new System.IO.FileInfo(path);
+                Attachments.Add(new ComposeAttachment
+                {
+                    FilePath = fi.FullName,
+                    SizeBytes = fi.Exists ? fi.Length : 0,
+                });
+            }
+            catch
+            {
+                // File gone — keep the path so the user can re-pick if they want.
+                Attachments.Add(new ComposeAttachment { FilePath = path, SizeBytes = 0 });
+            }
+        }
+    }
+
+    /// <summary>Remove this compose session's draft row, if any.</summary>
+    public void DeleteDraft()
+    {
+        try { _drafts.Delete(DraftId); } catch { }
     }
 }
