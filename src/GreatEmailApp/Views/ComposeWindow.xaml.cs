@@ -22,6 +22,12 @@ public partial class ComposeWindow : Window
         DataContext = vm;
         vm.Sent += (_, _) => Dispatcher.BeginInvoke(new Action(Close));
 
+        // Wire address-input autocomplete to the VM's contact suggester.
+        Func<string, System.Collections.Generic.IReadOnlyList<Core.Models.Contact>> sugg = q => vm.SuggestContacts(q);
+        ToInput.Suggester  = sugg;
+        CcInput.Suggester  = sugg;
+        BccInput.Suggester = sugg;
+
         // Mirror editor edits back to the VM so Send.CanExecute and the eventual
         // BodyText / BodyHtml capture work without polling. Bootstrap the editor
         // contents once it's loaded so we don't race the WebView2 init.

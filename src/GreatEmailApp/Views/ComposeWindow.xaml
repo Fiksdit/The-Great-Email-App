@@ -95,22 +95,22 @@
 
                 <!-- To -->
                 <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="To" />
-                <TextBox   Grid.Row="1" Grid.Column="1" Style="{StaticResource FieldBox}"
-                           Text="{Binding ToAddresses, UpdateSourceTrigger=PropertyChanged}" />
+                <c:AddressInput Grid.Row="1" Grid.Column="1" x:Name="ToInput"
+                                Text="{Binding ToAddresses, UpdateSourceTrigger=PropertyChanged}" />
 
                 <!-- Cc -->
                 <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Cc"
                            Visibility="{Binding CcBccVisible, Converter={StaticResource BoolVis}}" />
-                <TextBox   Grid.Row="2" Grid.Column="1" Style="{StaticResource FieldBox}"
-                           Text="{Binding CcAddresses, UpdateSourceTrigger=PropertyChanged}"
-                           Visibility="{Binding CcBccVisible, Converter={StaticResource BoolVis}}" />
+                <c:AddressInput Grid.Row="2" Grid.Column="1" x:Name="CcInput"
+                                Text="{Binding CcAddresses, UpdateSourceTrigger=PropertyChanged}"
+                                Visibility="{Binding CcBccVisible, Converter={StaticResource BoolVis}}" />
 
                 <!-- Bcc -->
                 <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Bcc"
                            Visibility="{Binding CcBccVisible, Converter={StaticResource BoolVis}}" />
-                <TextBox   Grid.Row="3" Grid.Column="1" Style="{StaticResource FieldBox}"
-                           Text="{Binding BccAddresses, UpdateSourceTrigger=PropertyChanged}"
-                           Visibility="{Binding CcBccVisible, Converter={StaticResource BoolVis}}" />
+                <c:AddressInput Grid.Row="3" Grid.Column="1" x:Name="BccInput"
+                                Text="{Binding BccAddresses, UpdateSourceTrigger=PropertyChanged}"
+                                Visibility="{Binding CcBccVisible, Converter={StaticResource BoolVis}}" />
 
                 <!-- Subject -->
                 <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Subject" />
