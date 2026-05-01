@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/App.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 8
+// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 9
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.IO;
@@ -7,6 +7,7 @@ using System.Windows;
 using GreatEmailApp.Core.Auth;
 using GreatEmailApp.Core.Config;
 using GreatEmailApp.Core.Models;
+using GreatEmailApp.Core.Notifications;
 using GreatEmailApp.Core.Services;
 using GreatEmailApp.Core.Storage;
 using GreatEmailApp.Core.Sync;
@@ -31,6 +32,8 @@ public partial class App : Application
     public static SyncCoordinator SyncCoordinator { get; private set; } = null!;
     public static IUpdateService Updates { get; private set; } = null!;
     public static IUpdateInstaller UpdateInstaller { get; private set; } = null!;
+    public static INewMailPoller MailPoller { get; private set; } = null!;
+    private static TrayNotifier? _tray;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -60,6 +63,10 @@ public partial class App : Application
         SyncCoordinator.RemotePullApplied += OnRemotePullApplied;
         Updates = new GitHubUpdateService();
         UpdateInstaller = new UpdateInstaller();
+        MailPoller = new NewMailPoller(Settings, Accounts, Credentials, Imap);
+        _tray = new TrayNotifier(MailPoller);
+        MailPoller.Start();
+        Exit += (_, _) => { _tray?.Dispose(); (MailPoller as IDisposable)?.Dispose(); };
 
         Theme.Apply(Settings.Theme, Settings.Accent);
 

@@ -32,6 +32,13 @@ public static class AppPaths
     /// </summary>
     public static string SyncMetaJson => Path.Combine(Root, "sync-meta.json");
 
+    /// <summary>
+    /// Per-account "last-seen UID" snapshot for the new-mail poller.
+    /// Local-only — knowing which messages this PC has already notified about
+    /// is per-machine state, not synced.
+    /// </summary>
+    public static string NotificationsStateJson => Path.Combine(Root, "notifications-state.json");
+
     /// <summary>Ensures the root folder exists. Safe to call repeatedly.</summary>
     public static void EnsureRoot()
     {

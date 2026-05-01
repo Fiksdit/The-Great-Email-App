@@ -54,8 +54,11 @@ public sealed class AppSettings
 
     // Send / Receive
     /// <summary>Auto Send/Receive interval in minutes. 0 = manual only.
-    /// (Auto-sync timer lands alongside IMAP IDLE in Phase 5.)</summary>
+    /// Also drives the new-mail poller (NewMailPoller) for desktop notifications.</summary>
     public int SyncIntervalMinutes { get; set; } = 5;
+
+    /// <summary>Show a Windows balloon when the new-mail poller detects unseen messages.</summary>
+    public bool EnableNewMailNotifications { get; set; } = true;
 
     // Sync (Firebase — Phase 4)
     public bool SyncEnabled { get; set; } = false;

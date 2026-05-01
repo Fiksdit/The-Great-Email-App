@@ -35,6 +35,7 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty] private bool showHtml;
     [ObservableProperty] private bool allowRemoteImages;
+    [ObservableProperty] private bool enableNewMailNotifications;
     [ObservableProperty] private int markReadDelaySeconds;
     [ObservableProperty] private int syncIntervalMinutes;
 
@@ -97,6 +98,7 @@ public partial class SettingsViewModel : ObservableObject
         ribbon = settings.Ribbon;
         showHtml = settings.ShowHtml;
         allowRemoteImages = settings.AllowRemoteImages;
+        enableNewMailNotifications = settings.EnableNewMailNotifications;
         markReadDelaySeconds = settings.MarkReadDelaySeconds;
         syncIntervalMinutes = settings.SyncIntervalMinutes;
 
@@ -119,6 +121,7 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnRibbonChanged(RibbonStyle v)   => _settings.Ribbon = v;
     partial void OnShowHtmlChanged(bool v)        => _settings.ShowHtml = v;
     partial void OnAllowRemoteImagesChanged(bool v) => _settings.AllowRemoteImages = v;
+    partial void OnEnableNewMailNotificationsChanged(bool v) => _settings.EnableNewMailNotifications = v;
     partial void OnMarkReadDelaySecondsChanged(int v) => _settings.MarkReadDelaySeconds = v;
     partial void OnSyncIntervalMinutesChanged(int v)  => _settings.SyncIntervalMinutes = v;
 

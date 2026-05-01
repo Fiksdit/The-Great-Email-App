@@ -440,15 +440,23 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource RowLabel}" Text="New mail toasts" />
-                                    <TextBlock Style="{StaticResource RowDescription}" Text="Show a Windows notification when a new message arrives." />
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="New mail notifications" />
+                                    <TextBlock Style="{StaticResource RowDescription}"
+                                               TextWrapping="Wrap"
+                                               Text="Show a Windows notification when the inbox poller picks up a new unread message. Polling cadence is the Send/Receive interval (General → Send / Receive)." />
                                 </StackPanel>
-                                <CheckBox Grid.Column="1" VerticalAlignment="Center" IsEnabled="False" />
+                                <CheckBox Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0"
+                                          IsChecked="{Binding EnableNewMailNotifications}" />
                             </Grid>
                         </Border>
-                        <TextBlock Margin="0,24,0,0" FontSize="12"
-                                   Foreground="{DynamicResource TertiaryTextBrush}"
-                                   Text="Wired up alongside push/IDLE in Phase 5." />
+                        <Border Style="{StaticResource SettingsRow}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="System tray icon" />
+                                <TextBlock Style="{StaticResource RowDescription}"
+                                           TextWrapping="Wrap"
+                                           Text="The app installs a tray icon while running. Right-click for Open / Check now / Quit. Click a notification balloon to bring the app to the foreground." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- Security -->
