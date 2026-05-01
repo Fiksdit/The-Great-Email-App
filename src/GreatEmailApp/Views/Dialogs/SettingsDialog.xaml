@@ -146,6 +146,9 @@
                     <ToggleButton Style="{StaticResource RailItem}" Content="Contacts"
                                   IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Contacts, Mode=OneWay}"
                                   Click="Tab_Click" Tag="Contacts" />
+                    <ToggleButton Style="{StaticResource RailItem}" Content="Rules"
+                                  IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Rules, Mode=OneWay}"
+                                  Click="Tab_Click" Tag="Rules" />
                     <ToggleButton Style="{StaticResource RailItem}" Content="Appearance"
                                   IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Appearance, Mode=OneWay}"
                                   Click="Tab_Click" Tag="Appearance" />
@@ -366,6 +369,66 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                    </StackPanel>
+
+                    <!-- Rules -->
+                    <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Rules}">
+                        <DockPanel LastChildFill="True">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Style="{StaticResource SubtleButton}" Content="Run rules now"
+                                        Padding="12,6" Click="RunRulesNow_Click" />
+                                <Button Style="{StaticResource AccentButton}" Content="+ New rule"
+                                        Margin="8,0,0,0" Padding="12,6" Click="NewRule_Click" />
+                            </StackPanel>
+                            <TextBlock Text="Rules" Style="{StaticResource SectionTitle}" Margin="0" />
+                        </DockPanel>
+
+                        <TextBlock Margin="0,4,0,16" FontSize="12"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="Rules run automatically on every Send/Receive cycle. They evaluate in order — toggle, edit, or remove any rule below. Use Run rules now to apply across the current inbox." />
+
+                        <ItemsControl ItemsSource="{Binding ManagedRules}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1"
+                                            Padding="0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox Grid.Column="0" VerticalAlignment="Center"
+                                                      Margin="0,0,12,0"
+                                                      IsChecked="{Binding IsEnabled, Mode=OneWay}"
+                                                      Tag="{Binding}" Click="RuleToggle_Click" />
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="{DynamicResource PrimaryTextBrush}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock FontSize="11"
+                                                           Foreground="{DynamicResource TertiaryTextBrush}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Text="{Binding Conditions.Count, StringFormat='{}{0} condition(s)'}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                <Button Style="{StaticResource SubtleButton}" Content="Edit"
+                                                        Padding="10,5" Tag="{Binding}" Click="EditRule_Click" />
+                                                <Button Style="{StaticResource SubtleButton}" Content="Remove"
+                                                        Margin="6,0,0,0" Padding="10,5"
+                                                        Tag="{Binding}" Click="RemoveRule_Click" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Margin="0,16,0,0" FontSize="12"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   x:Name="RulesStatus" />
                     </StackPanel>
 
                     <!-- Appearance -->

@@ -8,6 +8,7 @@ using GreatEmailApp.Core.Auth;
 using GreatEmailApp.Core.Config;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Notifications;
+using GreatEmailApp.Core.Rules;
 using GreatEmailApp.Core.Search;
 using GreatEmailApp.Core.Services;
 using GreatEmailApp.Core.Storage;
@@ -27,6 +28,8 @@ public partial class App : Application
     public static ICredentialStore Credentials { get; private set; } = null!;
     public static IAccountStore Accounts { get; private set; } = null!;
     public static IContactsStore Contacts { get; private set; } = null!;
+    public static IRulesStore Rules { get; private set; } = null!;
+    public static IRulesEngine RulesEngine { get; private set; } = null!;
     public static ISettingsStore SettingsStore { get; private set; } = null!;
     public static AppSettings Settings { get; set; } = null!;
     public static AppConfig Config { get; private set; } = null!;
@@ -61,11 +64,12 @@ public partial class App : Application
         Credentials = new WindowsCredentialStore();
         Accounts = new JsonAccountStore();
         Contacts = new JsonContactsStore();
+        Rules = new JsonRulesStore();
         SettingsStore = new JsonSettingsStore();
         Settings = SettingsStore.Load();
         Auth = new FirebaseAuthService(Config, new DpapiTokenVault());
         Sync = new FirestoreSyncService(Config, Auth);
-        SyncCoordinator = new SyncCoordinator(Settings, SettingsStore, Accounts, Contacts, Auth, Sync);
+        SyncCoordinator = new SyncCoordinator(Settings, SettingsStore, Accounts, Contacts, Rules, Auth, Sync);
         SyncCoordinator.RemotePullApplied += OnRemotePullApplied;
         Updates = new GitHubUpdateService();
         UpdateInstaller = new UpdateInstaller();
@@ -82,6 +86,11 @@ public partial class App : Application
         };
         _tray = new TrayNotifier(MailPoller);
         MailPoller.Start();
+
+        // Rules engine: subscribes to MessagesPolled so every poll cycle that
+        // pulls fresh inbox state runs enabled rules against the new mail.
+        RulesEngine = new RulesEngine(Rules, Accounts, Credentials, Imap, MailPoller);
+        RulesEngine.Start();
         Exit += (_, _) => { _tray?.Dispose(); (MailPoller as IDisposable)?.Dispose(); };
 
         Theme.Apply(Settings.Theme, Settings.Accent);

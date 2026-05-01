@@ -19,6 +19,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly AppSettings _settings;
     private readonly IAccountStore _accountStore;
     private readonly IContactsStore _contactsStore;
+    private readonly IRulesStore _rulesStore;
     private readonly ICredentialStore _creds;
     private readonly ISettingsStore _settingsStore;
     private readonly IAuthService _auth;
@@ -69,6 +70,9 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string newContactName = "";
     [ObservableProperty] private string newContactEmail = "";
 
+    // --- Rules state ---
+    public ObservableCollection<MailRule> ManagedRules { get; } = new();
+
     public IAsyncRelayCommand SignInCommand { get; }
     public IAsyncRelayCommand SignOutCommand { get; }
     public IAsyncRelayCommand SyncNowCommand { get; }
@@ -79,6 +83,7 @@ public partial class SettingsViewModel : ObservableObject
         AppSettings settings,
         IAccountStore accountStore,
         IContactsStore contactsStore,
+        IRulesStore rulesStore,
         ICredentialStore creds,
         ISettingsStore settingsStore,
         IAuthService auth,
@@ -90,6 +95,7 @@ public partial class SettingsViewModel : ObservableObject
         _settings = settings;
         _accountStore = accountStore;
         _contactsStore = contactsStore;
+        _rulesStore = rulesStore;
         _creds = creds;
         _settingsStore = settingsStore;
         _auth = auth;
@@ -113,6 +119,8 @@ public partial class SettingsViewModel : ObservableObject
             ManagedAccounts.Add(a);
         foreach (var c in _contactsStore.LoadAll().OrderBy(x => x.DisplayName))
             ManagedContacts.Add(c);
+        foreach (var r in _rulesStore.LoadAll())
+            ManagedRules.Add(r);
 
         SignInCommand           = new AsyncRelayCommand(SignInAsync,         () => !IsSyncBusy && !IsSignedIn);
         SignOutCommand          = new AsyncRelayCommand(SignOutAsync,        () => !IsSyncBusy &&  IsSignedIn);
@@ -199,6 +207,41 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     // --------------------------------------------------------------------- //
+    // Rules CRUD
+    // --------------------------------------------------------------------- //
+
+    public void AddOrUpdateRule(MailRule rule)
+    {
+        rule.UpdatedAt = DateTimeOffset.UtcNow;
+        var existing = ManagedRules.FirstOrDefault(r => r.Id == rule.Id);
+        if (existing is not null)
+        {
+            var idx = ManagedRules.IndexOf(existing);
+            ManagedRules[idx] = rule;
+        }
+        else
+        {
+            ManagedRules.Add(rule);
+        }
+        _rulesStore.Save(ManagedRules);
+    }
+
+    public void RemoveRule(MailRule r)
+    {
+        var remaining = ManagedRules.Where(x => x.Id != r.Id).ToList();
+        ManagedRules.Clear();
+        foreach (var x in remaining) ManagedRules.Add(x);
+        _rulesStore.Save(remaining);
+    }
+
+    public void ToggleRule(MailRule r)
+    {
+        r.IsEnabled = !r.IsEnabled;
+        r.UpdatedAt = DateTimeOffset.UtcNow;
+        _rulesStore.Save(ManagedRules);
+    }
+
+    // --------------------------------------------------------------------- //
     // Sync commands
     // --------------------------------------------------------------------- //
 
@@ -270,6 +313,8 @@ public partial class SettingsViewModel : ObservableObject
                 foreach (var a in _accountStore.LoadAll()) ManagedAccounts.Add(a);
                 ManagedContacts.Clear();
                 foreach (var c in _contactsStore.LoadAll().OrderBy(x => x.DisplayName)) ManagedContacts.Add(c);
+                ManagedRules.Clear();
+                foreach (var r in _rulesStore.LoadAll()) ManagedRules.Add(r);
             }
 
             SyncStatus = e.Kind switch

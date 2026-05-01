@@ -18,4 +18,5 @@ public sealed record SyncSnapshot(
     AppSettings Settings,
     IReadOnlyList<Account> Accounts,
     DateTimeOffset UpdatedAt,
-    IReadOnlyList<Contact>? Contacts = null);
+    IReadOnlyList<Contact>? Contacts = null,
+    IReadOnlyList<MailRule>? Rules = null);

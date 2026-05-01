@@ -22,7 +22,7 @@ public partial class SettingsDialog : Window
     public SettingsDialog()
     {
         InitializeComponent();
-        _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Contacts, App.Credentials, App.SettingsStore, App.Auth, App.Sync, App.SyncCoordinator, App.Updates, App.UpdateInstaller);
+        _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Contacts, App.Rules, App.Credentials, App.SettingsStore, App.Auth, App.Sync, App.SyncCoordinator, App.Updates, App.UpdateInstaller);
         DataContext = _vm;
     }
 
@@ -85,6 +85,72 @@ public partial class SettingsDialog : Window
             AccountsChanged = true;
         }
     }
+
+    // ----- Rules ----- //
+
+    private void NewRule_Click(object sender, RoutedEventArgs e)
+    {
+        var rule = new GreatEmailApp.Core.Models.MailRule { Id = System.Guid.NewGuid().ToString("N"), Name = "" };
+        OpenRuleEditor(rule);
+    }
+
+    private void EditRule_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is GreatEmailApp.Core.Models.MailRule r) OpenRuleEditor(r);
+    }
+
+    private void RemoveRule_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is GreatEmailApp.Core.Models.MailRule r)
+        {
+            var ok = MessageBox.Show(this, $"Remove rule '{r.Name}'?", "Remove rule",
+                MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+            if (ok == MessageBoxResult.OK) _vm.RemoveRule(r);
+        }
+    }
+
+    private void RuleToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is CheckBox cb && cb.Tag is GreatEmailApp.Core.Models.MailRule r) _vm.ToggleRule(r);
+    }
+
+    private async void RunRulesNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        btn.IsEnabled = false;
+        RulesStatus.Text = "Running rules across all inboxes…";
+        try
+        {
+            int considered = 0, matched = 0, actions = 0;
+            var errors = new System.Collections.Generic.List<string>();
+            foreach (var account in App.Accounts.LoadAll())
+            {
+                var creds = App.Credentials.Read(account.Id);
+                if (creds is null) continue;
+                var listing = await App.Imap.ListMessagesAsync(account, creds.Value.Password, "INBOX", 200);
+                if (listing is not GreatEmailApp.Core.Services.Result<System.Collections.Generic.List<GreatEmailApp.Core.Models.Message>>.Ok ok) continue;
+                var res = await App.RulesEngine.ApplyAsync(account, "INBOX", ok.Value);
+                if (res is GreatEmailApp.Core.Services.Result<GreatEmailApp.Core.Rules.RuleApplyResult>.Ok ro)
+                {
+                    considered += ro.Value.Considered;
+                    matched    += ro.Value.Matched;
+                    actions    += ro.Value.ActionsRun;
+                    errors.AddRange(ro.Value.Errors);
+                }
+            }
+            RulesStatus.Text = $"Considered {considered} message(s), matched {matched}, ran {actions} action(s)."
+                             + (errors.Count == 0 ? "" : $" {errors.Count} error(s).");
+        }
+        finally { btn.IsEnabled = true; }
+    }
+
+    private void OpenRuleEditor(GreatEmailApp.Core.Models.MailRule rule)
+    {
+        var dlg = new RuleEditorDialog(rule, App.Accounts.LoadAll().ToList()) { Owner = this };
+        if (dlg.ShowDialog() == true) _vm.AddOrUpdateRule(dlg.Result);
+    }
+
+    // ----- Contacts ----- //
 
     private void AddContact_Click(object sender, RoutedEventArgs e) => _vm.AddContact();
 
