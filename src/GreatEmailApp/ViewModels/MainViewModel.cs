@@ -92,10 +92,28 @@ public partial class MainViewModel : ObservableObject
 
         account.Status = AccountStatus.Syncing;
 
+        // Paint cached folders immediately so the sidebar isn't blank during the
+        // 1–3s IMAP LIST round-trip. The live fetch below will replace them once
+        // the server answers.
+        var cached = App.FolderCache.Load(account.Id);
+        if (cached.Count > 0 && accountVm.Folders.Count == 0)
+        {
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                foreach (var f in cached)
+                {
+                    f.AccountId = account.Id;
+                    accountVm.Folders.Add(new FolderViewModel(f));
+                }
+            });
+        }
+
         var result = await _imap.ListFoldersAsync(account, creds.Value.Password);
         if (result is Result<System.Collections.Generic.List<Folder>>.Ok ok)
         {
             account.Status = AccountStatus.Connected;
+            // Persist for next launch — local-only, never synced.
+            App.FolderCache.Save(account.Id, ok.Value);
             // Replace folder collection
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {

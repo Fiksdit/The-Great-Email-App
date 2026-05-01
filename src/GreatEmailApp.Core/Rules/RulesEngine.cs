@@ -141,12 +141,36 @@ public sealed class RulesEngine : IRulesEngine
         var cmp = StringComparison.OrdinalIgnoreCase;
         return c.Op switch
         {
-            RuleOp.Contains   => hay.Contains(needle, cmp),
+            // Contains is smart: tokenize on whitespace (respecting "quoted phrases")
+            // and require every token to appear in the haystack. So:
+            //   "mobile sentrix"  → both words must appear, any order
+            //   "james@fiksdit.com" → one token, plain substring
+            //   "\"order shipped\""  → exact phrase
+            RuleOp.Contains   => Tokenize(needle).All(t => hay.Contains(t, cmp)),
             RuleOp.Equals     => hay.Equals(needle, cmp),
             RuleOp.StartsWith => hay.StartsWith(needle, cmp),
             RuleOp.EndsWith   => hay.EndsWith(needle, cmp),
             _ => false,
         };
+    }
+
+    private static IEnumerable<string> Tokenize(string s)
+    {
+        // Whitespace tokenizer with double-quoted phrases as single tokens.
+        var tokens = new List<string>();
+        var buf = new System.Text.StringBuilder();
+        bool inQuote = false;
+        foreach (var ch in s)
+        {
+            if (ch == '"') { inQuote = !inQuote; continue; }
+            if (!inQuote && char.IsWhiteSpace(ch))
+            {
+                if (buf.Length > 0) { tokens.Add(buf.ToString()); buf.Clear(); }
+            }
+            else buf.Append(ch);
+        }
+        if (buf.Length > 0) tokens.Add(buf.ToString());
+        return tokens.Count == 0 ? new[] { s } : tokens;
     }
 
     // --------------------------------------------------------------------- //

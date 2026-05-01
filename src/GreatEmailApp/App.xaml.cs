@@ -30,6 +30,7 @@ public partial class App : Application
     public static IContactsStore Contacts { get; private set; } = null!;
     public static IRulesStore Rules { get; private set; } = null!;
     public static IRulesEngine RulesEngine { get; private set; } = null!;
+    public static IFolderCache FolderCache { get; private set; } = null!;
     public static ISettingsStore SettingsStore { get; private set; } = null!;
     public static AppSettings Settings { get; set; } = null!;
     public static AppConfig Config { get; private set; } = null!;
@@ -81,6 +82,7 @@ public partial class App : Application
         Accounts = new JsonAccountStore();
         Contacts = new JsonContactsStore();
         Rules = new JsonRulesStore();
+        FolderCache = new JsonFolderCache();
         SettingsStore = new JsonSettingsStore();
         Settings = SettingsStore.Load();
         Auth = new FirebaseAuthService(Config, new DpapiTokenVault());
