@@ -76,15 +76,15 @@
                         </Grid>
 
                         <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                            <Button Style="{StaticResource AccentButton}" Content="Reply" />
-                            <Button Style="{StaticResource SubtleButton}" Margin="6,0,0,0" Padding="12,7">
+                            <Button Style="{StaticResource AccentButton}" Content="Reply" Click="Reply_Click" />
+                            <Button Style="{StaticResource SubtleButton}" Margin="6,0,0,0" Padding="12,7" Click="ReplyAll_Click">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{StaticResource IconReplyAll}" Style="{StaticResource IconGlyph}"
                                                FontSize="13" Margin="0,0,6,0" />
                                     <TextBlock Text="Reply All" VerticalAlignment="Center" FontSize="12" />
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource SubtleButton}" Margin="2,0,0,0" Padding="12,7">
+                            <Button Style="{StaticResource SubtleButton}" Margin="2,0,0,0" Padding="12,7" Click="Forward_Click">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{StaticResource IconForward}" Style="{StaticResource IconGlyph}"
                                                FontSize="13" Margin="0,0,6,0" />

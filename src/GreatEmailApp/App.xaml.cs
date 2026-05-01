@@ -22,6 +22,7 @@ public partial class App : Application
 
     // Lightweight service locator — Phase 2 doesn't need a full DI container.
     public static IImapService Imap { get; private set; } = null!;
+    public static ISmtpService Smtp { get; private set; } = null!;
     public static ICredentialStore Credentials { get; private set; } = null!;
     public static IAccountStore Accounts { get; private set; } = null!;
     public static ISettingsStore SettingsStore { get; private set; } = null!;
@@ -53,6 +54,7 @@ public partial class App : Application
         Config = AppConfig.Load(Path.Combine(AppContext.BaseDirectory, "appsettings.json"));
 
         Imap = new ImapService();
+        Smtp = new SmtpService();
         Credentials = new WindowsCredentialStore();
         Accounts = new JsonAccountStore();
         SettingsStore = new JsonSettingsStore();

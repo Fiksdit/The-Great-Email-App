@@ -46,4 +46,11 @@ public interface IImapService
     Task<Result<string>> MoveToSpecialAsync(Account account, string password,
         string srcFolderFullPath, uint uid, SpecialFolder dst,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Append a sent copy to the account's Sent folder. SMTP doesn't do this for us.
+    /// Best-effort — failure here doesn't fail the send (the message already left).
+    /// </summary>
+    Task<Result<bool>> AppendToSentAsync(Account account, string password,
+        MimeKit.MimeMessage message, CancellationToken ct = default);
 }

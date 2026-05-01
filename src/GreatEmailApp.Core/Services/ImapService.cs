@@ -192,6 +192,27 @@ public sealed class ImapService : IImapService
         catch (Exception ex) { return Result.Fail<bool>(SanitizeError(ex), ex); }
     }
 
+    public async Task<Result<bool>> AppendToSentAsync(
+        Account account, string password, MimeKit.MimeMessage message,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+
+            var sent = TryGetSpecial(client, Models.SpecialFolder.Sent)
+                       ?? await FindByNameAsync(client, Models.SpecialFolder.Sent, ct);
+            if (sent is null) return Result.Fail<bool>("No Sent folder found on this account.");
+
+            await sent.OpenAsync(FolderAccess.ReadWrite, ct);
+            await sent.AppendAsync(message, MessageFlags.Seen, ct);
+            await client.DisconnectAsync(true, ct);
+            return Result.Ok(true);
+        }
+        catch (Exception ex) { return Result.Fail<bool>(SanitizeError(ex), ex); }
+    }
+
     public async Task<Result<string>> MoveToSpecialAsync(
         Account account, string password, string srcFolderFullPath, uint uid,
         Models.SpecialFolder dst, CancellationToken ct = default)

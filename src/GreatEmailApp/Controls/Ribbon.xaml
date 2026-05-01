@@ -203,7 +203,7 @@
                 <Grid Visibility="{Binding ActiveRibbonTab, Converter={StaticResource StrEqVis}, ConverterParameter=Home}">
                     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                         <StackPanel Orientation="Horizontal" Margin="8,0" VerticalAlignment="Center">
-                            <Button Style="{StaticResource RibbonLargeButton}">
+                            <Button Style="{StaticResource RibbonLargeButton}" Click="OnNewEmail_Click">
                                 <StackPanel>
                                     <Border Width="28" Height="28" CornerRadius="6"
                                             Background="{DynamicResource AccentBrush}" Margin="0,0,0,2">
@@ -225,13 +225,13 @@
                                 <StackPanel><TextBlock Text="{StaticResource IconJunk}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Junk" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
                             <Border Style="{StaticResource GroupSep}" />
-                            <Button Style="{StaticResource RibbonItemButton}">
+                            <Button Style="{StaticResource RibbonItemButton}" Click="OnReply_Click">
                                 <StackPanel><TextBlock Text="{StaticResource IconReply}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Reply" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
-                            <Button Style="{StaticResource RibbonItemButton}">
+                            <Button Style="{StaticResource RibbonItemButton}" Click="OnReplyAll_Click">
                                 <StackPanel><TextBlock Text="{StaticResource IconReplyAll}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Reply All" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
-                            <Button Style="{StaticResource RibbonItemButton}">
+                            <Button Style="{StaticResource RibbonItemButton}" Click="OnForward_Click">
                                 <StackPanel><TextBlock Text="{StaticResource IconForward}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Forward" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
                             <Border Style="{StaticResource GroupSep}" />
