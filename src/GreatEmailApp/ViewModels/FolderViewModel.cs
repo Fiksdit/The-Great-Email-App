@@ -23,11 +23,27 @@ public partial class FolderViewModel : ObservableObject
     public bool IsNested => Model.IsNested;
     public bool HasChildren => Children.Count > 0;
 
+    /// <summary>Local-only draft count for the Drafts folder. Updated by
+    /// MainViewModel on App.Drafts.Changed so the sidebar shows a badge.</summary>
+    [ObservableProperty] private int localDraftCount;
+    partial void OnLocalDraftCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(BadgeCount));
+        OnPropertyChanged(nameof(HasBadge));
+    }
+
+    /// <summary>Generalized badge: drafts folder uses LocalDraftCount, everything
+    /// else falls back to IMAP UnreadCount. Sidebar template binds to this.</summary>
+    public int BadgeCount => Model.Special == SpecialFolder.Drafts ? LocalDraftCount : UnreadCount;
+    public bool HasBadge => BadgeCount > 0;
+
     /// <summary>Re-emit unread bindings so the sidebar chip refreshes.</summary>
     public void OnUnreadChanged()
     {
         OnPropertyChanged(nameof(UnreadCount));
         OnPropertyChanged(nameof(HasUnread));
+        OnPropertyChanged(nameof(BadgeCount));
+        OnPropertyChanged(nameof(HasBadge));
     }
 
     public string IconKey => Model.Special switch

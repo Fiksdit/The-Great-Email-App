@@ -69,8 +69,8 @@
                         <Border Grid.Column="2" Margin="6,0,10,0"
                                 Padding="6,1" CornerRadius="9"
                                 Background="{DynamicResource ChipBackgroundBrush}"
-                                Visibility="{Binding UnreadCount, Converter={StaticResource UnreadVis}}">
-                            <TextBlock Text="{Binding UnreadCount}"
+                                Visibility="{Binding BadgeCount, Converter={StaticResource UnreadVis}}">
+                            <TextBlock Text="{Binding BadgeCount}"
                                        FontSize="11"
                                        Foreground="{DynamicResource SecondaryTextBrush}" />
                         </Border>

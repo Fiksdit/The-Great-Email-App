@@ -45,12 +45,50 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel() : this(App.Imap, App.Credentials, App.Accounts) { }
 
+    private bool _draftSubscribed;
+
     public MainViewModel(IImapService imap, ICredentialStore creds, IAccountStore accountStore)
     {
         _imap = imap;
         _creds = creds;
         _accountStore = accountStore;
         LoadAccounts();
+
+        // Watch the drafts store so the sidebar Drafts folder badge stays in
+        // sync with the actual draft count. Subscribed once for the lifetime
+        // of the VM (App.Drafts is a singleton).
+        if (!_draftSubscribed && App.Drafts is not null)
+        {
+            App.Drafts.Changed += (_, _) =>
+                Application.Current?.Dispatcher.BeginInvoke(new Action(RefreshDraftBadges));
+            _draftSubscribed = true;
+        }
+    }
+
+    /// <summary>Recompute LocalDraftCount on every account's Drafts folder.</summary>
+    private void RefreshDraftBadges()
+    {
+        var byAccount = App.Drafts.LoadAll()
+            .GroupBy(d => d.AccountId ?? "")
+            .ToDictionary(g => g.Key, g => g.Count());
+        foreach (var avm in Accounts)
+        {
+            var draftsFolder = FindDraftsFolder(avm.Folders);
+            if (draftsFolder is null) continue;
+            byAccount.TryGetValue(avm.Model.Id, out var count);
+            draftsFolder.LocalDraftCount = count;
+        }
+    }
+
+    private static FolderViewModel? FindDraftsFolder(System.Collections.ObjectModel.ObservableCollection<FolderViewModel> folders)
+    {
+        foreach (var f in folders)
+        {
+            if (f.Model.Special == SpecialFolder.Drafts) return f;
+            var inner = FindDraftsFolder(f.Children);
+            if (inner is not null) return inner;
+        }
+        return null;
     }
 
     private void LoadAccounts()
@@ -157,6 +195,9 @@ public partial class MainViewModel : ObservableObject
                     accountVm.Folders.Add(new FolderViewModel(f));
                 }
                 StatusMessage = $"{account.EmailAddress}: {ok.Value.Count} folders.";
+
+                // Now that the Drafts folder VM exists, populate its local count.
+                RefreshDraftBadges();
 
                 // Auto-select inbox if nothing's selected
                 if (SelectedFolder is null)
