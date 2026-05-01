@@ -22,7 +22,7 @@ public partial class SettingsDialog : Window
     public SettingsDialog()
     {
         InitializeComponent();
-        _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Credentials, App.SettingsStore, App.Auth, App.Sync, App.SyncCoordinator, App.Updates, App.UpdateInstaller);
+        _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Contacts, App.Credentials, App.SettingsStore, App.Auth, App.Sync, App.SyncCoordinator, App.Updates, App.UpdateInstaller);
         DataContext = _vm;
     }
 
@@ -84,6 +84,14 @@ public partial class SettingsDialog : Window
             _vm.RemoveAccount(a);
             AccountsChanged = true;
         }
+    }
+
+    private void AddContact_Click(object sender, RoutedEventArgs e) => _vm.AddContact();
+
+    private void RemoveContact_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is GreatEmailApp.Core.Models.Contact c)
+            _vm.RemoveContact(c);
     }
 
     private void AddAccount_Click(object sender, RoutedEventArgs e)

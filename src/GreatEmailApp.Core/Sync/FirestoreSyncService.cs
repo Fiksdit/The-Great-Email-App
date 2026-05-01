@@ -73,16 +73,19 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
 
             var settingsJson = doc.Fields.GetValueOrDefault("settings_json")?.StringValue ?? "";
             var accountsJson = doc.Fields.GetValueOrDefault("accounts_json")?.StringValue ?? "[]";
+            var contactsJson = doc.Fields.GetValueOrDefault("contacts_json")?.StringValue ?? "[]";
             var updatedAtStr = doc.Fields.GetValueOrDefault("updated_at")?.TimestampValue;
 
             var settings = JsonSerializer.Deserialize<AppSettings>(settingsJson, PayloadOpts) ?? new AppSettings();
             var dtos = JsonSerializer.Deserialize<List<SyncAccountDto>>(accountsJson, PayloadOpts) ?? new();
+            var contacts = JsonSerializer.Deserialize<List<Contact>>(contactsJson, PayloadOpts) ?? new();
             var updatedAt = DateTimeOffset.TryParse(updatedAtStr, out var dt) ? dt : DateTimeOffset.MinValue;
 
             var snapshot = new SyncSnapshot(
                 settings,
                 dtos.Select(d => d.ToAccount()).ToList(),
-                updatedAt);
+                updatedAt,
+                contacts);
             return Result.Ok<SyncSnapshot?>(snapshot);
         }
         catch (Exception ex)
@@ -102,6 +105,7 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
         var accountsJson = JsonSerializer.Serialize(
             snapshot.Accounts.Select(SyncAccountDto.From).ToList(),
             PayloadOpts);
+        var contactsJson = JsonSerializer.Serialize(snapshot.Contacts ?? new List<Contact>(), PayloadOpts);
 
         var body = new FsDocument
         {
@@ -109,6 +113,7 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
             {
                 ["settings_json"] = new() { StringValue = settingsJson },
                 ["accounts_json"] = new() { StringValue = accountsJson },
+                ["contacts_json"] = new() { StringValue = contactsJson },
                 ["updated_at"]    = new() { TimestampValue = snapshot.UpdatedAt.UtcDateTime.ToString("o") },
             },
         };
@@ -118,6 +123,7 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
         var patchUrl = docUrl
             + "?updateMask.fieldPaths=settings_json"
             + "&updateMask.fieldPaths=accounts_json"
+            + "&updateMask.fieldPaths=contacts_json"
             + "&updateMask.fieldPaths=updated_at";
 
         using var req = new HttpRequestMessage(HttpMethod.Patch, patchUrl)

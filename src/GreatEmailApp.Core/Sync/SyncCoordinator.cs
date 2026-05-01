@@ -34,6 +34,7 @@ public sealed class SyncCoordinator : IDisposable
     private readonly AppSettings _settings;
     private readonly ISettingsStore _settingsStore;
     private readonly IAccountStore _accountStore;
+    private readonly IContactsStore _contactsStore;
     private readonly IAuthService _auth;
     private readonly IFirestoreSyncService _sync;
 
@@ -56,12 +57,14 @@ public sealed class SyncCoordinator : IDisposable
         AppSettings settings,
         ISettingsStore settingsStore,
         IAccountStore accountStore,
+        IContactsStore contactsStore,
         IAuthService auth,
         IFirestoreSyncService sync)
     {
         _settings = settings;
         _settingsStore = settingsStore;
         _accountStore = accountStore;
+        _contactsStore = contactsStore;
         _auth = auth;
         _sync = sync;
 
@@ -70,6 +73,7 @@ public sealed class SyncCoordinator : IDisposable
 
         _settingsStore.Saved += OnLocalSaved;
         _accountStore.Saved  += OnLocalSaved;
+        _contactsStore.Saved += OnLocalSaved;
         _auth.SessionChanged += OnSessionChanged;
     }
 
@@ -108,6 +112,7 @@ public sealed class SyncCoordinator : IDisposable
     {
         _settingsStore.Saved -= OnLocalSaved;
         _accountStore.Saved  -= OnLocalSaved;
+        _contactsStore.Saved -= OnLocalSaved;
         _auth.SessionChanged -= OnSessionChanged;
         _pushDebounce.Dispose();
     }
@@ -146,7 +151,8 @@ public sealed class SyncCoordinator : IDisposable
         var snapshot = new SyncSnapshot(
             _settings,
             _accountStore.LoadAll().ToList(),
-            pushedAt);
+            pushedAt,
+            _contactsStore.LoadAll().ToList());
 
         var result = await _sync.PushAsync(snapshot).ConfigureAwait(false);
         if (result is Result<bool>.Ok)
@@ -264,6 +270,7 @@ public sealed class SyncCoordinator : IDisposable
             _settings.SyncIntervalMinutes = remote.Settings.SyncIntervalMinutes;
             _settingsStore.Save(_settings);
             _accountStore.Save(remote.Accounts);
+            if (remote.Contacts is not null) _contactsStore.Save(remote.Contacts);
         }
         finally { _suppressPush = false; }
 

@@ -18,6 +18,7 @@ public partial class SettingsViewModel : ObservableObject
 {
     private readonly AppSettings _settings;
     private readonly IAccountStore _accountStore;
+    private readonly IContactsStore _contactsStore;
     private readonly ICredentialStore _creds;
     private readonly ISettingsStore _settingsStore;
     private readonly IAuthService _auth;
@@ -63,6 +64,10 @@ public partial class SettingsViewModel : ObservableObject
     };
 
     public ObservableCollection<Account> ManagedAccounts { get; } = new();
+    public ObservableCollection<Contact> ManagedContacts { get; } = new();
+    [ObservableProperty] private Contact? selectedContact;
+    [ObservableProperty] private string newContactName = "";
+    [ObservableProperty] private string newContactEmail = "";
 
     public IAsyncRelayCommand SignInCommand { get; }
     public IAsyncRelayCommand SignOutCommand { get; }
@@ -73,6 +78,7 @@ public partial class SettingsViewModel : ObservableObject
     public SettingsViewModel(
         AppSettings settings,
         IAccountStore accountStore,
+        IContactsStore contactsStore,
         ICredentialStore creds,
         ISettingsStore settingsStore,
         IAuthService auth,
@@ -83,6 +89,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         _settings = settings;
         _accountStore = accountStore;
+        _contactsStore = contactsStore;
         _creds = creds;
         _settingsStore = settingsStore;
         _auth = auth;
@@ -104,6 +111,8 @@ public partial class SettingsViewModel : ObservableObject
 
         foreach (var a in _accountStore.LoadAll())
             ManagedAccounts.Add(a);
+        foreach (var c in _contactsStore.LoadAll().OrderBy(x => x.DisplayName))
+            ManagedContacts.Add(c);
 
         SignInCommand           = new AsyncRelayCommand(SignInAsync,         () => !IsSyncBusy && !IsSignedIn);
         SignOutCommand          = new AsyncRelayCommand(SignOutAsync,        () => !IsSyncBusy &&  IsSignedIn);
@@ -152,6 +161,41 @@ public partial class SettingsViewModel : ObservableObject
         foreach (var r in remaining) ManagedAccounts.Add(r);
         _accountStore.Save(remaining);
         try { _creds.Delete(a.Id); } catch { /* already gone, fine */ }
+    }
+
+    // --------------------------------------------------------------------- //
+    // Contacts CRUD
+    // --------------------------------------------------------------------- //
+
+    public void AddContact()
+    {
+        var email = (NewContactEmail ?? "").Trim();
+        if (string.IsNullOrEmpty(email)) return;
+        var stored = _contactsStore.AddOrGet(new Contact
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            EmailAddress = email,
+            DisplayName = (NewContactName ?? "").Trim(),
+        });
+        if (!ManagedContacts.Any(c => c.Id == stored.Id))
+            ManagedContacts.Add(stored);
+        NewContactName = "";
+        NewContactEmail = "";
+    }
+
+    public void RemoveContact(Contact c)
+    {
+        var remaining = ManagedContacts.Where(x => x.Id != c.Id).ToList();
+        ManagedContacts.Clear();
+        foreach (var r in remaining) ManagedContacts.Add(r);
+        _contactsStore.Save(remaining);
+    }
+
+    public void UpdateContact(Contact c)
+    {
+        c.UpdatedAt = DateTimeOffset.UtcNow;
+        c.AutoCollected = false; // any explicit edit promotes the contact
+        _contactsStore.Save(ManagedContacts);
     }
 
     // --------------------------------------------------------------------- //
@@ -224,6 +268,8 @@ public partial class SettingsViewModel : ObservableObject
                 SyncIntervalMinutes = _settings.SyncIntervalMinutes;
                 ManagedAccounts.Clear();
                 foreach (var a in _accountStore.LoadAll()) ManagedAccounts.Add(a);
+                ManagedContacts.Clear();
+                foreach (var c in _contactsStore.LoadAll().OrderBy(x => x.DisplayName)) ManagedContacts.Add(c);
             }
 
             SyncStatus = e.Kind switch

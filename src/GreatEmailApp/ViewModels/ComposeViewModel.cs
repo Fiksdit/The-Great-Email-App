@@ -29,6 +29,7 @@ public partial class ComposeViewModel : ObservableObject
     private readonly ISmtpService _smtp;
     private readonly IImapService _imap;
     private readonly ICredentialStore _creds;
+    private readonly IContactsStore _contacts;
 
     public ObservableCollection<Account> AvailableAccounts { get; } = new();
     [ObservableProperty] private Account? fromAccount;
@@ -38,7 +39,20 @@ public partial class ComposeViewModel : ObservableObject
     [ObservableProperty] private string bccAddresses = "";
     [ObservableProperty] private bool ccBccVisible;
     [ObservableProperty] private string subject = "";
-    [ObservableProperty] private string body = "";
+
+    /// <summary>
+    /// HTML body. Authored in the WebView2 editor. The plain-text alternative
+    /// is generated from this at send time via the editor's innerText readback.
+    /// Initial value carries the quoted-reply / forward header HTML.
+    /// </summary>
+    public string BodyHtml { get; set; } = "";
+
+    /// <summary>
+    /// Cached innerText of the editor — kept fresh by ComposeWindow on
+    /// every editor change. Used for Send.CanExecute and the multipart text
+    /// alternative.
+    /// </summary>
+    [ObservableProperty] private string bodyText = "";
 
     public ObservableCollection<ComposeAttachment> Attachments { get; } = new();
 
@@ -60,12 +74,14 @@ public partial class ComposeViewModel : ObservableObject
         ISmtpService smtp,
         IImapService imap,
         ICredentialStore creds,
+        IContactsStore contacts,
         IEnumerable<Account> accounts,
         Account? defaultAccount = null)
     {
         _smtp = smtp;
         _imap = imap;
         _creds = creds;
+        _contacts = contacts;
 
         foreach (var a in accounts) AvailableAccounts.Add(a);
         fromAccount = defaultAccount
@@ -99,7 +115,6 @@ public partial class ComposeViewModel : ObservableObject
 
         if (replyAll)
         {
-            // Tack on original To + Cc, minus our own address (we don't reply to ourselves).
             var ours = (FromAccount?.EmailAddress ?? "").ToLowerInvariant();
             var extras = new List<string>();
             extras.AddRange(SplitAddresses(original.To));
@@ -113,7 +128,7 @@ public partial class ComposeViewModel : ObservableObject
             CcBccVisible = !string.IsNullOrWhiteSpace(CcAddresses);
         }
 
-        Body = "\n\n" + QuoteForReply(original);
+        BodyHtml = "<p><br></p>" + QuoteForReplyHtml(original);
     }
 
     public void PrepareForward(Message original)
@@ -121,7 +136,7 @@ public partial class ComposeViewModel : ObservableObject
         InReplyToMessageId = null;
         Subject = PrefixSubject(original.Subject, "Fwd: ");
         ToAddresses = "";
-        Body = "\n\n" + QuoteForForward(original);
+        BodyHtml = "<p><br></p>" + QuoteForForwardHtml(original);
     }
 
     private static string PrefixSubject(string subject, string prefix)
@@ -137,40 +152,32 @@ public partial class ComposeViewModel : ObservableObject
             .Select(s => s.Trim())
             .Where(s => s.Length > 0);
 
-    private static string QuoteForReply(Message m)
+    private static string QuoteForReplyHtml(Message m)
     {
-        var who = string.IsNullOrWhiteSpace(m.SenderEmail) ? m.Sender : $"{m.Sender} <{m.SenderEmail}>";
+        var who = string.IsNullOrWhiteSpace(m.SenderEmail) ? m.Sender : $"{m.Sender} &lt;{m.SenderEmail}&gt;";
         var when = string.IsNullOrWhiteSpace(m.FullTime) ? m.Time : m.FullTime;
-        var src = !string.IsNullOrEmpty(m.BodyPlain) ? m.BodyPlain : StripTags(m.BodyHtml);
-        var quoted = string.Join("\n", (src ?? "").Split('\n').Select(l => "> " + l));
-        return $"On {when}, {who} wrote:\n{quoted}";
-    }
-
-    private static string QuoteForForward(Message m)
-    {
-        var src = !string.IsNullOrEmpty(m.BodyPlain) ? m.BodyPlain : StripTags(m.BodyHtml);
+        var inner = !string.IsNullOrEmpty(m.BodyHtml) ? m.BodyHtml : Escape(m.BodyPlain).Replace("\n", "<br>");
         return
-            "---------- Forwarded message ----------\n" +
-            $"From: {m.Sender} <{m.SenderEmail}>\n" +
-            $"Date: {(string.IsNullOrEmpty(m.FullTime) ? m.Time : m.FullTime)}\n" +
-            $"Subject: {m.Subject}\n" +
-            $"To: {m.To}\n" +
-            (string.IsNullOrEmpty(m.Cc) ? "" : $"Cc: {m.Cc}\n") +
-            "\n" +
-            src;
+            $"<div>On {System.Net.WebUtility.HtmlEncode(when)}, {who} wrote:</div>" +
+            $"<blockquote style=\"margin:0 0 0 .8ex;border-left:3px solid #3a3a3a;padding-left:1ex;\">{inner}</blockquote>";
     }
 
-    private static string StripTags(string html)
+    private static string QuoteForForwardHtml(Message m)
     {
-        if (string.IsNullOrEmpty(html)) return "";
-        // Crude HTML→text — good enough for quoting. Real HTML→text conversion
-        // would need an HTML parser; this handles the common case where the user
-        // wants to reply to a plain message that arrived as HTML.
-        var noBlocks = System.Text.RegularExpressions.Regex.Replace(html, @"<(br|p|div|li)[^>]*>", "\n",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        var noTags = System.Text.RegularExpressions.Regex.Replace(noBlocks, @"<[^>]+>", "");
-        return System.Net.WebUtility.HtmlDecode(noTags).Trim();
+        var inner = !string.IsNullOrEmpty(m.BodyHtml) ? m.BodyHtml : Escape(m.BodyPlain).Replace("\n", "<br>");
+        var when = string.IsNullOrEmpty(m.FullTime) ? m.Time : m.FullTime;
+        return
+            "<div>---------- Forwarded message ----------</div>" +
+            $"<div><b>From:</b> {Escape(m.Sender)} &lt;{Escape(m.SenderEmail)}&gt;</div>" +
+            $"<div><b>Date:</b> {Escape(when)}</div>" +
+            $"<div><b>Subject:</b> {Escape(m.Subject)}</div>" +
+            $"<div><b>To:</b> {Escape(m.To)}</div>" +
+            (string.IsNullOrEmpty(m.Cc) ? "" : $"<div><b>Cc:</b> {Escape(m.Cc)}</div>") +
+            "<br>" +
+            inner;
     }
+
+    private static string Escape(string? s) => System.Net.WebUtility.HtmlEncode(s ?? "");
 
     // --------------------------------------------------------------------- //
     // Send
@@ -203,6 +210,11 @@ public partial class ComposeViewModel : ObservableObject
             // the message has already left the building.
             _ = Task.Run(async () => await _imap.AppendToSentAsync(account, creds.Value.Password, mime));
 
+            // Auto-collect: any recipient address that isn't already in the
+            // contacts roster gets added as AutoCollected. Quiet by design —
+            // the user can review/clean these in Settings → Contacts.
+            try { AutoCollectRecipients(); } catch { /* contacts is best-effort */ }
+
             StatusMessage = "Sent.";
             Sent?.Invoke(this, EventArgs.Empty);
         }
@@ -226,7 +238,12 @@ public partial class ComposeViewModel : ObservableObject
             msg.References.Add(InReplyToMessageId);
         }
 
-        var builder = new BodyBuilder { TextBody = Body ?? "" };
+        // Build multipart/alternative — text/plain for old clients, text/html for everyone else.
+        var builder = new BodyBuilder
+        {
+            TextBody = string.IsNullOrEmpty(BodyText) ? "" : BodyText,
+            HtmlBody = string.IsNullOrEmpty(BodyHtml) ? "" : WrapHtmlForSend(BodyHtml),
+        };
         foreach (var a in Attachments)
         {
             try { builder.Attachments.Add(a.FilePath); }
@@ -235,6 +252,57 @@ public partial class ComposeViewModel : ObservableObject
         msg.Body = builder.ToMessageBody();
         return msg;
     }
+
+    /// <summary>
+    /// Wrap the editor's innerHTML in a minimal HTML document. We don't ship a
+    /// dark theme to recipients — they'll have their own client styling.
+    /// </summary>
+    private static string WrapHtmlForSend(string innerHtml) =>
+        $"<!doctype html><html><head><meta charset=\"utf-8\"></head><body>{innerHtml}</body></html>";
+
+    private void AutoCollectRecipients()
+    {
+        var existingEmails = _contacts.LoadAll()
+            .Select(c => c.EmailAddress)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var raw in new[] { ToAddresses, CcAddresses, BccAddresses })
+        {
+            foreach (var addr in SplitAddresses(raw))
+            {
+                if (!MailboxAddress.TryParse(addr, out var parsed)) continue;
+                if (existingEmails.Contains(parsed.Address)) continue;
+                _contacts.AddOrGet(new Contact
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    EmailAddress = parsed.Address,
+                    DisplayName = parsed.Name ?? "",
+                    AutoCollected = true,
+                });
+                existingEmails.Add(parsed.Address);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns up to <paramref name="limit"/> contacts whose name or email
+    /// starts with / contains the partial token. Used by the To/Cc/Bcc autocomplete.
+    /// </summary>
+    public IReadOnlyList<Contact> SuggestContacts(string partial, int limit = 8)
+    {
+        if (string.IsNullOrWhiteSpace(partial)) return Array.Empty<Contact>();
+        var p = partial.Trim();
+        return _contacts.LoadAll()
+            .Where(c => c.EmailAddress.Contains(p, StringComparison.OrdinalIgnoreCase)
+                     || (c.DisplayName ?? "").Contains(p, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(c => Starts(c.EmailAddress, p) || Starts(c.DisplayName ?? "", p))
+            .ThenByDescending(c => !c.AutoCollected) // prefer manually entered
+            .ThenBy(c => c.DisplayName)
+            .Take(limit)
+            .ToList();
+    }
+
+    private static bool Starts(string s, string p) => s.StartsWith(p, StringComparison.OrdinalIgnoreCase);
 
     private static void AddTo(InternetAddressList list, string raw)
     {

@@ -15,6 +15,7 @@ public static class AppPaths
         "GreatEmailApp");
 
     public static string AccountsJson => Path.Combine(Root, "accounts.json");
+    public static string ContactsJson => Path.Combine(Root, "contacts.json");
     public static string SettingsJson => Path.Combine(Root, "settings.json");
     public static string CacheDb     => Path.Combine(Root, "cache.db");
     public static string LogsFolder  => Path.Combine(Root, "logs");

@@ -17,4 +17,5 @@ namespace GreatEmailApp.Core.Sync;
 public sealed record SyncSnapshot(
     AppSettings Settings,
     IReadOnlyList<Account> Accounts,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<Contact>? Contacts = null);

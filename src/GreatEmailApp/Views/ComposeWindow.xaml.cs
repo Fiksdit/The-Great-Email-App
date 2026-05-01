@@ -1,7 +1,9 @@
 // FILE: src/GreatEmailApp/Views/ComposeWindow.xaml.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 1
+// Created: 2026-04-30 | Revised: 2026-05-01 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
+using System;
+using System.Threading.Tasks;
 using System.Windows;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.ViewModels;
@@ -11,6 +13,7 @@ namespace GreatEmailApp.Views;
 public partial class ComposeWindow : Window
 {
     private readonly ComposeViewModel _vm;
+    private bool _editorBootstrapped;
 
     private ComposeWindow(ComposeViewModel vm)
     {
@@ -18,6 +21,38 @@ public partial class ComposeWindow : Window
         _vm = vm;
         DataContext = vm;
         vm.Sent += (_, _) => Dispatcher.BeginInvoke(new Action(Close));
+
+        // Mirror editor edits back to the VM so Send.CanExecute and the eventual
+        // BodyText / BodyHtml capture work without polling. Bootstrap the editor
+        // contents once it's loaded so we don't race the WebView2 init.
+        BodyEditor.Loaded += (_, _) => BootstrapEditor();
+        BodyEditor.ContentChanged += async (_, _) => await CaptureBodyAsync();
+        Loaded += (_, _) => BootstrapEditor();
+
+        // We need the latest BodyHtml / BodyText right before send fires. Listen
+        // on the VM's IsSending edge, capture on the way up.
+        vm.PropertyChanged += async (_, ev) =>
+        {
+            if (ev.PropertyName == nameof(ComposeViewModel.IsSending) && vm.IsSending)
+                await CaptureBodyAsync();
+        };
+    }
+
+    private void BootstrapEditor()
+    {
+        if (_editorBootstrapped) return;
+        _editorBootstrapped = true;
+        BodyEditor.SetHtml(_vm.BodyHtml);
+    }
+
+    private async Task CaptureBodyAsync()
+    {
+        try
+        {
+            _vm.BodyHtml = await BodyEditor.GetHtmlAsync();
+            _vm.BodyText = await BodyEditor.GetPlainTextAsync();
+        }
+        catch { /* editor not ready, ignore */ }
     }
 
     /// <summary>Open a blank composer.</summary>
@@ -37,7 +72,7 @@ public partial class ComposeWindow : Window
     private static ComposeWindow Make(ComposeMode mode, IEnumerable<Account> accounts,
         Account? defaultAccount, Message? original)
     {
-        var vm = new ComposeViewModel(App.Smtp, App.Imap, App.Credentials, accounts, defaultAccount);
+        var vm = new ComposeViewModel(App.Smtp, App.Imap, App.Credentials, App.Contacts, accounts, defaultAccount);
         if (original is not null)
         {
             switch (mode)
@@ -62,8 +97,6 @@ public partial class ComposeWindow : Window
 
     private void Discard_Click(object sender, RoutedEventArgs e)
     {
-        // No persistence yet — Discard just closes. Drafts come in a follow-up
-        // (would need an IDraftStore + IMAP Drafts append).
         if (HasUnsentContent())
         {
             var r = MessageBox.Show(this,
@@ -78,6 +111,6 @@ public partial class ComposeWindow : Window
     private bool HasUnsentContent() =>
         !string.IsNullOrWhiteSpace(_vm.ToAddresses) ||
         !string.IsNullOrWhiteSpace(_vm.Subject) ||
-        !string.IsNullOrWhiteSpace(_vm.Body) ||
+        !string.IsNullOrWhiteSpace(_vm.BodyText) ||
         _vm.Attachments.Count > 0;
 }

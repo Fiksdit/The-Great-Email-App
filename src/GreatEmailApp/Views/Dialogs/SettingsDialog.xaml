@@ -143,6 +143,9 @@
                     <ToggleButton Style="{StaticResource RailItem}" Content="Accounts"
                                   IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Accounts, Mode=OneWay}"
                                   Click="Tab_Click" Tag="Accounts" />
+                    <ToggleButton Style="{StaticResource RailItem}" Content="Contacts"
+                                  IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Contacts, Mode=OneWay}"
+                                  Click="Tab_Click" Tag="Contacts" />
                     <ToggleButton Style="{StaticResource RailItem}" Content="Appearance"
                                   IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Appearance, Mode=OneWay}"
                                   Click="Tab_Click" Tag="Appearance" />
@@ -293,6 +296,76 @@
                         <Button Style="{StaticResource AccentButton}" Content="Add Account"
                                 HorizontalAlignment="Left" Margin="0,8,0,0"
                                 Click="AddAccount_Click" />
+                    </StackPanel>
+
+                    <!-- Contacts -->
+                    <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Contacts}">
+                        <TextBlock Text="Contacts" Style="{StaticResource SectionTitle}" />
+
+                        <!-- Add row -->
+                        <Border Style="{StaticResource SettingsRow}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Add a contact" />
+                                <TextBlock Style="{StaticResource RowDescription}"
+                                           Text="Recipients you send to are auto-collected here. Add manual entries below." />
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Padding="6,5" Margin="0,0,8,0"
+                                             Background="{DynamicResource ElevatedBackgroundBrush}"
+                                             Foreground="{DynamicResource PrimaryTextBrush}"
+                                             BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                             CaretBrush="{DynamicResource PrimaryTextBrush}"
+                                             Tag="Name"
+                                             Text="{Binding NewContactName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Grid.Column="1" Padding="6,5" Margin="0,0,8,0"
+                                             Background="{DynamicResource ElevatedBackgroundBrush}"
+                                             Foreground="{DynamicResource PrimaryTextBrush}"
+                                             BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                             CaretBrush="{DynamicResource PrimaryTextBrush}"
+                                             Tag="Email"
+                                             Text="{Binding NewContactEmail, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="2" Style="{StaticResource AccentButton}" Content="Add"
+                                            Padding="14,5" Click="AddContact_Click" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- List -->
+                        <ItemsControl ItemsSource="{Binding ManagedContacts}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1"
+                                            Padding="0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <DockPanel LastChildFill="True">
+                                                    <TextBlock DockPanel.Dock="Right" Text="auto"
+                                                               FontSize="10"
+                                                               Foreground="{DynamicResource TertiaryTextBrush}"
+                                                               VerticalAlignment="Center" Margin="8,0,0,0"
+                                                               Visibility="{Binding AutoCollected, Converter={StaticResource BoolVis}}" />
+                                                    <TextBlock Text="{Binding DisplayName}" FontSize="13" FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource PrimaryTextBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding EmailAddress}" FontSize="12"
+                                                           Foreground="{DynamicResource SecondaryTextBrush}" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Style="{StaticResource SubtleButton}" Content="Remove"
+                                                    Padding="10,5" Tag="{Binding}" Click="RemoveContact_Click" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
 
                     <!-- Appearance -->

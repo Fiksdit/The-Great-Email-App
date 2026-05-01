@@ -26,6 +26,7 @@ public partial class App : Application
     public static ISmtpService Smtp { get; private set; } = null!;
     public static ICredentialStore Credentials { get; private set; } = null!;
     public static IAccountStore Accounts { get; private set; } = null!;
+    public static IContactsStore Contacts { get; private set; } = null!;
     public static ISettingsStore SettingsStore { get; private set; } = null!;
     public static AppSettings Settings { get; set; } = null!;
     public static AppConfig Config { get; private set; } = null!;
@@ -59,11 +60,12 @@ public partial class App : Application
         Smtp = new SmtpService();
         Credentials = new WindowsCredentialStore();
         Accounts = new JsonAccountStore();
+        Contacts = new JsonContactsStore();
         SettingsStore = new JsonSettingsStore();
         Settings = SettingsStore.Load();
         Auth = new FirebaseAuthService(Config, new DpapiTokenVault());
         Sync = new FirestoreSyncService(Config, Auth);
-        SyncCoordinator = new SyncCoordinator(Settings, SettingsStore, Accounts, Auth, Sync);
+        SyncCoordinator = new SyncCoordinator(Settings, SettingsStore, Accounts, Contacts, Auth, Sync);
         SyncCoordinator.RemotePullApplied += OnRemotePullApplied;
         Updates = new GitHubUpdateService();
         UpdateInstaller = new UpdateInstaller();
