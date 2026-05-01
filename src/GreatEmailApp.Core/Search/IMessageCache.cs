@@ -36,4 +36,20 @@ public interface IMessageCache
 
     /// <summary>Run a full-text search across cached messages. Returns ranked hits.</summary>
     Task<Result<List<SearchHit>>> SearchAsync(string query, int limit = 30, CancellationToken ct = default);
+
+    /// <summary>
+    /// Group cached messages by sender domain over the last <paramref name="days"/> days
+    /// and return any group with at least <paramref name="minCount"/> messages.
+    /// Drives the rule-suggestion engine.
+    /// </summary>
+    Task<Result<List<SenderFrequency>>> GetSenderFrequenciesAsync(int days, int minCount, CancellationToken ct = default);
 }
+
+public sealed record SenderFrequency(
+    string Domain,
+    string ExampleSenderName,
+    string ExampleSenderEmail,
+    string ExampleAccountId,
+    string ExampleAccountEmail,
+    int Count,
+    DateTimeOffset MostRecent);

@@ -388,6 +388,26 @@
                                    TextWrapping="Wrap"
                                    Text="Rules run automatically on every Send/Receive cycle. They evaluate in order — toggle, edit, or remove any rule below. Use Run rules now to apply across the current inbox." />
 
+                        <!-- Suggestions -->
+                        <Border x:Name="SuggestionsBanner"
+                                Visibility="Collapsed"
+                                Background="#332E5085"
+                                BorderBrush="{DynamicResource AccentBrush}" BorderThickness="0,0,0,2"
+                                CornerRadius="4" Padding="12,10" Margin="0,0,0,16">
+                            <StackPanel>
+                                <DockPanel LastChildFill="True">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource SubtleButton}"
+                                            Content="Refresh" Padding="10,4"
+                                            Click="RefreshSuggestions_Click" />
+                                    <TextBlock x:Name="SuggestionsHeader"
+                                               FontWeight="SemiBold" FontSize="12"
+                                               Foreground="{DynamicResource PrimaryTextBrush}"
+                                               VerticalAlignment="Center" />
+                                </DockPanel>
+                                <ItemsControl x:Name="SuggestionsList" Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Border>
+
                         <ItemsControl ItemsSource="{Binding ManagedRules}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>

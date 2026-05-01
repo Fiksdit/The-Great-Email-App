@@ -24,6 +24,7 @@ public partial class SettingsDialog : Window
         InitializeComponent();
         _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Contacts, App.Rules, App.Credentials, App.SettingsStore, App.Auth, App.Sync, App.SyncCoordinator, App.Updates, App.UpdateInstaller);
         DataContext = _vm;
+        Loaded += async (_, _) => await LoadSuggestionsAsync();
     }
 
     /// <summary>Programmatic tab switch — call before <c>ShowDialog</c>.</summary>
@@ -142,6 +143,87 @@ public partial class SettingsDialog : Window
                              + (errors.Count == 0 ? "" : $" {errors.Count} error(s).");
         }
         finally { btn.IsEnabled = true; }
+    }
+
+    private async void RefreshSuggestions_Click(object sender, RoutedEventArgs e) => await LoadSuggestionsAsync();
+
+    private async System.Threading.Tasks.Task LoadSuggestionsAsync()
+    {
+        SuggestionsList.Items.Clear();
+        var result = await App.RuleSuggestions.ComputeAsync();
+        if (result is not GreatEmailApp.Core.Services.Result<System.Collections.Generic.List<GreatEmailApp.Core.Rules.RuleSuggestion>>.Ok ok || ok.Value.Count == 0)
+        {
+            SuggestionsBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        SuggestionsBanner.Visibility = Visibility.Visible;
+        SuggestionsHeader.Text = $"💡 {ok.Value.Count} frequent sender(s) without a rule";
+        foreach (var s in ok.Value.Take(5)) // top 5 — keep the banner from getting absurd
+            SuggestionsList.Items.Add(BuildSuggestionRow(s));
+    }
+
+    private FrameworkElement BuildSuggestionRow(GreatEmailApp.Core.Rules.RuleSuggestion s)
+    {
+        var grid = new Grid { Margin = new Thickness(0, 4, 0, 4) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var label = new TextBlock
+        {
+            Text = $"{s.Source.Domain}  ·  {s.Source.Count} messages  ·  example: {s.Source.ExampleSenderName}",
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["PrimaryTextBrush"],
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        Grid.SetColumn(label, 0); grid.Children.Add(label);
+
+        var btnPanel = new StackPanel { Orientation = Orientation.Horizontal };
+        var create = new Button
+        {
+            Content = "Create rule",
+            Style = (Style)Application.Current.Resources["AccentButton"],
+            Padding = new Thickness(10, 4, 10, 4),
+        };
+        create.Click += (_, _) =>
+        {
+            var seed = new GreatEmailApp.Core.Models.MailRule
+            {
+                Id = System.Guid.NewGuid().ToString("N"),
+                Name = s.SuggestedRuleName,
+                IsEnabled = true,
+                AccountId = string.IsNullOrEmpty(s.Source.ExampleAccountId) ? null : s.Source.ExampleAccountId,
+                Match = GreatEmailApp.Core.Models.RuleMatch.All,
+                Conditions = new System.Collections.Generic.List<GreatEmailApp.Core.Models.RuleCondition>
+                {
+                    new() { Field = GreatEmailApp.Core.Models.RuleField.From, Op = GreatEmailApp.Core.Models.RuleOp.Contains, Value = s.Source.Domain },
+                },
+                Actions = new System.Collections.Generic.List<GreatEmailApp.Core.Models.RuleActionItem>
+                {
+                    new() { Type = GreatEmailApp.Core.Models.RuleAction.MoveToFolder, Value = s.SuggestedFolderName },
+                },
+            };
+            OpenRuleEditor(seed);
+            _ = LoadSuggestionsAsync();
+        };
+        var dismiss = new Button
+        {
+            Content = "Dismiss",
+            Style = (Style)Application.Current.Resources["SubtleButton"],
+            Padding = new Thickness(10, 4, 10, 4),
+            Margin = new Thickness(6, 0, 0, 0),
+        };
+        dismiss.Click += async (_, _) =>
+        {
+            App.RuleSuggestions.Dismiss(s.Source.Domain);
+            await LoadSuggestionsAsync();
+        };
+        btnPanel.Children.Add(create);
+        btnPanel.Children.Add(dismiss);
+        Grid.SetColumn(btnPanel, 1); grid.Children.Add(btnPanel);
+
+        return grid;
     }
 
     private void OpenRuleEditor(GreatEmailApp.Core.Models.MailRule rule)

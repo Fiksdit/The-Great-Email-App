@@ -30,6 +30,7 @@ public partial class App : Application
     public static IContactsStore Contacts { get; private set; } = null!;
     public static IRulesStore Rules { get; private set; } = null!;
     public static IRulesEngine RulesEngine { get; private set; } = null!;
+    public static IRuleSuggestionEngine RuleSuggestions { get; private set; } = null!;
     public static IFolderCache FolderCache { get; private set; } = null!;
     public static ISettingsStore SettingsStore { get; private set; } = null!;
     public static AppSettings Settings { get; set; } = null!;
@@ -109,6 +110,7 @@ public partial class App : Application
         // pulls fresh inbox state runs enabled rules against the new mail.
         RulesEngine = new RulesEngine(Rules, Accounts, Credentials, Imap, MailPoller);
         RulesEngine.Start();
+        RuleSuggestions = new RuleSuggestionEngine(MessageCache, Rules);
         Exit += (_, _) => { _tray?.Dispose(); (MailPoller as IDisposable)?.Dispose(); };
 
         Theme.Apply(Settings.Theme, Settings.Accent);

@@ -18,6 +18,12 @@ public static class AppPaths
     public static string ContactsJson => Path.Combine(Root, "contacts.json");
     public static string RulesJson    => Path.Combine(Root, "rules.json");
     public static string FoldersCacheJson => Path.Combine(Root, "folders-cache.json");
+
+    /// <summary>
+    /// Domains the user has explicitly dismissed from rule suggestions.
+    /// Local-only — per-PC noise preferences shouldn't roam.
+    /// </summary>
+    public static string DismissedSuggestionsJson => Path.Combine(Root, "dismissed-suggestions.json");
     public static string SettingsJson => Path.Combine(Root, "settings.json");
     public static string CacheDb     => Path.Combine(Root, "cache.db");
     public static string LogsFolder  => Path.Combine(Root, "logs");

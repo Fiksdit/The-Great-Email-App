@@ -244,6 +244,73 @@ public sealed class SqliteMessageCache : IMessageCache
         }
     }
 
+    public async Task<Result<List<SenderFrequency>>> GetSenderFrequenciesAsync(
+        int days, int minCount, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var conn = new SqliteConnection(_connStr);
+            await conn.OpenAsync(ct).ConfigureAwait(false);
+
+            // Pull rows newer than the cutoff, then bucket by domain in C# —
+            // SQLite's substring/lower trickery for the @-split is not worth
+            // it when a few thousand rows fit in memory comfortably.
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT account_id, account_email, sender, sender_email, sent_at
+                FROM messages
+                WHERE sender_email != ''
+                  AND (sent_at IS NULL OR sent_at >= @cutoff)";
+            cmd.Parameters.AddWithValue("@cutoff", DateTimeOffset.UtcNow.AddDays(-days).UtcDateTime.ToString("o"));
+
+            var byDomain = new Dictionary<string, (string name, string email, string accountId, string accountEmail, int count, DateTimeOffset latest)>(StringComparer.OrdinalIgnoreCase);
+            await using var rdr = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await rdr.ReadAsync(ct).ConfigureAwait(false))
+            {
+                var senderEmail = rdr.GetString(3);
+                var at = senderEmail.IndexOf('@');
+                if (at <= 0 || at >= senderEmail.Length - 1) continue;
+                var domain = senderEmail[(at + 1)..];
+
+                DateTimeOffset sentAt = DateTimeOffset.MinValue;
+                if (!rdr.IsDBNull(4))
+                {
+                    var s = rdr.GetString(4);
+                    DateTimeOffset.TryParse(s, out sentAt);
+                }
+
+                if (byDomain.TryGetValue(domain, out var cur))
+                {
+                    var newer = sentAt > cur.latest ? sentAt : cur.latest;
+                    byDomain[domain] = (cur.name, cur.email, cur.accountId, cur.accountEmail, cur.count + 1, newer);
+                }
+                else
+                {
+                    byDomain[domain] = (rdr.GetString(2), senderEmail, rdr.GetString(0), rdr.GetString(1), 1, sentAt);
+                }
+            }
+
+            var hits = byDomain
+                .Where(kv => kv.Value.count >= minCount)
+                .Select(kv => new SenderFrequency(
+                    Domain: kv.Key,
+                    ExampleSenderName: kv.Value.name,
+                    ExampleSenderEmail: kv.Value.email,
+                    ExampleAccountId: kv.Value.accountId,
+                    ExampleAccountEmail: kv.Value.accountEmail,
+                    Count: kv.Value.count,
+                    MostRecent: kv.Value.latest))
+                .OrderByDescending(s => s.Count)
+                .ThenByDescending(s => s.MostRecent)
+                .ToList();
+            return Result.Ok(hits);
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<List<SenderFrequency>>($"Sender frequency query failed: {ex.Message}", ex);
+        }
+    }
+
     /// <summary>
     /// Translate a free-form user query to FTS5 syntax. Splits on whitespace,
     /// drops anything that looks like FTS5 punctuation, ANDs the rest with a
