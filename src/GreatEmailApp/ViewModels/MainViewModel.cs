@@ -166,6 +166,25 @@ public partial class MainViewModel : ObservableObject
         LoadAccounts();
     }
 
+    /// <summary>
+    /// Deep-link target for a search result click — selects the account, loads
+    /// the folder if needed, and selects the message by uid.
+    /// </summary>
+    public async Task NavigateToMessageAsync(string accountId, string folderPath, uint uid)
+    {
+        var accountVm = Accounts.FirstOrDefault(a => a.Model.Id == accountId);
+        if (accountVm is null) return;
+
+        var folderVm = FindFolder(accountVm.Folders, folderPath);
+        if (folderVm is null) return;
+
+        // Loading the folder also re-selects, so we want to land on a specific
+        // message after it loads. Wait for the load, then look for the uid.
+        await SelectFolderAsync(folderVm);
+        var hit = Messages.FirstOrDefault(m => m.Model.Id == uid.ToString());
+        if (hit is not null) await SelectMessageAsync(hit);
+    }
+
     /// <summary>Called by AddAccountDialog after a new account has been persisted.</summary>
     public void OnAccountAdded(Account account)
     {
@@ -225,6 +244,10 @@ public partial class MainViewModel : ObservableObject
             MarkGroupTransitions();
             StatusMessage = $"{folder.Name}: {ok.Value.Count} messages.";
 
+            // Index for search — fire and forget, never block the UI on disk I/O.
+            _ = App.MessageCache.UpsertEnvelopesAsync(account.Id, account.EmailAddress,
+                folder.Model.FullPath, ok.Value);
+
             var first = Messages.FirstOrDefault();
             if (first is not null)
                 await SelectMessageAsync(first);
@@ -271,6 +294,11 @@ public partial class MainViewModel : ObservableObject
             message.Model.BodyHtml = ok.Value.Html;
             message.OnBodyLoaded();
             OnPropertyChanged(nameof(SelectedMessage));
+
+            // Persist body text to the search cache so future searches can find on
+            // body content (the poll-based indexer only writes envelopes).
+            _ = App.MessageCache.UpsertBodyAsync(account.Id, message.Model.FolderId, uid,
+                ok.Value.PlainText ?? "");
         }
 
         // Auto-mark-as-read after the configured delay (settings.MarkReadDelaySeconds).

@@ -29,6 +29,10 @@ public interface INewMailPoller
     /// Subscribers must marshal to the UI thread themselves.</summary>
     event EventHandler<NewMailEvent>? NewMailDetected;
 
+    /// <summary>Fires once per successful poll per account with the full envelope set.
+    /// Used by the search indexer (and anyone else) to piggyback off the IMAP fetch.</summary>
+    event EventHandler<MessagesPolledEvent>? MessagesPolled;
+
     void Start();
     void Stop();
 
@@ -55,6 +59,7 @@ public sealed class NewMailPoller : INewMailPoller, IDisposable
     private bool _running;
 
     public event EventHandler<NewMailEvent>? NewMailDetected;
+    public event EventHandler<MessagesPolledEvent>? MessagesPolled;
 
     public NewMailPoller(
         AppSettings settings,
@@ -119,6 +124,11 @@ public sealed class NewMailPoller : INewMailPoller, IDisposable
         var result = await _imap.ListMessagesAsync(account, creds.Value.Password,
             inboxPath, RecentMessageLimit, ct).ConfigureAwait(false);
         if (result is not Result<List<Message>>.Ok ok) return;
+
+        // Hand the full envelope set to anyone listening (search indexer, etc.)
+        // before we start filtering for notifications.
+        try { MessagesPolled?.Invoke(this, new MessagesPolledEvent(account, inboxPath, ok.Value)); }
+        catch { /* listener errors must not break polling */ }
 
         var seenSet = _seen.GetOrAdd(account.Id, _ => new HashSet<uint>());
         var firstSeed = seenSet.Count == 0;

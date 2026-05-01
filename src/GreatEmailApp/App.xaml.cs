@@ -8,6 +8,7 @@ using GreatEmailApp.Core.Auth;
 using GreatEmailApp.Core.Config;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Notifications;
+using GreatEmailApp.Core.Search;
 using GreatEmailApp.Core.Services;
 using GreatEmailApp.Core.Storage;
 using GreatEmailApp.Core.Sync;
@@ -34,6 +35,7 @@ public partial class App : Application
     public static IUpdateService Updates { get; private set; } = null!;
     public static IUpdateInstaller UpdateInstaller { get; private set; } = null!;
     public static INewMailPoller MailPoller { get; private set; } = null!;
+    public static IMessageCache MessageCache { get; private set; } = null!;
     private static TrayNotifier? _tray;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -65,7 +67,17 @@ public partial class App : Application
         SyncCoordinator.RemotePullApplied += OnRemotePullApplied;
         Updates = new GitHubUpdateService();
         UpdateInstaller = new UpdateInstaller();
+        MessageCache = new SqliteMessageCache();
+        _ = MessageCache.InitAsync();
         MailPoller = new NewMailPoller(Settings, Accounts, Credentials, Imap);
+        // Indexing piggybacks on the poller — every poll cycle that fetches
+        // envelopes for a notification check also writes them into the cache,
+        // so search has fresh data with no extra IMAP round-trips.
+        MailPoller.MessagesPolled += async (_, ev) =>
+        {
+            try { await MessageCache.UpsertEnvelopesAsync(ev.Account.Id, ev.Account.EmailAddress, ev.FolderPath, ev.Messages); }
+            catch { }
+        };
         _tray = new TrayNotifier(MailPoller);
         MailPoller.Start();
         Exit += (_, _) => { _tray?.Dispose(); (MailPoller as IDisposable)?.Dispose(); };

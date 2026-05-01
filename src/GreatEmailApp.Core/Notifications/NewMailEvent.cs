@@ -12,3 +12,10 @@ namespace GreatEmailApp.Core.Notifications;
 /// "open this account's inbox" on click.
 /// </summary>
 public sealed record NewMailEvent(Account Account, Message Message);
+
+/// <summary>
+/// Raised once per poll cycle per account, after the inbox listing succeeds.
+/// Carries the full fetched envelope set so a search indexer can upsert them
+/// into the message cache without making its own IMAP round-trip.
+/// </summary>
+public sealed record MessagesPolledEvent(Account Account, string FolderPath, IReadOnlyList<Message> Messages);

@@ -30,23 +30,125 @@
             </StackPanel>
 
             <!-- Search -->
-            <Border Grid.Column="1" Margin="16,6"
-                    MaxWidth="540" Height="24"
-                    HorizontalAlignment="Center"
-                    Background="{DynamicResource InputBackgroundBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                    CornerRadius="6" Padding="10,0">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{StaticResource IconSearch}"
-                               Style="{StaticResource IconGlyph}"
-                               FontSize="12"
-                               Foreground="{DynamicResource TertiaryTextBrush}"
-                               Margin="0,0,6,0" />
-                    <TextBlock Text="Search mail and people"
-                               Foreground="{DynamicResource TertiaryTextBrush}"
-                               FontSize="12" VerticalAlignment="Center" />
-                </StackPanel>
-            </Border>
+            <Grid Grid.Column="1" Margin="16,6" MaxWidth="540" Height="24"
+                  HorizontalAlignment="Center">
+                <Border x:Name="SearchHost"
+                        Background="{DynamicResource InputBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="6" Padding="10,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{StaticResource IconSearch}"
+                                   Style="{StaticResource IconGlyph}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,6,0" />
+                        <TextBox Grid.Column="1"
+                                 x:Name="SearchBox"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="{DynamicResource PrimaryTextBrush}"
+                                 CaretBrush="{DynamicResource PrimaryTextBrush}"
+                                 FontSize="12"
+                                 VerticalContentAlignment="Center"
+                                 TextChanged="SearchBox_TextChanged"
+                                 KeyDown="SearchBox_KeyDown"
+                                 LostFocus="SearchBox_LostFocus" />
+                        <TextBlock x:Name="SearchPlaceholder"
+                                   Grid.Column="1"
+                                   Text="Search mail (sender, subject, body…)"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False" />
+                    </Grid>
+                </Border>
+
+                <Popup x:Name="ResultsPopup"
+                       PlacementTarget="{Binding ElementName=SearchHost}"
+                       Placement="Bottom"
+                       Width="540"
+                       AllowsTransparency="True"
+                       PopupAnimation="Fade"
+                       StaysOpen="False">
+                    <Border Background="{DynamicResource ElevatedBackgroundBrush}"
+                            BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                            CornerRadius="8" Padding="4"
+                            MaxHeight="420">
+                        <Grid>
+                            <TextBlock x:Name="ResultsEmpty"
+                                       Text="No matches."
+                                       Foreground="{DynamicResource TertiaryTextBrush}"
+                                       FontSize="12" Margin="12,8" Visibility="Collapsed" />
+                            <ListBox x:Name="ResultsList"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     SelectionMode="Single"
+                                     MouseLeftButtonUp="ResultsList_MouseLeftButtonUp"
+                                     KeyDown="ResultsList_KeyDown">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="Cursor" Value="Hand" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListBoxItem">
+                                                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                                            CornerRadius="4" Padding="10,8" Margin="0,1">
+                                                        <ContentPresenter />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBackgroundBrush}" />
+                                                        </Trigger>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="True">
+                                                <TextBlock DockPanel.Dock="Right"
+                                                           Text="{Binding AccountEmail}"
+                                                           Foreground="{DynamicResource TertiaryTextBrush}"
+                                                           FontSize="11" Margin="8,0,0,0" />
+                                                <TextBlock Text="{Binding Sender}"
+                                                           FontWeight="SemiBold" FontSize="12"
+                                                           Foreground="{DynamicResource PrimaryTextBrush}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </DockPanel>
+                                            <TextBlock Text="{Binding Subject}"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Snippet}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TertiaryTextBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+                </Popup>
+            </Grid>
 
             <!-- Sync indicator -->
             <Border Grid.Column="2" Margin="0,0,8,0" VerticalAlignment="Center"
