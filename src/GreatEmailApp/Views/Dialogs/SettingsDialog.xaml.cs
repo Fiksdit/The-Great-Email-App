@@ -146,8 +146,34 @@ public partial class SettingsDialog : Window
 
     private void OpenRuleEditor(GreatEmailApp.Core.Models.MailRule rule)
     {
-        var dlg = new RuleEditorDialog(rule, App.Accounts.LoadAll().ToList()) { Owner = this };
+        // Pull the live folder tree from MainViewModel so the picker can show
+        // folder paths for each account. Accounts whose folders haven't loaded
+        // yet (user never expanded them) appear with empty lists; the user can
+        // still type a custom path in those cases.
+        var foldersByAccount = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.IReadOnlyList<string>>();
+        var mvm = (Application.Current.MainWindow?.DataContext as GreatEmailApp.ViewModels.MainViewModel);
+        if (mvm is not null)
+        {
+            foreach (var avm in mvm.Accounts)
+            {
+                var paths = new System.Collections.Generic.List<string>();
+                CollectFolderPaths(avm.Folders, paths);
+                foldersByAccount[avm.Model.Id] = paths;
+            }
+        }
+        var dlg = new RuleEditorDialog(rule, App.Accounts.LoadAll().ToList(), foldersByAccount) { Owner = this };
         if (dlg.ShowDialog() == true) _vm.AddOrUpdateRule(dlg.Result);
+    }
+
+    private static void CollectFolderPaths(
+        System.Collections.ObjectModel.ObservableCollection<GreatEmailApp.ViewModels.FolderViewModel> folders,
+        System.Collections.Generic.List<string> sink)
+    {
+        foreach (var f in folders)
+        {
+            if (!string.IsNullOrEmpty(f.Model.FullPath)) sink.Add(f.Model.FullPath);
+            CollectFolderPaths(f.Children, sink);
+        }
     }
 
     // ----- Contacts ----- //

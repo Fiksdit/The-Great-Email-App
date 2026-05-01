@@ -23,15 +23,31 @@ public partial class RuleEditorDialog : Window
     private readonly List<ConditionRow> _conditionRows = new();
     private readonly List<ActionRow> _actionRows = new();
 
-    public RuleEditorDialog(MailRule existing, IReadOnlyList<Account> accounts)
+    /// <summary>Map of accountId → flat list of folder full paths, supplied by the host
+    /// so the action editor can offer a folder picker. Empty Id ("") = union of all.</summary>
+    private readonly IReadOnlyDictionary<string, IReadOnlyList<string>> _foldersByAccount;
+
+    public RuleEditorDialog(
+        MailRule existing,
+        IReadOnlyList<Account> accounts,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> foldersByAccount)
     {
         InitializeComponent();
+        _foldersByAccount = foldersByAccount;
 
         // Account picker: empty Id = "All accounts".
         var picks = new List<Account> { new() { Id = "", DisplayName = "All accounts", EmailAddress = "" } };
         picks.AddRange(accounts);
         AccountCombo.ItemsSource = picks;
         AccountCombo.SelectedValue = existing.AccountId ?? "";
+
+        // Re-source every action row's folder list when the account scope changes,
+        // since "Move to folder" should reflect the right account's hierarchy.
+        AccountCombo.SelectionChanged += (_, _) =>
+        {
+            var folders = FoldersForCurrentAccount();
+            foreach (var r in _actionRows) r.SetFolderChoices(folders);
+        };
 
         NameBox.Text = existing.Name;
         EnabledCheck.IsChecked = existing.IsEnabled;
@@ -71,10 +87,22 @@ public partial class RuleEditorDialog : Window
 
     private void AddActionRow(RuleActionItem seed)
     {
-        var row = new ActionRow(seed);
+        var row = new ActionRow(seed, FoldersForCurrentAccount());
         row.Removed += () => { _actionRows.Remove(row); ActionsList.Items.Remove(row.Root); };
         _actionRows.Add(row);
         ActionsList.Items.Add(row.Root);
+    }
+
+    private IReadOnlyList<string> FoldersForCurrentAccount()
+    {
+        var pickedId = (AccountCombo.SelectedValue as string) ?? "";
+        if (!string.IsNullOrEmpty(pickedId) && _foldersByAccount.TryGetValue(pickedId, out var list))
+            return list;
+        // "All accounts" → union, distinct, sorted.
+        return _foldersByAccount.SelectMany(kv => kv.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     // --------------------------------------------------------------------- //
@@ -169,27 +197,32 @@ public partial class RuleEditorDialog : Window
     {
         public Border Root { get; }
         public ComboBox TypeCb { get; }
-        public TextBox FolderBox { get; }
+        public ComboBox FolderCb { get; }
         public event Action? Removed;
 
-        public ActionRow(RuleActionItem seed)
+        public ActionRow(RuleActionItem seed, IReadOnlyList<string> folderChoices)
         {
             TypeCb = ComboFor<RuleAction>(seed.Type);
-            FolderBox = new TextBox
+            // Editable ComboBox: dropdown shows known folder paths for the rule's
+            // account scope, but the user can also type a custom path (lets you
+            // pre-create rules for folders that don't exist yet).
+            FolderCb = new ComboBox
             {
-                Text = seed.Value,
+                IsEditable = true,
+                IsTextSearchEnabled = true,
                 Background = (Brush)Application.Current.Resources["ElevatedBackgroundBrush"],
                 Foreground = (Brush)Application.Current.Resources["PrimaryTextBrush"],
                 BorderBrush = (Brush)Application.Current.Resources["DividerBrush"],
                 BorderThickness = new Thickness(1),
-                CaretBrush = (Brush)Application.Current.Resources["PrimaryTextBrush"],
                 Padding = new Thickness(6, 5, 6, 5),
+                Text = seed.Value ?? "",
+                ToolTip = "Pick or type a folder full path (e.g. \"Receipts\" or \"Vendors/Mobile Sentrix\"). Subfolders are nested with '/'.",
             };
-            FolderBox.IsEnabled = (RuleAction)TypeCb.SelectedItem == RuleAction.MoveToFolder;
-            FolderBox.ToolTip = "Folder full path (e.g. \"Receipts\" or \"Vendors/Mobile Sentrix\")";
+            SetFolderChoicesInternal(folderChoices);
 
+            FolderCb.IsEnabled = (RuleAction)TypeCb.SelectedItem == RuleAction.MoveToFolder;
             TypeCb.SelectionChanged += (_, _) =>
-                FolderBox.IsEnabled = (RuleAction)TypeCb.SelectedItem == RuleAction.MoveToFolder;
+                FolderCb.IsEnabled = (RuleAction)TypeCb.SelectedItem == RuleAction.MoveToFolder;
 
             var remove = new Button
             {
@@ -205,16 +238,26 @@ public partial class RuleEditorDialog : Window
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             TypeCb.Margin = new Thickness(0, 0, 6, 0); Grid.SetColumn(TypeCb, 0); grid.Children.Add(TypeCb);
-            Grid.SetColumn(FolderBox, 1); grid.Children.Add(FolderBox);
+            Grid.SetColumn(FolderCb, 1); grid.Children.Add(FolderCb);
             Grid.SetColumn(remove, 2); grid.Children.Add(remove);
 
             Root = new Border { Padding = new Thickness(0, 4, 0, 4), Child = grid };
         }
 
+        public void SetFolderChoices(IReadOnlyList<string> folders) => SetFolderChoicesInternal(folders);
+
+        private void SetFolderChoicesInternal(IReadOnlyList<string> folders)
+        {
+            // Preserve the user's typed/selected text across an itemsource swap.
+            var current = FolderCb.Text;
+            FolderCb.ItemsSource = folders;
+            FolderCb.Text = current;
+        }
+
         public RuleActionItem ToAction() => new()
         {
             Type = (RuleAction)TypeCb.SelectedItem,
-            Value = FolderBox.Text ?? "",
+            Value = FolderCb.Text ?? "",
         };
     }
 

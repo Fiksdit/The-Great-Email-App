@@ -57,6 +57,22 @@ public partial class App : Application
 
         AppPaths.EnsureRoot();
 
+        // Permanent crash logger — writes any unhandled exception to
+        // %LOCALAPPDATA%\GreatEmailApp\crash.log so post-mortem doesn't depend
+        // on Windows Error Reporting bucket guessing. Cheap insurance.
+        DispatcherUnhandledException += (_, ex) =>
+        {
+            LogCrash("DispatcherUnhandled", ex.Exception);
+            ex.Handled = false; // still let the process die — we want the WER too
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
+            LogCrash("AppDomainUnhandled", ex.ExceptionObject as Exception);
+        TaskScheduler.UnobservedTaskException += (_, ex) =>
+        {
+            LogCrash("UnobservedTask", ex.Exception);
+            ex.SetObserved();
+        };
+
         Config = AppConfig.Load(Path.Combine(AppContext.BaseDirectory, "appsettings.json"));
 
         Imap = new ImapService();
@@ -144,6 +160,17 @@ public partial class App : Application
     /// Persist AppSettings and re-apply any UI-affecting changes (theme/accent).
     /// Called from the Settings dialog after the user clicks Apply/Save.
     /// </summary>
+    private static void LogCrash(string source, Exception? ex)
+    {
+        try
+        {
+            var path = Path.Combine(AppPaths.Root, "crash.log");
+            var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {source}: {ex}\n\n";
+            File.AppendAllText(path, line);
+        }
+        catch { /* logging is best-effort */ }
+    }
+
     public static void PersistSettings()
     {
         SettingsStore.Save(Settings); // Saved event → SyncCoordinator debounced push.
