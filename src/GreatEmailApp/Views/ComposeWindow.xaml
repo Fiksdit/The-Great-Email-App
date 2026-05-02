@@ -54,25 +54,50 @@
                 Padding="14,10">
             <StackPanel Orientation="Horizontal">
                 <Button Style="{StaticResource AccentButton}"
-                        Content="Send"
-                        Padding="20,8" FontWeight="SemiBold"
-                        Command="{Binding SendCommand}" />
+                        Padding="16,8" FontWeight="SemiBold"
+                        Command="{Binding SendCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{StaticResource IconSent}" Style="{StaticResource IconGlyph}"
+                                   FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Send" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
                 <Button Style="{StaticResource SubtleButton}"
-                        Content="Attach"
-                        Padding="14,7" Margin="8,0,0,0"
-                        Command="{Binding AddAttachmentCommand}" />
+                        Padding="12,7" Margin="8,0,0,0"
+                        Command="{Binding AddAttachmentCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{StaticResource IconAttach}" Style="{StaticResource IconGlyph}"
+                                   FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Attach" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
                 <Button Style="{StaticResource SubtleButton}"
-                        Content="Cc / Bcc"
-                        Padding="14,7" Margin="8,0,0,0"
-                        Command="{Binding ToggleCcBccCommand}" />
+                        Padding="12,7" Margin="8,0,0,0"
+                        Command="{Binding ToggleCcBccCommand}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{StaticResource IconContact}" Style="{StaticResource IconGlyph}"
+                                   FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Cc / Bcc" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
                 <Button Style="{StaticResource SubtleButton}"
-                        Content="Save draft"
-                        Padding="14,7" Margin="8,0,0,0"
-                        Click="SaveDraft_Click" />
+                        Padding="12,7" Margin="8,0,0,0"
+                        Click="SaveDraft_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{StaticResource IconDrafts}" Style="{StaticResource IconGlyph}"
+                                   FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Save draft" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
                 <Button Style="{StaticResource SubtleButton}"
-                        Content="Discard"
-                        Padding="14,7" Margin="8,0,0,0"
-                        Click="Discard_Click" />
+                        Padding="12,7" Margin="8,0,0,0"
+                        Click="Discard_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{StaticResource IconTrash}" Style="{StaticResource IconGlyph}"
+                                   FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Discard" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Border>
 

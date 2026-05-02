@@ -12,6 +12,7 @@
     <UserControl.Resources>
         <conv:StringEqualsToBoolConverter x:Key="StrEqBool" />
         <conv:StringEqualsToVisibilityConverter x:Key="StrEqVis" />
+        <conv:BoolToVisibilityConverter x:Key="BoolVis" />
 
         <Style x:Key="RibbonTabButton" TargetType="ToggleButton">
             <Setter Property="Background" Value="Transparent" />
@@ -215,7 +216,22 @@
                                 </StackPanel>
                             </Button>
                             <Button Style="{StaticResource RibbonItemButton}" Click="OnDrafts_Click">
-                                <StackPanel><TextBlock Text="{StaticResource IconMail}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Drafts" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
+                                <StackPanel>
+                                    <Grid HorizontalAlignment="Center">
+                                        <TextBlock Text="{StaticResource IconMail}" Style="{StaticResource IconGlyph}" FontSize="16" />
+                                        <Border Background="{DynamicResource AccentBrush}"
+                                                CornerRadius="8" MinWidth="16" Height="14" Padding="4,0"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                Margin="0,-2,-6,0"
+                                                Visibility="{Binding HasDrafts, Converter={StaticResource BoolVis}}">
+                                            <TextBlock Text="{Binding DraftCount}"
+                                                       Foreground="White"
+                                                       FontSize="9" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock Text="Drafts" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                </StackPanel>
                             </Button>
                             <Border Style="{StaticResource GroupSep}" />
                             <Button Style="{StaticResource RibbonItemButton}" Command="{Binding DeleteCommand}">
