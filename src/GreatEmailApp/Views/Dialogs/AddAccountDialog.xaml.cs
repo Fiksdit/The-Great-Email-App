@@ -114,6 +114,13 @@ public partial class AddAccountDialog : Window
             _accountStore.Save(existing);
             _creds.Save(account.Id, account.Username, pwd);
 
+            // Push the new password into the cloud vault if it's unlocked on this PC.
+            // If it's locked or not set up yet, skip silently — the user can run
+            // Settings → Sync → Set up / Unlock later, which sweeps in any missing
+            // accounts at that point. Fire-and-forget; a failed push doesn't block save.
+            if (App.Vault?.IsUnlocked == true)
+                _ = App.Vault.UpsertPasswordAsync(account.Id, pwd);
+
             Result = account;
             DialogResult = true;
             Close();

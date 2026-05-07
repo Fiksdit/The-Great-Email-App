@@ -4,6 +4,46 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-05-07-001 — Avatar pretended a user was signed in when they weren't
+
+**Area:** TitleBar / Avatar button
+**Status:** ✅ Fixed
+**Priority:** P2
+
+**Symptom**
+- Top-right avatar always showed "JR" with a tooltip of `coolman0804@outlook.com`, regardless of whether anyone was actually signed into Firebase. Clicking it showed a `MessageBox` reading "Signed in: coolman0804@outlook.com / Sync: on".
+- Misleading: implied an active account where none existed. Worse, the only path to actually sign in was buried in Settings → Sync — the avatar gave no hint of that.
+
+**Replicate**
+1. Fresh install (no `auth.dat`), launch app.
+2. Hover top-right avatar → tooltip "coolman0804@outlook.com".
+3. Click avatar → popup claims you're signed in.
+
+**Root cause**
+- `MainViewModel.AccountInitial` and `AccountEmail` were hardcoded literals (`"JR"`, `"coolman0804@outlook.com"`) — leftover sample-data from Phase 1 that never got reconnected to the real `IAuthService` when Phase 4 auth landed.
+- `TitleBar.AvatarButton_Click` showed a placeholder `MessageBox` with no signed-out branch.
+
+**Tried**
+- Nothing — fixed on first attempt. Root cause was visible in a 3-line grep for `coolman` in the source tree.
+
+**Fix**
+- `MainViewModel.AccountInitial` / `AccountEmail` / `IsSignedIn` now derive from `App.Auth.Current`. Signed-out → initial `?`, tooltip `"Sign in"`.
+- Subscribed to `App.Auth.SessionChanged` in the VM ctor so the avatar repaints on sign-in / sign-out / silent restore (dispatched onto the UI thread).
+- `TitleBar.AvatarButton_Click` now branches on `App.Auth?.IsSignedIn`: when signed-out, opens `SettingsDialog` directly on the **Sync** tab via `OpenOnTab("Sync")`. When signed-in, keeps the lightweight info popup (Phase-4 placeholder line removed).
+
+**Files changed**
+- `src/GreatEmailApp/ViewModels/MainViewModel.cs` (Rev 2 → 3)
+- `src/GreatEmailApp/Controls/TitleBar.xaml.cs` (Rev 2 → 3)
+
+**Rulebook**
+- §2 Surgical Change Rule — touched only the two responsible files, no XAML or auth-service changes.
+- Spiritual sibling of FIX-2026-04-30-002: same "fake data masquerading as real" anti-pattern, different surface (avatar instead of message list).
+
+**Session:** 2026-05-07
+**Commit:** _pending_
+
+---
+
 ## FIX-2026-04-30-002 — Auto-sync wiped local accounts on first 0.4.0 launch
 
 **Symptom**

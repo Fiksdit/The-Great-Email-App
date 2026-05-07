@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/SettingsViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 4
+// Created: 2026-04-29 | Revised: 2026-05-07 | Rev: 5
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -7,10 +7,12 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GreatEmailApp.Core.Auth;
+using GreatEmailApp.Core.Crypto;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Services;
 using GreatEmailApp.Core.Sync;
 using GreatEmailApp.Core.Updates;
+using GreatEmailApp.Views.Dialogs;
 
 namespace GreatEmailApp.ViewModels;
 
@@ -27,6 +29,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly SyncCoordinator _coordinator;
     private readonly IUpdateService _updates;
     private readonly IUpdateInstaller _installer;
+    private readonly VaultManager _vault;
 
     [ObservableProperty] private string activeTab = "Appearance";
 
@@ -46,6 +49,15 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string signedInEmail = "";
     [ObservableProperty] private string syncStatus = "";
     [ObservableProperty] private bool isSyncBusy;
+
+    // --- Password vault state ---
+    // VaultStatusText is the human label (e.g. "Not set up", "Locked on this PC", "Unlocked").
+    // VaultIsUnlocked / VaultIsLocked / VaultIsNotSetUp drive button visibility via converters.
+    [ObservableProperty] private string vaultStatusText = "Checking…";
+    [ObservableProperty] private bool isVaultBusy;
+    [ObservableProperty] private bool vaultIsNotSetUp;
+    [ObservableProperty] private bool vaultIsLocked;
+    [ObservableProperty] private bool vaultIsUnlocked;
 
     // --- Updates / About state ---
     public string CurrentVersionText { get; } = $"v{GitHubUpdateService.CurrentVersion()}";
@@ -76,6 +88,9 @@ public partial class SettingsViewModel : ObservableObject
     public IAsyncRelayCommand SignInCommand { get; }
     public IAsyncRelayCommand SignOutCommand { get; }
     public IAsyncRelayCommand SyncNowCommand { get; }
+    public IAsyncRelayCommand SetUpVaultCommand { get; }
+    public IAsyncRelayCommand UnlockVaultCommand { get; }
+    public IAsyncRelayCommand ResyncPasswordsCommand { get; }
     public IAsyncRelayCommand CheckForUpdatesCommand { get; }
     public IAsyncRelayCommand InstallUpdateCommand { get; }
 
@@ -90,7 +105,8 @@ public partial class SettingsViewModel : ObservableObject
         IFirestoreSyncService sync,
         SyncCoordinator coordinator,
         IUpdateService updates,
-        IUpdateInstaller installer)
+        IUpdateInstaller installer,
+        VaultManager vault)
     {
         _settings = settings;
         _accountStore = accountStore;
@@ -103,6 +119,7 @@ public partial class SettingsViewModel : ObservableObject
         _coordinator = coordinator;
         _updates = updates;
         _installer = installer;
+        _vault = vault;
         _coordinator.StateChanged += OnCoordinatorStateChanged;
 
         theme = settings.Theme;
@@ -125,11 +142,26 @@ public partial class SettingsViewModel : ObservableObject
         SignInCommand           = new AsyncRelayCommand(SignInAsync,         () => !IsSyncBusy && !IsSignedIn);
         SignOutCommand          = new AsyncRelayCommand(SignOutAsync,        () => !IsSyncBusy &&  IsSignedIn);
         SyncNowCommand          = new AsyncRelayCommand(SyncNowAsync,        () => !IsSyncBusy &&  IsSignedIn);
+        SetUpVaultCommand       = new AsyncRelayCommand(SetUpVaultAsync,     () => !IsVaultBusy && IsSignedIn && VaultIsNotSetUp);
+        UnlockVaultCommand      = new AsyncRelayCommand(UnlockVaultAsync,    () => !IsVaultBusy && IsSignedIn && VaultIsLocked);
+        ResyncPasswordsCommand  = new AsyncRelayCommand(UnlockVaultAsync,    () => !IsVaultBusy && IsSignedIn && (VaultIsLocked || VaultIsUnlocked));
         CheckForUpdatesCommand  = new AsyncRelayCommand(CheckForUpdatesAsync, () => !IsUpdateBusy);
         InstallUpdateCommand    = new AsyncRelayCommand(InstallUpdateAsync,   () => !IsUpdateBusy && AvailableUpdate is not null);
 
         _auth.SessionChanged += OnSessionChanged;
         ApplySession(_auth.Current);
+    }
+
+    partial void OnIsVaultBusyChanged(bool value) => RefreshVaultCommands();
+    partial void OnVaultIsNotSetUpChanged(bool value) => RefreshVaultCommands();
+    partial void OnVaultIsLockedChanged(bool value) => RefreshVaultCommands();
+    partial void OnVaultIsUnlockedChanged(bool value) => RefreshVaultCommands();
+
+    private void RefreshVaultCommands()
+    {
+        SetUpVaultCommand.NotifyCanExecuteChanged();
+        UnlockVaultCommand.NotifyCanExecuteChanged();
+        ResyncPasswordsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnThemeChanged(AppTheme value)   { _settings.Theme = value;   ApplyLive(); }
@@ -254,6 +286,93 @@ public partial class SettingsViewModel : ObservableObject
         SignedInEmail = s?.Email ?? "";
         _settings.SignedInEmail = s?.Email;
         _settings.SyncEnabled = s is not null;
+        _ = RefreshVaultStatusAsync();
+    }
+
+    /// <summary>
+    /// Probe the Firestore vault doc to figure out which row to show in the
+    /// Sync tab (Set up / Unlock / Resync). Cheap to call repeatedly — at most
+    /// one HTTP GET, no KDF work.
+    /// </summary>
+    private async Task RefreshVaultStatusAsync()
+    {
+        if (!IsSignedIn)
+        {
+            VaultStatusText = "Sign in to enable password sync.";
+            VaultIsNotSetUp = false;
+            VaultIsLocked = false;
+            VaultIsUnlocked = false;
+            return;
+        }
+
+        VaultStatusText = "Checking…";
+        var probe = await _vault.ProbeAsync();
+        if (probe is Result<VaultStatus>.Fail f)
+        {
+            VaultStatusText = $"Vault check failed: {f.Error}";
+            VaultIsNotSetUp = VaultIsLocked = VaultIsUnlocked = false;
+            return;
+        }
+        var status = ((Result<VaultStatus>.Ok)probe).Value;
+        VaultIsNotSetUp = status == VaultStatus.NotSetUp;
+        VaultIsLocked   = status == VaultStatus.Locked;
+        VaultIsUnlocked = status == VaultStatus.Unlocked;
+        VaultStatusText = status switch
+        {
+            VaultStatus.NotSetUp => "Password sync isn't set up yet. Set a master passphrase to back up IMAP passwords across PCs.",
+            VaultStatus.Locked   => "Password vault is locked on this PC. Enter your master passphrase to restore IMAP passwords.",
+            VaultStatus.Unlocked => "Password sync is active on this PC.",
+            _ => "",
+        };
+    }
+
+    private async Task SetUpVaultAsync()
+    {
+        var dlg = new PassphraseDialog(PassphraseDialogMode.Setup) { Owner = Application.Current.MainWindow };
+        if (dlg.ShowDialog() != true || string.IsNullOrEmpty(dlg.Passphrase)) return;
+
+        IsVaultBusy = true;
+        VaultStatusText = "Encrypting passwords and uploading…";
+        try
+        {
+            var r = await _vault.SetupAsync(dlg.Passphrase);
+            if (r is Result<bool>.Fail f)
+            {
+                VaultStatusText = $"Setup failed: {f.Error}";
+                return;
+            }
+            VaultIsNotSetUp = false;
+            VaultIsUnlocked = true;
+            VaultStatusText = "Password sync is active on this PC.";
+        }
+        finally { IsVaultBusy = false; }
+    }
+
+    private async Task UnlockVaultAsync()
+    {
+        var dlg = new PassphraseDialog(PassphraseDialogMode.Unlock) { Owner = Application.Current.MainWindow };
+        if (dlg.ShowDialog() != true || string.IsNullOrEmpty(dlg.Passphrase)) return;
+
+        IsVaultBusy = true;
+        VaultStatusText = "Unlocking and restoring passwords…";
+        try
+        {
+            var r = await _vault.UnlockAsync(dlg.Passphrase);
+            if (r is Result<int>.Fail f)
+            {
+                VaultStatusText = $"Unlock failed: {f.Error}";
+                return;
+            }
+            var restored = ((Result<int>.Ok)r).Value;
+            VaultIsLocked = false;
+            VaultIsUnlocked = true;
+            VaultStatusText = $"Restored {restored} password(s) to this PC's Credential Manager.";
+
+            // Kick the sidebar so it retries IMAP folder loads with the freshly-restored passwords.
+            if (Application.Current.MainWindow?.DataContext is MainViewModel mvm)
+                mvm.ReloadAccounts();
+        }
+        finally { IsVaultBusy = false; }
     }
 
     private async Task SignInAsync()

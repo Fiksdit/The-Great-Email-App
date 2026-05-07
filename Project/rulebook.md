@@ -212,13 +212,58 @@ This is a desktop app — no web routes. Security boundaries instead:
 ### B) IMAP / SMTP (for email)
 - Plain username + password (or app passwords where supported)
 - Password entered in Add Account dialog → stored in Windows Credential Manager keyed by account ID
-- **Never sent to Firestore. Never written to settings.json. Never logged.**
-- "Test Connection" button validates before saving
+- **Plaintext is local-only** — never written to settings.json, never logged.
 
-**Universal rules:**
+### C) Password sync vault (added 2026-05-07)
+
+The original §7B rule "passwords never leave the device" was reversed after a
+review of the threat model: re-typing 6–7 IMAP passwords on every new PC was a
+real friction point, and the data being protected (IMAP passwords) is no more
+sensitive than the email contents already accessible via any IMAP-host breach.
+See decision log entry "Encrypted password sync via Firestore (2026-05-07)".
+
+**The vault** lives at `users/{uid}/vault/passwords` in Firestore — a separate
+document from the regular settings sync, so settings churn doesn't touch it.
+
+**Crypto pipeline (see `Core/Crypto/PasswordVault.cs`):**
+
+```
+master passphrase  --[Argon2id, 64MiB, t=3, p=4]-->  KEK (32B)
+random data key (32B)  --[AES-256-GCM, key=KEK]-->  wrapped data key  ──► Firestore
+imap password (per account)  --[AES-256-GCM, key=data key, AAD=accountId]-->  ct  ──► Firestore
+```
+
+**Why a wrapped data key (not deriving the encryption key directly from the
+passphrase):** lets the user change the passphrase without re-encrypting every
+password — just rewrap the data key. Also keeps Argon2id off the hot path for
+add-account / change-password operations.
+
+**Local cache** (`%LOCALAPPDATA%\GreatEmailApp\vault.dat`): the **unwrapped data
+key** is DPAPI-encrypted (CurrentUser scope) once the user enters the passphrase
+on a PC, so the passphrase prompts only on first-time setup or explicit "Resync
+passwords." See `Core/Crypto/LocalDataKeyCache.cs`.
+
+**Threat model boundary:** Firebase / GCP at-rest encryption + Firestore rules
++ AES-GCM + Argon2id KDF. A Firebase compromise alone does not leak IMAP
+passwords (attacker would still need the passphrase). Loss of the master
+passphrase is unrecoverable — the user re-enters IMAP passwords manually.
+
+**Rules:**
+- Plaintext IMAP passwords still never live in settings.json or in any non-vault
+  Firestore field. The Credential Manager remains the only on-device store.
+- Vault uploads only happen when the vault is **unlocked** on a PC. If locked,
+  add-account silently skips the vault push and the password lands in the cloud
+  on the next "Resync passwords."
+- The unwrapped data key never leaves the device. The wrapped key, the salt,
+  and per-account ciphertexts are the only things that travel.
+- Never log the passphrase, the KEK, the data key, or any plaintext password.
+  `LogSanitizer` strips known fields.
+
+**Universal rules (all auth surfaces):**
 - Never log credentials, tokens, or auth headers — `LogSanitizer` strips known fields
 - Refresh tokens invalidated on sign-out
-- IMAP password re-prompt on each new PC (passwords don't sync)
+- New PC: sign in with Google → unlock vault with master passphrase → IMAP
+  passwords restore to Credential Manager automatically. No re-entry.
 
 ---
 

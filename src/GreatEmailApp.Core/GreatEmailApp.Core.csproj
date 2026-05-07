@@ -12,6 +12,9 @@
     <PackageReference Include="MailKit" Version="4.13.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+    <!-- Argon2id KDF for the password-sync vault. Used to derive the KEK that wraps
+         the per-user data key from the master passphrase. Memory-hard, GPU-resistant. -->
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" Version="1.3.1" />
   </ItemGroup>
 
 </Project>

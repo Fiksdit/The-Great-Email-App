@@ -1,11 +1,12 @@
 // FILE: src/GreatEmailApp/App.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 9
+// Created: 2026-04-29 | Revised: 2026-05-07 | Rev: 10
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.IO;
 using System.Windows;
 using GreatEmailApp.Core.Auth;
 using GreatEmailApp.Core.Config;
+using GreatEmailApp.Core.Crypto;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Notifications;
 using GreatEmailApp.Core.Rules;
@@ -38,6 +39,8 @@ public partial class App : Application
     public static AppConfig Config { get; private set; } = null!;
     public static IAuthService Auth { get; private set; } = null!;
     public static IFirestoreSyncService Sync { get; private set; } = null!;
+    public static IVaultSync VaultSync { get; private set; } = null!;
+    public static VaultManager Vault { get; private set; } = null!;
     public static SyncCoordinator SyncCoordinator { get; private set; } = null!;
     public static IUpdateService Updates { get; private set; } = null!;
     public static IUpdateInstaller UpdateInstaller { get; private set; } = null!;
@@ -90,6 +93,8 @@ public partial class App : Application
         Settings = SettingsStore.Load();
         Auth = new FirebaseAuthService(Config, new DpapiTokenVault());
         Sync = new FirestoreSyncService(Config, Auth);
+        VaultSync = new FirestoreVaultSync(Config, Auth);
+        Vault = new VaultManager(VaultSync, new DpapiLocalDataKeyCache(), Credentials, Accounts);
         SyncCoordinator = new SyncCoordinator(Settings, SettingsStore, Accounts, Contacts, Rules, Auth, Sync);
         SyncCoordinator.RemotePullApplied += OnRemotePullApplied;
         Updates = new GitHubUpdateService();

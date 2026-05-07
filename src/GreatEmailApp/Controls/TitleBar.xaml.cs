@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/TitleBar.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
+// Created: 2026-04-29 | Revised: 2026-05-07 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System;
@@ -84,9 +84,20 @@ public partial class TitleBar : UserControl
 
     private void AvatarButton_Click(object sender, RoutedEventArgs e)
     {
-        // Phase 1: avatar popover lands in Phase 4 (Firebase). For now, show a quick info popup.
+        // Signed-out: jump straight to Settings → Sync, where the Google sign-in
+        // button lives. Avoids the old "fake signed-in" popup that showed a
+        // hardcoded email when no account was actually connected.
+        if (!(App.Auth?.IsSignedIn ?? false))
+        {
+            var dlg = new Views.Dialogs.SettingsDialog { Owner = Window.GetWindow(this) };
+            dlg.OpenOnTab("Sync");
+            dlg.ShowDialog();
+            return;
+        }
+
+        // Signed-in: lightweight info popup. Full popover with Sign Out lands later.
         MessageBox.Show(
-            $"Signed in: {AccountEmail}\nSync: on\n\n(Avatar popover with Sign Out arrives in Phase 4.)",
+            $"Signed in: {AccountEmail}\nSync: on",
             "Account",
             MessageBoxButton.OK, MessageBoxImage.Information);
     }

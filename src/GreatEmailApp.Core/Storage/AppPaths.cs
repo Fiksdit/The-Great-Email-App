@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Storage/AppPaths.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 3
+// Created: 2026-04-29 | Revised: 2026-05-07 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Storage;
@@ -48,6 +48,15 @@ public static class AppPaths
     /// is per-machine state, not synced.
     /// </summary>
     public static string NotificationsStateJson => Path.Combine(Root, "notifications-state.json");
+
+    /// <summary>
+    /// DPAPI-encrypted local copy of the unwrapped per-user vault data key
+    /// (the AES-256 key that decrypts IMAP passwords pulled from the Firestore
+    /// vault doc). Written once after the user enters the master passphrase
+    /// the first time on a PC so subsequent launches don't re-prompt.
+    /// Per rulebook §7A: the unwrapped data key never leaves the device.
+    /// </summary>
+    public static string VaultDat => Path.Combine(Root, "vault.dat");
 
     /// <summary>Ensures the root folder exists. Safe to call repeatedly.</summary>
     public static void EnsureRoot()

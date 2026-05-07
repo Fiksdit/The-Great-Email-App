@@ -45,9 +45,25 @@ project-guidelines/        # Original templates (reference)
 
 ## Build & run
 
-**Prereqs:** Windows 10/11, .NET 8 SDK (`winget install Microsoft.DotNet.SDK.8`).
+**Prereqs:** Windows 10/11, .NET 8 **SDK** (the runtime alone is not enough — `dotnet build` will fail with "No .NET SDKs were found" if only the Desktop Runtime is installed).
 
-```bash
+```powershell
+# verify — must list an 8.x.x SDK, not just runtimes
+dotnet --list-sdks
+
+# if empty or no 8.x.x line, install the SDK (silent, non-interactive):
+winget install Microsoft.DotNet.SDK.8 --accept-source-agreements --accept-package-agreements --silent
+# the installer downloads ~213 MB and runs the MSI; expect 2–5 min on a fresh box.
+# open a new shell afterwards so PATH picks up the SDK.
+```
+
+If `dotnet nuget list source` shows "No sources found." (fresh SDK installs sometimes ship without a default), add nuget.org once before restoring:
+
+```powershell
+dotnet nuget add source https://api.nuget.org/v3/index.json --name nuget.org
+```
+
+```powershell
 cd src
 dotnet build
 dotnet run --project GreatEmailApp

@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 2
+// Created: 2026-04-29 | Revised: 2026-05-07 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -35,8 +35,22 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool hasAccounts;
 
     public string AppTitle => "The Great Email App";
-    public string AccountInitial => "JR";
-    public string AccountEmail => "coolman0804@outlook.com";
+
+    // Avatar shows the signed-in Firebase identity. When signed out we deliberately
+    // show "?" + "Sign in" so the avatar prompts the user instead of pretending an
+    // account is active. TitleBar's click handler routes to Settings → Sync in that case.
+    public string AccountInitial
+    {
+        get
+        {
+            var s = App.Auth?.Current;
+            if (s is null) return "?";
+            var name = !string.IsNullOrWhiteSpace(s.DisplayName) ? s.DisplayName : s.Email;
+            return string.IsNullOrEmpty(name) ? "?" : char.ToUpperInvariant(name[0]).ToString();
+        }
+    }
+    public string AccountEmail => App.Auth?.Current?.Email ?? "Sign in";
+    public bool IsSignedIn => App.Auth?.IsSignedIn ?? false;
 
     private CancellationTokenSource? _messageLoadCts;
     private CancellationTokenSource? _bodyLoadCts;
@@ -68,6 +82,19 @@ public partial class MainViewModel : ObservableObject
                 Application.Current?.Dispatcher.BeginInvoke(new Action(RefreshDraftCount));
             _draftSubscribed = true;
             RefreshDraftCount();
+        }
+
+        // Repaint the avatar when sign-in state changes (Settings → Sync → Google sign-in,
+        // sign-out, or silent restore at startup).
+        if (App.Auth is not null)
+        {
+            App.Auth.SessionChanged += (_, _) =>
+                Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    OnPropertyChanged(nameof(AccountInitial));
+                    OnPropertyChanged(nameof(AccountEmail));
+                    OnPropertyChanged(nameof(IsSignedIn));
+                }));
         }
     }
 

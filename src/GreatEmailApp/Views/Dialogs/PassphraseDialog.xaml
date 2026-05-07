@@ -1,0 +1,80 @@
+<!-- FILE: src/GreatEmailApp/Views/Dialogs/PassphraseDialog.xaml
+     Created: 2026-05-07 | Revised: 2026-05-07 | Rev: 1
+     Changed by: Claude Opus 4.7 on behalf of James Reed
+     Single dialog with two modes:
+       - Setup: shows two password fields, requires match before allowing OK.
+       - Unlock: shows one password field, calls UnlockAsync.
+     The "mode" radio is hidden — caller sets it via the Mode property before
+     ShowDialog. -->
+<Window x:Class="GreatEmailApp.Views.Dialogs.PassphraseDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Master passphrase"
+        Height="320" Width="460"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource AppBackgroundBrush}"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType"
+        ShowInTaskbar="False">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" x:Name="TitleText"
+                   Text="Set up password sync"
+                   FontSize="18" FontWeight="SemiBold"
+                   Foreground="{DynamicResource PrimaryTextBrush}"
+                   Margin="0,0,0,6" />
+
+        <TextBlock Grid.Row="1" x:Name="SubText"
+                   TextWrapping="Wrap" FontSize="12"
+                   Foreground="{DynamicResource SecondaryTextBrush}"
+                   Margin="0,0,0,16">
+            Choose a master passphrase. Your IMAP passwords will be encrypted with it
+            before being uploaded. The cloud only ever sees ciphertext — losing the
+            passphrase means you'll need to re-enter passwords on each PC.
+        </TextBlock>
+
+        <StackPanel Grid.Row="2" Margin="0,0,0,8">
+            <TextBlock Text="Passphrase"
+                       FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource SecondaryTextBrush}"
+                       Margin="0,0,0,4" />
+            <PasswordBox x:Name="P1" Padding="8,6" FontSize="13"
+                         PasswordChanged="OnAnyChanged" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="3" x:Name="ConfirmRow" Margin="0,0,0,8">
+            <TextBlock Text="Confirm passphrase"
+                       FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource SecondaryTextBrush}"
+                       Margin="0,0,0,4" />
+            <PasswordBox x:Name="P2" Padding="8,6" FontSize="13"
+                         PasswordChanged="OnAnyChanged" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="4" x:Name="ErrorText"
+                   Foreground="{DynamicResource RedBrush}"
+                   FontSize="12" TextWrapping="Wrap"
+                   VerticalAlignment="Top"
+                   Margin="0,4,0,0" />
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Cancel" Padding="14,6"
+                    Style="{StaticResource SubtleButton}"
+                    Click="Cancel_Click" />
+            <Button x:Name="OkButton" Content="Continue" Padding="14,6" Margin="8,0,0,0"
+                    Style="{StaticResource AccentButton}"
+                    IsDefault="True"
+                    Click="Ok_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

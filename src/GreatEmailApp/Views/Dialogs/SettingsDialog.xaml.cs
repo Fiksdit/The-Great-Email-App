@@ -22,7 +22,7 @@ public partial class SettingsDialog : Window
     public SettingsDialog()
     {
         InitializeComponent();
-        _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Contacts, App.Rules, App.Credentials, App.SettingsStore, App.Auth, App.Sync, App.SyncCoordinator, App.Updates, App.UpdateInstaller);
+        _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Contacts, App.Rules, App.Credentials, App.SettingsStore, App.Auth, App.Sync, App.SyncCoordinator, App.Updates, App.UpdateInstaller, App.Vault);
         DataContext = _vm;
         Loaded += async (_, _) => await LoadSuggestionsAsync();
     }

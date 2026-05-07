@@ -1,5 +1,5 @@
 # The Great Email App — Master Roadmap
-**Created:** 2026-04-29 | **Updated:** 2026-04-29
+**Created:** 2026-04-29 | **Updated:** 2026-05-07
 **Stack:** WPF + .NET 8 (C#) + MailKit + SQLite + Firebase
 **Owner:** James Reed (coolman0804@outlook.com)
 **Vision:** A clean, fast, native-Windows IMAP email client with Outlook's familiar ribbon UX, dark/light theming, and Firebase-backed settings sync across multiple PCs.
@@ -38,6 +38,7 @@ The Great Email App (TGEA) is a focused desktop email client for power users who
 | P0-11 | Google sign-in (Firebase Auth) | 📋 PLANNED | Phase 4 |
 | P0-12 | Firestore settings sync (push/pull on change + on launch) | 📋 PLANNED | Phase 4 |
 | P0-13 | First-run sign-in screen with skip path | 📋 PLANNED | Phase 4 |
+| P0-14 | **Encrypted IMAP-password sync via passphrase-gated Firestore vault** | ✅ DONE | 2026-05-07. Argon2id + AES-256-GCM. Settings → Sync → "Set up password sync" / "Unlock with passphrase" / "Resync passwords". Replaces the original "passwords never leave the device" rule — see rulebook §7C and decision log. |
 
 **Status key:** `📋 PLANNED` · `🔧 IN PROGRESS` · `⚠️ PARTIAL` · `✅ DONE`
 
@@ -63,6 +64,7 @@ Core email workflow that makes the app actually usable.
 | P1-12 | Multi-select in mail list (Ctrl+click, Shift+click) + batch archive/delete/move | 📋 PLANNED | |
 | P1-13 | First-run onboarding when launched with zero accounts | 📋 PLANNED | Replaces sample data with a guided Add Account flow |
 | P1-14 | App icon + branded taskbar/installer presence | 📋 PLANNED | .ico + AppxManifest fields |
+| P1-15 | Brand the Google OAuth consent screen | 📋 PLANNED | Currently shows the GCP project ID (`project-6464…`) during sign-in. Set **App name = "The Great Email App"**, support email, logo, privacy/TOS URLs in GCP → APIs & Services → OAuth consent screen. If publishing status is "In production," any change re-triggers Google verification (days). Easier while still in "Testing." No code/rebuild needed. |
 
 ---
 
@@ -152,6 +154,7 @@ Compose, search, notifications, HTML rendering.
 | Firebase Auth via Google sign-in only (v1) | Simplest OAuth path; no user-management surface to maintain | James Reed | 2026-04-29 | DECIDED |
 | Last-write-wins for settings sync conflicts | Single user across multiple PCs; CRDT overkill | James Reed | 2026-04-29 | DECIDED |
 | Ribbon style: pro/Outlook-like (vs flat toolbar) | User preference for traditional Outlook look | James Reed | 2026-04-29 | DECIDED |
+| **Encrypted password sync via Firestore** (reverses original "passwords stay local, period") | Re-typing 6–7 IMAP passwords on every new PC was real friction. Reviewed the threat model: an IMAP password unlocks data already exposed by any host-side breach, so "absolute zero cloud touch" was the wrong proportional choice. Mitigation: per-user random data key, wrapped by an Argon2id-derived KEK from a user-chosen master passphrase; AES-256-GCM for both wrap and per-account ciphertexts; separate `users/{uid}/vault/passwords` Firestore doc; unwrapped data key DPAPI-cached locally so the passphrase prompts only on first PC + on resync. See rulebook §7C. | James Reed | 2026-05-07 | DECIDED |
 
 ---
 
