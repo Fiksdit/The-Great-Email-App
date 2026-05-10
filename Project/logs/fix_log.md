@@ -4,6 +4,51 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-05-10-002 — App crashed on first launch, ran fine on second (concurrent settings write + tray race)
+
+**Area:** SyncCoordinator + JsonSettingsStore + TrayNotifier
+**Status:** ✅ Fixed in v0.11.11
+**Priority:** P1 — visible to every user on every cold start
+
+**Symptom**
+- Launch app → process exits silently within seconds.
+- Reopen → fine.
+- Manually close → next cold launch crashes again. Loop.
+
+**Root cause — two independent crashes both fired during startup**
+
+1. **Concurrent settings.json writes.** `App.RestoreAndStartSyncAsync()` ran two paths back-to-back:
+   - `await Auth.TryRestoreAsync()` raised `SessionChanged` → kicked off `PullOrSeedAsync` on a worker thread.
+   - Then `await SyncCoordinator.StartAsync()` called `PullOrSeedAsync` *again* because auth was now signed in.
+   - Both `ApplyRemote` paths reached `JsonSettingsStore.Save()` simultaneously. They share the same `settings.json.tmp` filename, so `File.WriteAllText(tmp, …)` on the second one threw `IOException: file in use`. Unhandled → process death.
+
+2. **Tray balloon before tray was realized.** `TrayNotifier.ShowBalloon` ran from a `MailPoller.NewMailDetected` dispatch. On first launch the H.NotifyIcon `Shell_NotifyIcon` registration hadn't completed yet, so `ShowNotification` threw `InvalidOperationException: TrayIcon is not created.` Unhandled → process death.
+
+The reason "second launch is fine": the cloud snapshot was already up-to-date by then (the partial first-run had pushed local), and the poller had no fresh mail to balloon.
+
+**Tried**
+- Nothing — diagnosed straight from `crash.log` (which had captured both stack traces from prior runs).
+
+**Fix**
+- `SyncCoordinator`: added `SemaphoreSlim _gate (1,1)`. Public `PushAsync` / `PullAsync` / `PullOrSeedAsync` acquire it and delegate to private `*CoreAsync` variants. Internal callers (e.g. `PullCore` falling back to push when local prefers) call the Core variants directly to avoid re-entrant deadlock. Disposed in Dispose.
+- `JsonSettingsStore.Save`: wrapped the `.tmp + Move` in `lock (_saveLock)` for belt-and-suspenders against any other concurrent caller.
+- `TrayNotifier.ShowBalloon`: wrapped `ShowNotification` in `try/catch (InvalidOperationException) / catch (Exception)`. Notifications are best-effort.
+
+**Files changed**
+- `src/GreatEmailApp.Core/Sync/SyncCoordinator.cs` — Rev 5: gate + Core split.
+- `src/GreatEmailApp.Core/Services/JsonSettingsStore.cs` — Rev 3: save lock.
+- `src/GreatEmailApp/Services/TrayNotifier.cs` — Rev 3: swallow tray-not-created.
+- `src/GreatEmailApp/GreatEmailApp.csproj` — version 0.11.11.
+
+**Verified**
+- Cold start: alive, no crash.log written.
+- Kill + relaunch cycle: both runs alive, no crash.log written.
+
+**Rulebook**
+- No new rule needed; existing §16 applies. Decision-log candidate: "Any code path that runs both at app-startup and from an event handler that startup itself raises must be safe to run concurrently — prefer a coordinator-level gate over per-callsite ordering."
+
+---
+
 ## FIX-2026-05-10-001 — Sync silently flipped pulls into pushes; new PCs got zero accounts
 
 **Area:** Sync / SyncCoordinator + SyncMetadata
