@@ -190,7 +190,49 @@ Compose, search, notifications, HTML rendering.
 
 ---
 
-## Shipped Log
+## What's New (customer-facing changelog)
+
+Customer-readable release notes. Newest first. Surfaced in **Settings → About → What's new** and on the GitHub Releases page. Internal `FIX-YYYY-MM-DD-NNN` IDs map to entries in `Project/logs/fix_log.md` for engineering context — this section is the user-friendly view.
+
+> **Maintenance rule:** every release that ships a user-visible change adds a row here **before** the build is published. Pure internal refactors with no user impact may be omitted. Keep entries short, plain-English, and free of file paths or class names.
+
+### v0.11.11 — 2026-05-10
+**Bug fixes**
+- Fixed: app would sometimes crash on first launch and only run on the second try. *(FIX-2026-05-10-002)*
+- Fixed: a brief startup race where new-mail notifications could crash the app instead of showing the balloon. *(FIX-2026-05-10-002)*
+
+### v0.11.10 — 2026-05-10
+**What's new**
+- Folder unread badges restyled in vibrant orange-red on white for higher contrast in the sidebar.
+
+### v0.11.9 — 2026-05-10
+**What's new**
+- Folder unread badges are tighter, bolder, and easier to read at a glance.
+
+### v0.11.8 — 2026-05-10
+**Bug fixes**
+- Fixed: leaving the app idle for a few minutes would clear the message list, the preview pane, and the selected folder when you came back. The app now stays exactly where you left it.
+
+### v0.11.7 — 2026-05-10
+**What's new**
+- Sidebar: subfolders are now collapsed by default. Click the chevron next to a parent folder to expand its children. Stops the sidebar from blowing past screen height when you have a heavily-foldered account.
+- Right-click → **Move to**: subfolders now nest under their parent as a real submenu (hover to open) instead of a flat indented list that ran off the screen. The parent folder remains directly clickable to move into the parent itself.
+
+### v0.11.6 — 2026-05-10
+**Bug fixes**
+- Same sync fix as v0.11.5 — re-released so the in-app updater offered the fix to PCs already on a build labelled 0.11.5.
+
+### v0.11.5 — 2026-05-10
+**Bug fixes**
+- **Major sync fix.** Account lists were silently being overwritten between PCs: clicking *Sync now* claimed success but actually pushed the local roster to the cloud, clobbering accounts that another PC had pushed. Sync now correctly applies remote changes when the cloud has new data and pushes only when there are real local edits. *(FIX-2026-05-10-001)*
+
+  > **If you lost accounts on a PC**: install 0.11.5+ on **both** PCs. On the PC that has the full account list, open Settings → Sync → Sync now (push). Then on the other PC, do the same (pull). Order matters.
+
+---
+
+## Shipped Log (engineering)
+
+Internal milestone log — feature ships rolled into the master roadmap. The customer-facing notes live in **What's New** above.
 
 | ID | Feature | Shipped | Notes |
 |----|---------|---------|-------|
