@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-07 | Rev: 3
+// Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -68,12 +68,36 @@ public partial class MainViewModel : ObservableObject
     public bool HasDrafts => DraftCount > 0;
     partial void OnDraftCountChanged(int value) => OnPropertyChanged(nameof(HasDrafts));
 
+    // Filter pill plumbing. Setting Filter (from Pill_Click) refreshes the
+    // collection view; the view's Filter predicate is MessageMatchesFilter.
+    partial void OnFilterChanged(string value) =>
+        System.Windows.Data.CollectionViewSource.GetDefaultView(Messages)?.Refresh();
+
+    private bool MessageMatchesFilter(object o)
+    {
+        if (o is not MessageViewModel m) return false;
+        return Filter switch
+        {
+            "Unread"   => m.Unread,
+            "Flagged"  => m.Flagged,
+            "Mentions" => true, // No data backing this yet — pass-through until the feature lands.
+            _          => true,  // "All" or anything unrecognized.
+        };
+    }
+
     public MainViewModel(IImapService imap, ICredentialStore creds, IAccountStore accountStore)
     {
         _imap = imap;
         _creds = creds;
         _accountStore = accountStore;
         LoadAccounts();
+
+        // Wire the All/Unread/Flagged/Mentions pills to actually filter the list.
+        // The pills set MainViewModel.Filter; OnFilterChanged below refreshes the
+        // collection view so the predicate runs again. Without this hook the pills
+        // toggled state but never hid anything.
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(Messages);
+        if (view is not null) view.Filter = MessageMatchesFilter;
 
         // Subscribe once for the lifetime of the VM (App.Drafts is a singleton).
         if (!_draftSubscribed && App.Drafts is not null)

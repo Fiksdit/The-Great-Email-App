@@ -196,6 +196,10 @@ Customer-readable release notes. Newest first. Surfaced in **Settings → About 
 
 > **Maintenance rule:** every release that ships a user-visible change adds a row here **before** the build is published. Pure internal refactors with no user impact may be omitted. Keep entries short, plain-English, and free of file paths or class names.
 
+### v0.11.12 — 2026-05-10
+**Bug fixes**
+- Fixed: the **All / Unread / Flagged** filter pills above the message list looked clickable but didn't actually filter anything. They now hide read or unflagged messages as expected. *Mentions* is a pass-through until that feature lands.
+
 ### v0.11.11 — 2026-05-10
 **Bug fixes**
 - Fixed: app would sometimes crash on first launch and only run on the second try. *(FIX-2026-05-10-002)*
