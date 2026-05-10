@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncCoordinator.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 2
+// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Glue between local saves, sign-in events, window focus, and Firestore.
@@ -281,9 +281,12 @@ public sealed class SyncCoordinator : IDisposable
         }
         finally { _suppressPush = false; }
 
-        // Record the timestamp we just adopted so subsequent
-        // HasUnpushedLocalChanges checks have the right baseline.
-        _meta.LastSyncedAt = remote.UpdatedAt;
+        // Baseline must be AFTER the local writes above, not the remote
+        // snapshot's earlier UpdatedAt — otherwise the just-written files'
+        // mtimes will look "newer than last sync" and HasUnpushedLocalChanges
+        // returns true on every subsequent pull, flipping legitimate pulls
+        // into stale pushes (FIX-2026-05-10-001).
+        _meta.LastSyncedAt = DateTimeOffset.UtcNow;
         _meta.Save();
 
         RemotePullApplied?.Invoke(this, EventArgs.Empty);

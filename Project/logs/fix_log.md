@@ -4,6 +4,47 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-05-10-001 — Sync silently flipped pulls into pushes; new PCs got zero accounts
+
+**Area:** Sync / SyncCoordinator + SyncMetadata
+**Status:** ✅ Fixed in v0.11.5
+**Priority:** P0 — silent data divergence between PCs
+
+**Symptom**
+- New PC signed into Firebase, expecting 3 accounts to pull down from cloud. Got nothing — only the 1 account already present locally stayed. Settings → Sync → "Sync now" reported success.
+- On a PC that had successfully pulled once, every subsequent pull was actually pushing the local roster to the cloud, overwriting whatever the other PC had pushed.
+
+**Root cause**
+Two compounding bugs in the FIX-2026-04-30-002 guard:
+
+1. `SyncMetadata.HasUnpushedLocalChanges()` used `threshold.AddSeconds(-2)` for filesystem-mtime slop. That widens "has unpushed changes" instead of narrowing it — any file mtime within 2s of LastSyncedAt counted as unpushed. Wrong direction.
+2. `SyncCoordinator.ApplyRemote()` set `_meta.LastSyncedAt = remote.UpdatedAt` (the snapshot's earlier server-side timestamp). But `ApplyRemote` had just written `accounts.json`, so its mtime = "now", which is later than `remote.UpdatedAt`. Combined with bug #1, this made every just-pulled device permanently look "unpushed" → next pull triggered `ShouldPreferLocalOver` → push the stale local data instead of applying remote.
+
+User's symptom: PC A had 3 accounts, PC B had 1. Both kept pushing their own list and ignoring remote. Whichever PC last synced won the cloud doc — so PC B's recent activity had clobbered PC A's roster.
+
+**Tried**
+- Nothing — diagnosed directly from `sync-meta.json` mtime vs `accounts.json` mtime on the user's machine: file mtime `15:27:50.000`, LastSyncedAt `15:27:50.523`. With `-2s` slop, file looks newer; bug confirmed by inspection.
+
+**Fix**
+- `SyncMetadata.HasUnpushedLocalChanges`: slop direction inverted — `threshold.AddSeconds(+2)`. Only files clearly newer than baseline count as unpushed.
+- `SyncCoordinator.ApplyRemote`: `_meta.LastSyncedAt = DateTimeOffset.UtcNow` after the local Save calls complete, so the new baseline is strictly later than any file we just wrote.
+- FIX-2026-04-30-002's empty-cloud guard (clause 2 of `ShouldPreferLocalOver`) is unchanged — that protection was independent of the timestamp comparison and still blocks empty cloud from clobbering local.
+
+**Files changed**
+- `src/GreatEmailApp.Core/Sync/SyncMetadata.cs` — Rev 2: slop direction.
+- `src/GreatEmailApp.Core/Sync/SyncCoordinator.cs` — Rev 3: ApplyRemote baseline timestamp.
+- `src/GreatEmailApp/GreatEmailApp.csproj` — version 0.11.5.
+
+**Recovery for the user**
+1. Install 0.11.5 on **both** PCs (built-in updater, or copy install dir).
+2. On the PC that has the 3 accounts: Settings → Sync → Sync now (push).
+3. On the other PC: Settings → Sync → Sync now (pull). Roster appears.
+
+**Rulebook**
+- No new rule needed; existing §16 applies. Decision-log entry in roadmap may want a one-liner that timestamp slop in sync guards must always be in the conservative direction (treat near-equal as in-sync).
+
+---
+
 ## FIX-2026-05-07-001 — Avatar pretended a user was signed in when they weren't
 
 **Area:** TitleBar / Avatar button
