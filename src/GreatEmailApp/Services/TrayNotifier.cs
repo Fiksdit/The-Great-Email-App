@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Services/TrayNotifier.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 2
+// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Wraps an H.NotifyIcon.Wpf TaskbarIcon (purpose-built WPF tray library;
@@ -123,12 +123,22 @@ public sealed class TrayNotifier : IDisposable
             body  = string.Join(" · ", byAccount) + "\n" + string.Join(", ", latest);
         }
 
-        _icon.ShowNotification(
-            title: Truncate(title, 63),
-            message: Truncate(body, 255),
-            icon: NotificationIcon.None,
-            largeIcon: false,
-            sound: true);
+        // ShowNotification can throw `TrayIcon is not created` during the brief
+        // window between TrayNotifier ctor and the underlying Shell_NotifyIcon
+        // registration completing — happens on first launch when the poller
+        // surfaces new mail before the icon is fully realized. Notifications
+        // are best-effort; never crash the process over a missed balloon.
+        try
+        {
+            _icon.ShowNotification(
+                title: Truncate(title, 63),
+                message: Truncate(body, 255),
+                icon: NotificationIcon.None,
+                largeIcon: false,
+                sound: true);
+        }
+        catch (InvalidOperationException) { /* tray not realized yet */ }
+        catch (Exception) { /* tray subsystem flake — never crash on it */ }
     }
 
     private static string Truncate(string s, int max) =>

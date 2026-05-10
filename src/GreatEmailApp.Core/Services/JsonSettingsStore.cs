@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Services/JsonSettingsStore.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
+// Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Text.Json;
@@ -47,13 +47,21 @@ public sealed class JsonSettingsStore : ISettingsStore
 
     public event EventHandler? Saved;
 
+    // Serializes Save() against itself. The shared `.tmp` filename collides
+    // when two threads race (e.g. concurrent sync apply + UI save), and
+    // File.WriteAllText then dies with file-in-use. Cheap lock fixes it.
+    private readonly object _saveLock = new();
+
     public void Save(AppSettings settings)
     {
         AppPaths.EnsureRoot();
         var json = JsonSerializer.Serialize(settings, Options);
-        var tmp = AppPaths.SettingsJson + ".tmp";
-        File.WriteAllText(tmp, json);
-        File.Move(tmp, AppPaths.SettingsJson, overwrite: true);
+        lock (_saveLock)
+        {
+            var tmp = AppPaths.SettingsJson + ".tmp";
+            File.WriteAllText(tmp, json);
+            File.Move(tmp, AppPaths.SettingsJson, overwrite: true);
+        }
         Saved?.Invoke(this, EventArgs.Empty);
     }
 }

@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncCoordinator.cs
-// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 4
+// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 5
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Glue between local saves, sign-in events, window focus, and Firestore.
@@ -44,6 +44,10 @@ public sealed class SyncCoordinator : IDisposable
     private DateTimeOffset _lastPullAt = DateTimeOffset.MinValue;
     private readonly TimeSpan _activatePullCooldown = TimeSpan.FromSeconds(30);
     private SyncMetadata _meta = SyncMetadata.Load();
+    // Serializes all push/pull operations. App startup can fire two concurrent
+    // PullOrSeedAsync paths (SessionChanged from TryRestore + StartAsync after
+    // it returns) which previously raced on settings.json.tmp and crashed.
+    private readonly SemaphoreSlim _gate = new(1, 1);
 
     public event EventHandler<SyncEvent>? StateChanged;
 
@@ -120,6 +124,7 @@ public sealed class SyncCoordinator : IDisposable
         _rulesStore.Saved    -= OnLocalSaved;
         _auth.SessionChanged -= OnSessionChanged;
         _pushDebounce.Dispose();
+        _gate.Dispose();
     }
 
     // --------------------------------------------------------------------- //
@@ -150,6 +155,14 @@ public sealed class SyncCoordinator : IDisposable
     private async Task PushAsync()
     {
         if (!_auth.IsSignedIn) return;
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try { await PushCoreAsync().ConfigureAwait(false); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task PushCoreAsync()
+    {
+        if (!_auth.IsSignedIn) return;
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Pushing));
 
         var pushedAt = DateTimeOffset.UtcNow;
@@ -176,6 +189,14 @@ public sealed class SyncCoordinator : IDisposable
     private async Task PullAsync()
     {
         if (!_auth.IsSignedIn) return;
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try { await PullCoreAsync().ConfigureAwait(false); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task PullCoreAsync()
+    {
+        if (!_auth.IsSignedIn) return;
         _lastPullAt = DateTimeOffset.UtcNow;
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Pulling));
 
@@ -191,7 +212,8 @@ public sealed class SyncCoordinator : IDisposable
         if (ShouldPreferLocalOver(remote))
         {
             // Local has unpushed edits newer than what's on the cloud. Push, don't apply.
-            await PushAsync().ConfigureAwait(false);
+            // Already inside the gate — call the core push to avoid re-entrant lock.
+            await PushCoreAsync().ConfigureAwait(false);
             return;
         }
 
@@ -210,6 +232,14 @@ public sealed class SyncCoordinator : IDisposable
     private async Task PullOrSeedAsync()
     {
         if (!_auth.IsSignedIn) return;
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try { await PullOrSeedCoreAsync().ConfigureAwait(false); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task PullOrSeedCoreAsync()
+    {
+        if (!_auth.IsSignedIn) return;
         _lastPullAt = DateTimeOffset.UtcNow;
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Pulling));
 
@@ -224,14 +254,14 @@ public sealed class SyncCoordinator : IDisposable
         if (remote is null)
         {
             // First device — seed the cloud with whatever we have locally.
-            await PushAsync().ConfigureAwait(false);
+            await PushCoreAsync().ConfigureAwait(false);
             return;
         }
 
         if (ShouldPreferLocalOver(remote))
         {
             // Cloud has stale state, local has unpushed edits — protect them.
-            await PushAsync().ConfigureAwait(false);
+            await PushCoreAsync().ConfigureAwait(false);
             return;
         }
 
