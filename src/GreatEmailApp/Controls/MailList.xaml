@@ -50,17 +50,39 @@
                     BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1"
                     Padding="12,10">
                 <StackPanel>
+                    <!-- Folder-scoped basic search. Strict matching on sender display name,
+                         sender email, and subject only — never the body. The user wants
+                         "no more 8 million false positives when searching for sentrix
+                         trying to find mobile sentrix orders." Full-body / advanced search
+                         is roadmap item P1-15+. The placeholder text is overlaid via the
+                         Tag-bound TextBlock so we don't need a third-party watermark. -->
                     <Border Background="{DynamicResource InputBackgroundBrush}"
                             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                             CornerRadius="6" Padding="10,0" Height="28">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="{StaticResource IconSearch}" Style="{StaticResource IconGlyph}"
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{StaticResource IconSearch}" Style="{StaticResource IconGlyph}"
                                        FontSize="12" Margin="0,0,6,0"
+                                       VerticalAlignment="Center"
                                        Foreground="{DynamicResource TertiaryTextBrush}" />
-                            <TextBlock Text="Search current folder"
-                                       Foreground="{DynamicResource TertiaryTextBrush}"
-                                       FontSize="12" VerticalAlignment="Center" />
-                        </StackPanel>
+                            <Grid Grid.Column="1">
+                                <TextBlock x:Name="ListSearchPlaceholder"
+                                           Text="Search sender or subject"
+                                           Foreground="{DynamicResource TertiaryTextBrush}"
+                                           FontSize="12" VerticalAlignment="Center"
+                                           IsHitTestVisible="False" />
+                                <TextBox x:Name="ListSearchBox"
+                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         BorderThickness="0" Background="Transparent"
+                                         FontSize="12" VerticalAlignment="Center"
+                                         Foreground="{DynamicResource PrimaryTextBrush}"
+                                         CaretBrush="{DynamicResource PrimaryTextBrush}"
+                                         TextChanged="ListSearchBox_TextChanged" />
+                            </Grid>
+                        </Grid>
                     </Border>
 
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
@@ -94,11 +116,27 @@
                                            Margin="14,12,0,4"
                                            Visibility="{Binding IsFirstInGroup, Converter={StaticResource BoolVis}}" />
 
-                                <Border x:Name="Row" Background="Transparent" CornerRadius="6"
+                                <!-- Unread rows: tinted background + accent strip. Read rows are
+                                     transparent and have their foreground dimmed (DataTriggers below
+                                     on TextBlocks). The combination — color + tint + weight — gives
+                                     three independent visual signals for unread state. Local
+                                     Background must NOT be set on the Border start tag, otherwise
+                                     it would beat the Style setter. -->
+                                <Border x:Name="Row" CornerRadius="6"
                                         Margin="6,1" Padding="0"
                                         MouseLeftButtonDown="Row_Click"
                                         PreviewMouseRightButtonDown="Row_RightClick"
                                         Tag="{Binding}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Unread}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Border.ContextMenu>
                                         <ContextMenu Opened="MessageMenu_Opened">
                                             <MenuItem Header="Reply" Click="Reply_Click" />
@@ -148,8 +186,18 @@
                                                 <TextBlock Grid.Column="0" Text="{Binding Sender}"
                                                            FontWeight="{Binding Unread, Converter={StaticResource BoolWeight}}"
                                                            FontSize="13"
-                                                           Foreground="{DynamicResource PrimaryTextBrush}"
-                                                           TextTrimming="CharacterEllipsis" />
+                                                           TextTrimming="CharacterEllipsis">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Unread}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                                 <TextBlock Grid.Column="1" Text="{Binding Time}"
                                                            FontSize="11"
                                                            Foreground="{DynamicResource TertiaryTextBrush}"
@@ -158,8 +206,18 @@
                                             <TextBlock Text="{Binding Subject}"
                                                        FontSize="12"
                                                        FontWeight="{Binding Unread, Converter={StaticResource BoolWeight}}"
-                                                       Foreground="{DynamicResource SecondaryTextBrush}"
-                                                       TextTrimming="CharacterEllipsis" Margin="0,1,0,0" />
+                                                       TextTrimming="CharacterEllipsis" Margin="0,1,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Unread}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                             <TextBlock Text="{Binding Preview}"
                                                        FontSize="12"
                                                        Foreground="{DynamicResource TertiaryTextBrush}"

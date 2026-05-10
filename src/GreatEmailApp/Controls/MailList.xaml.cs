@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/MailList.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 3
+// Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.Generic;
@@ -39,12 +39,29 @@ public partial class MailList : UserControl
         }
     }
 
+    private void ListSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (sender is TextBox tb)
+            ListSearchPlaceholder.Visibility = string.IsNullOrEmpty(tb.Text) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void Pill_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is ToggleButton tb && tb.Tag is string tag && DataContext is MainViewModel vm)
+        if (sender is not ToggleButton tb || tb.Tag is not string tag) return;
+        if (DataContext is MainViewModel vm) vm.Filter = tag;
+
+        // Force exclusive selection: walk the parent StackPanel and set every
+        // sibling pill's IsChecked = (its tag == ours). Relying on the OneWay
+        // {Filter}-to-{IsChecked} binding alone wasn't enough — ToggleButton's
+        // built-in click behavior locally sets IsChecked, and the previously-
+        // selected pill could end up stuck checked alongside the new one.
+        if (tb.Parent is System.Windows.Controls.Panel panel)
         {
-            vm.Filter = tag;
-            tb.IsChecked = true;
+            foreach (var child in panel.Children)
+            {
+                if (child is ToggleButton sibling && sibling.Tag is string siblingTag)
+                    sibling.IsChecked = string.Equals(siblingTag, tag, System.StringComparison.Ordinal);
+            }
         }
     }
 

@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 4
+// Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 5
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -68,22 +68,48 @@ public partial class MainViewModel : ObservableObject
     public bool HasDrafts => DraftCount > 0;
     partial void OnDraftCountChanged(int value) => OnPropertyChanged(nameof(HasDrafts));
 
-    // Filter pill plumbing. Setting Filter (from Pill_Click) refreshes the
-    // collection view; the view's Filter predicate is MessageMatchesFilter.
+    // Filter pill + search-box plumbing. Both refresh the same default
+    // ICollectionView; the predicate combines pill-state AND search-text.
     partial void OnFilterChanged(string value) =>
         System.Windows.Data.CollectionViewSource.GetDefaultView(Messages)?.Refresh();
 
+    partial void OnSearchTextChanged(string value) =>
+        System.Windows.Data.CollectionViewSource.GetDefaultView(Messages)?.Refresh();
+
+    /// <summary>
+    /// Basic in-folder search. STRICT: matches only against sender display
+    /// name, sender email address, and subject. Never the body — the user
+    /// explicitly wants to avoid false positives like "sentrix" hitting
+    /// thousands of newsletter mentions when they're hunting for "mobile
+    /// sentrix" orders. Full-text / advanced search lives in roadmap P1-15+.
+    /// Case-insensitive partial match.
+    /// </summary>
     private bool MessageMatchesFilter(object o)
     {
         if (o is not MessageViewModel m) return false;
-        return Filter switch
+
+        // Pill predicate first (cheaper).
+        var passesPill = Filter switch
         {
             "Unread"   => m.Unread,
             "Flagged"  => m.Flagged,
             "Mentions" => true, // No data backing this yet — pass-through until the feature lands.
             _          => true,  // "All" or anything unrecognized.
         };
+        if (!passesPill) return false;
+
+        var q = SearchText;
+        if (string.IsNullOrWhiteSpace(q)) return true;
+
+        // Strict-fields contains-check. Three independent text fields, OR'd.
+        return ContainsCI(m.Sender, q)
+            || ContainsCI(m.SenderEmail, q)
+            || ContainsCI(m.Subject, q);
     }
+
+    private static bool ContainsCI(string? haystack, string needle) =>
+        !string.IsNullOrEmpty(haystack)
+        && haystack.Contains(needle, System.StringComparison.OrdinalIgnoreCase);
 
     public MainViewModel(IImapService imap, ICredentialStore creds, IAccountStore accountStore)
     {

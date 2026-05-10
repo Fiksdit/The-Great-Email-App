@@ -10,6 +10,16 @@
 
 The Great Email App (TGEA) is a focused desktop email client for power users who run multiple IMAP accounts and want Outlook's familiar ribbon-and-folder layout without the bloat of calendar/tasks/teams. Settings sync via Firebase so installing on a new PC restores all account configs (passwords stay local, in Windows Credential Manager). Built for fiksdit.com IMAP first, but works with any IMAP server.
 
+### What this app is *really* about
+
+**Search and notifications.** Every other feature serves these two:
+
+1. **The world's best email search.** Years of mail, scanned in milliseconds, with **zero false positives**. No remembering query syntax. No typing `from:` `subject:` `before:`. Just type what you mean and pick what you're searching across — sender, subject, body, date — and the program does the rest. Partial matches by default; an "exact" toggle when you need it. The underlying index lives locally; disk size is not a constraint. Old data can be cleaned up on demand, but the default is to keep everything searchable forever.
+
+2. **Important mail surfaced fast.** Real-time notifications for senders and subjects that matter, learned from the user's actual reading behavior — not from heuristics that flag every newsletter. Ads, marketing, and routine junk are demoted; people you reply to and threads you read are promoted. The user shouldn't have to configure rules to make this work.
+
+These two principles set the bar for every roadmap item: if a change makes search slower, less accurate, or makes notifications noisier, it does not ship.
+
 ---
 
 ## Priority Tiers
@@ -55,7 +65,15 @@ Core email workflow that makes the app actually usable.
 | P1-3 | Mark read/unread, flag, archive, delete | 📋 PLANNED | |
 | P1-4 | Move-to-folder | ⚠️ PARTIAL | Right-click → Move to (nested submenus, v0.11.7) works. **Toolbar Move button is not wired up** — clicking it does nothing. Needs: (a) hook ribbon Move button to a flyout/menu reusing the same folder-tree picker, (b) honor multi-select once P1-12 lands. |
 | P1-4b | Drag-and-drop email → folder | 📋 PLANNED | Drag from MailList row(s) onto a Sidebar folder node to move (Shift+drag = copy, where IMAP supports it). Needs: DragDrop on MailList row, drop-target highlighting on FolderRow, multi-select drag (depends on P1-12), cross-account drag explicitly blocked (IMAP can't atomically move across accounts). |
-| P1-5 | Search (server-side IMAP SEARCH + local cache fallback) | 📋 PLANNED | |
+| P1-5 | Basic in-folder search (sender / email / subject only — strict) | ⚠️ PARTIAL | v0.12.0 wires up the in-list search box, scoped to current folder, matching sender display name + sender email + subject. Body is **deliberately excluded** to avoid false positives. Case-insensitive contains. See Search Roadmap below for the rest of the journey. |
+| P1-5a | **Advanced search builder** (toolbar dialog) | 📋 PLANNED | A dialog/flyout with a row per criterion the user picks: *date range*, *sender name*, *sender email*, *subject*, *body*, *folder scope*, *has attachment*, *flagged*, *read state*. Each row defaults to **partial match**, with an **"Exact"** toggle. Multiple rows AND together; an "Any of these" group switches to OR. No query syntax to memorize. Replaces the legacy `from:foo subject:bar` formula. |
+| P1-5b | Local full-text index (Lucene.NET or SQLite FTS5) | 📋 PLANNED | Index every message body the user is likely to search. Built incrementally on poll; rebuildable from cache. Disk usage **not a constraint** — accuracy and speed first. Indexing happens off the UI thread; results stream back. See "Search & Index Strategy" below. |
+| P1-5c | Cross-folder + cross-account search | 📋 PLANNED | "Search all mail" / "Search this account" pickers. Default scope = current folder; explicit broaden when the user asks. |
+| P1-5d | Junk/marketing demotion in default search scope | 📋 PLANNED | Search excludes Junk + folders the user never opens (read-frequency learning, P1-5e) by default. Toggle "Include all" reveals them. Cuts the "8 million false positives" problem at the source. |
+| P1-5e | **Read-frequency learning** | 📋 PLANNED | Per-folder, per-sender open/read counters update on every Open and OnReadStateChanged. The signal feeds: (a) search-scope demotion (P1-5d), (b) notification prioritization (P1-7b), (c) a future "Important" view. Stored locally in SQLite — never synced (per-PC behavior). |
+| P1-6 | Auto sync interval (configurable polling per account) | 📋 PLANNED | |
+| P1-7 | IMAP IDLE for real-time push where supported | 📋 PLANNED | |
+| P1-7b | **Smart notification prioritization** | 📋 PLANNED | Notifications fire instantly for senders/threads with a positive read-frequency signal (P1-5e). Ads/marketing/auto-replies are silently delivered without a balloon. User-tunable "always notify" + "never notify" lists in Settings → Notifications. |
 | P1-6 | Auto sync interval (configurable polling per account) | 📋 PLANNED | |
 | P1-7 | IMAP IDLE for real-time push where supported | 📋 PLANNED | |
 | P1-8 | New mail notifications (Windows toast) | 📋 PLANNED | |
@@ -88,6 +106,8 @@ Core email workflow that makes the app actually usable.
 | P2-13 | Folder operations (real) — New/Rename/Delete/Empty via MailKit | 📋 PLANNED | UI stubs already present in folder context menu |
 | P2-14 | Backup & restore — export/import accounts.json + settings.json | 📋 PLANNED | Useful pre-Firebase-sync, also covers users who skip Firebase |
 | P2-15 | Account import from existing Outlook profile | 📋 PLANNED | Read HKCU registry under Office/Outlook/Profiles, pre-fill IMAP/SMTP. Big "wow" for migrators. |
+| P2-16 | **Aggressive local message cache** | 📋 PLANNED | Pull as much from IMAP as the server allows (envelopes always; bodies on first open or background) and store locally in SQLite for **offline + searchable forever**. Disk usage is not a constraint by design — see vision statement. Cache is keyed `(accountId, folder, uid)`; survives folder rename via UIDVALIDITY tracking. |
+| P2-17 | **Data cleanup / retention controls** | 📋 PLANNED | Settings → Storage panel: per-account "Keep messages from the last [N] years / months / forever," "Clear cached bodies older than X" (envelopes/index entries kept), "Drop folder X from cache." Index re-builds on demand. Default = keep everything. |
 
 ### Technical Debt
 | ID | Item | Status | Notes |
@@ -124,6 +144,39 @@ Core email workflow that makes the app actually usable.
 | P3-AI-3 | **AI-suggested replies** — Ollama drafts a reply the user can edit | 📋 PLANNED | Reply button gets an AI dropdown alongside the regular send. Draft sits in the compose window for review — never auto-sent. |
 | P3-AI-4 | **AI summarization** — long thread → 3-bullet summary in reading pane | 📋 PLANNED | Lazy: only when user clicks "Summarize". Cached per message id. |
 | P3-AI-5 | **Privacy-first AI settings** — Ollama endpoint / model picker / opt-in per feature | 📋 PLANNED | All AI off by default. Endpoint defaults to `http://localhost:11434`. Each feature has its own toggle. No data leaves the LAN unless user explicitly points at a remote endpoint. |
+| P3-AI-6 | **Semantic search** — Ollama embeddings over indexed bodies | 📋 PLANNED | Builds on P1-5b. "Find emails about the office relocation" hits messages that don't literally contain those words. Off by default; opt-in. Embedding cache lives next to the FTS index. |
+| P3-AI-7 | **Auto-classify ads / marketing / transactional** — train a tiny local classifier from the user's read-frequency signal | 📋 PLANNED | Feeds into search-scope demotion (P1-5d) and notification suppression (P1-7b). Self-improving as the user reads more. Reset / retrain button in Settings. |
+
+---
+
+## Search & Index Strategy (deep dive)
+
+This section drives the order and constraints for P1-5*, P2-16, P2-17, and the AI search items.
+
+### Principles
+1. **Strict by default.** Basic search matches **only** sender display name, sender email, and subject. The user has to opt into body search via Advanced Search. Empty queries return all messages — no surprise hidden filtering.
+2. **No syntax to memorize.** The advanced search is a builder UI, not a query language. The phrase `from:foo subject:bar` belongs to other clients; ours uses fields and toggles.
+3. **Partial match by default; "Exact" is a toggle, not a quote convention.** Quotes in the search box mean a literal substring containing a quote — they are not a query operator.
+4. **Disk size is not a constraint.** Index everything the user is likely to search. Cleanup is opt-in (P2-17), not automatic.
+5. **Indexing happens off the UI thread; results stream.** A search returning 50,000 messages must show the first hundred immediately and keep filling.
+6. **Junk and learned-noise folders are excluded from default scope.** "Include all" toggle reveals them. This is the answer to "no more 8 million false positives when I search for sentrix."
+7. **Search never modifies server state.** Read flags, flagging, etc. flow only from explicit user actions, not from search-touch.
+
+### Phases
+- **Phase 1 (shipped v0.12.0):** strict in-folder basic search across sender / email / subject. No body, no index. Filters in-memory off the already-loaded message list.
+- **Phase 2 (P1-5b):** local FTS index over message bodies + headers. SQLite FTS5 is the default candidate (fits the existing SQLite cache, no external dependency); Lucene.NET is the fallback if FTS5 ranking proves insufficient. Index updates incrementally on poll. Rebuildable from the message cache (P2-16) without re-fetching from IMAP.
+- **Phase 3 (P1-5a):** Advanced Search builder dialog, opens from the toolbar. Field rows AND together; an "Any of these" group switches to OR. Each row has a per-field Exact toggle.
+- **Phase 4 (P1-5d, P1-5e, P3-AI-7):** read-frequency learning + folder demotion. Default scope filters out folders the user almost never opens, junk, and a learned classifier's "marketing" bucket.
+- **Phase 5 (P3-AI-6):** semantic search over the same index, gated behind P3-AI-5 privacy toggles.
+
+### Storage layout (target)
+- `%LOCALAPPDATA%\GreatEmailApp\cache.db` — existing message envelope/body cache (P2-16 expands its retention).
+- `%LOCALAPPDATA%\GreatEmailApp\search.db` — FTS5 virtual table over `(account_id, folder_path, uid, subject, sender_name, sender_email, body_text, received_at)`. Plus `search_meta` for read-frequency counters. Local-only; never synced.
+- Both DBs honor P2-17 cleanup actions atomically.
+
+### Non-goals
+- Cross-machine search index sync. Indexes are per-PC by design — the local cost is high and the win is small (cloud snapshot already syncs accounts/settings).
+- Server-side IMAP SEARCH as the primary path. Used only as a last-resort fallback when the local index is missing data (e.g. during initial backfill). IMAP SEARCH is too slow and too server-dependent to drive a UX promise.
 
 ---
 
@@ -195,6 +248,15 @@ Compose, search, notifications, HTML rendering.
 Customer-readable release notes. Newest first. Surfaced in **Settings → About → What's new** and on the GitHub Releases page. Internal `FIX-YYYY-MM-DD-NNN` IDs map to entries in `Project/logs/fix_log.md` for engineering context — this section is the user-friendly view.
 
 > **Maintenance rule:** every release that ships a user-visible change adds a row here **before** the build is published. Pure internal refactors with no user impact may be omitted. Keep entries short, plain-English, and free of file paths or class names.
+
+### v0.12.0 — 2026-05-10
+**Bug fixes**
+- Fixed: read vs unread messages now look obviously different — unread rows have a tinted background and bright bold text; read rows are dim and regular weight.
+- Fixed: filter pills (All / Unread / Flagged / Mentions) no longer get stuck with two highlighted at once. Clicking one clears the others.
+
+**What's new**
+- The **search box** above the message list now actually searches. Strict matching against **sender name, sender email, and subject only** — no body matching, so searching for "sentrix" no longer hits thousands of newsletter false positives. Case-insensitive partial match. Combines with the filter pills (e.g. *Unread + "invoice"*).
+- The bigger picture: see the new **Search & Index Strategy** section in `roadmap.md`. Advanced search builder, local full-text index, junk/marketing demotion, and read-frequency learning are all on the way.
 
 ### v0.11.12 — 2026-05-10
 **Bug fixes**
