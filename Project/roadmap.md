@@ -1,5 +1,5 @@
 # The Great Email App — Master Roadmap
-**Created:** 2026-04-29 | **Updated:** 2026-05-07
+**Created:** 2026-04-29 | **Updated:** 2026-05-10
 **Stack:** WPF + .NET 8 (C#) + MailKit + SQLite + Firebase
 **Owner:** James Reed (coolman0804@outlook.com)
 **Vision:** A clean, fast, native-Windows IMAP email client with Outlook's familiar ribbon UX, dark/light theming, and Firebase-backed settings sync across multiple PCs.
@@ -53,7 +53,8 @@ Core email workflow that makes the app actually usable.
 | P1-1 | Compose window (new email, reply, reply all, forward) | 📋 PLANNED | |
 | P1-2 | Attachment handling (download, preview, attach to outgoing) | 📋 PLANNED | |
 | P1-3 | Mark read/unread, flag, archive, delete | 📋 PLANNED | |
-| P1-4 | Move-to-folder | 📋 PLANNED | |
+| P1-4 | Move-to-folder | ⚠️ PARTIAL | Right-click → Move to (nested submenus, v0.11.7) works. **Toolbar Move button is not wired up** — clicking it does nothing. Needs: (a) hook ribbon Move button to a flyout/menu reusing the same folder-tree picker, (b) honor multi-select once P1-12 lands. |
+| P1-4b | Drag-and-drop email → folder | 📋 PLANNED | Drag from MailList row(s) onto a Sidebar folder node to move (Shift+drag = copy, where IMAP supports it). Needs: DragDrop on MailList row, drop-target highlighting on FolderRow, multi-select drag (depends on P1-12), cross-account drag explicitly blocked (IMAP can't atomically move across accounts). |
 | P1-5 | Search (server-side IMAP SEARCH + local cache fallback) | 📋 PLANNED | |
 | P1-6 | Auto sync interval (configurable polling per account) | 📋 PLANNED | |
 | P1-7 | IMAP IDLE for real-time push where supported | 📋 PLANNED | |

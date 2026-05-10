@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncCoordinator.cs
-// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 3
+// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Glue between local saves, sign-in events, window focus, and Firestore.
@@ -195,6 +195,14 @@ public sealed class SyncCoordinator : IDisposable
             return;
         }
 
+        if (IsAlreadyApplied(remote))
+        {
+            // Same snapshot we last applied — nothing to do. Avoids rebuilding
+            // the UI tree on the periodic window-activated pull, which would
+            // clear the user's folder selection and message preview.
+            return;
+        }
+
         ApplyRemote(remote);
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Applied, RemoteUpdatedAt: remote.UpdatedAt));
     }
@@ -227,8 +235,25 @@ public sealed class SyncCoordinator : IDisposable
             return;
         }
 
+        if (IsAlreadyApplied(remote))
+        {
+            return;
+        }
+
         ApplyRemote(remote);
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Applied, RemoteUpdatedAt: remote.UpdatedAt));
+    }
+
+    /// <summary>
+    /// True when the remote snapshot is the same one (or older than the one)
+    /// we've already adopted locally — i.e. nothing has been pushed by another
+    /// device since our last successful sync.
+    /// </summary>
+    private bool IsAlreadyApplied(SyncSnapshot remote)
+    {
+        if (_meta.LastSyncedAt is null) return false;
+        // Remote stamp older than or equal to our baseline → already seen.
+        return remote.UpdatedAt <= _meta.LastSyncedAt.Value;
     }
 
     /// <summary>
