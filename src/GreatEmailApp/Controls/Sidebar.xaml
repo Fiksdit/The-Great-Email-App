@@ -72,7 +72,7 @@
                         <Border Grid.Column="2" Margin="6,0,10,0"
                                 Padding="7,1" CornerRadius="9"
                                 MinWidth="22" Height="18"
-                                Background="#B91C1C"
+                                Background="#EF4444"
                                 Visibility="{Binding UnreadCount, Converter={StaticResource UnreadVis}}">
                             <TextBlock Text="{Binding UnreadCount}"
                                        FontSize="11"
