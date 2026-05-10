@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Controls/Sidebar.xaml
-     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 3
+     Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 4
      Changed by: Claude Opus 4.7 on behalf of James Reed
      Account/folder tree. Accounts collapse/expand at top level. Folders nest
      recursively via a self-referential DataTemplate (FolderItemTemplate) — each
@@ -66,13 +66,20 @@
                                    FontSize="13"
                                    TextTrimming="CharacterEllipsis" />
 
+                        <!-- Unread chip: pill-shaped, dark red, white text. MinWidth keeps
+                             single-digit counts looking balanced; tight horizontal padding
+                             keeps multi-digit ones from stretching into a long bar. -->
                         <Border Grid.Column="2" Margin="6,0,10,0"
-                                Padding="6,1" CornerRadius="9"
-                                Background="{DynamicResource ChipBackgroundBrush}"
+                                Padding="7,1" CornerRadius="9"
+                                MinWidth="22" Height="18"
+                                Background="#B91C1C"
                                 Visibility="{Binding UnreadCount, Converter={StaticResource UnreadVis}}">
                             <TextBlock Text="{Binding UnreadCount}"
                                        FontSize="11"
-                                       Foreground="{DynamicResource SecondaryTextBrush}" />
+                                       FontWeight="SemiBold"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
                         </Border>
                     </Grid>
                 </Border>
