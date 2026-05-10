@@ -249,7 +249,11 @@ Customer-readable release notes. Newest first. Surfaced in **Settings → About 
 
 > **Maintenance rule:** every release that ships a user-visible change adds a row here **before** the build is published. Pure internal refactors with no user impact may be omitted. Keep entries short, plain-English, and free of file paths or class names.
 
-### v0.12.0 — 2026-05-10
+### v0.12.1 — 2026-05-10
+**Bug fixes**
+- Fixed: the **new-mail notifications toggle** in Settings → Notifications wasn't syncing across PCs. The HTML rendering and remote-images security toggles already synced correctly, but the notification toggle was being pushed to the cloud and silently dropped when the other PC pulled. All settings now share a single sync path so future toggles can't be forgotten.
+
+
 **Bug fixes**
 - Fixed: read vs unread messages now look obviously different — unread rows have a tinted background and bright bold text; read rows are dim and regular weight.
 - Fixed: filter pills (All / Unread / Flagged / Mentions) no longer get stuck with two highlighted at once. Clicking one clears the others.

@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncCoordinator.cs
-// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 5
+// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 6
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Glue between local saves, sign-in events, window focus, and Firestore.
@@ -317,18 +317,10 @@ public sealed class SyncCoordinator : IDisposable
         {
             // Mutate the live AppSettings instance in place so anyone holding a
             // reference (Theme.Apply, view models bound to App.Settings) sees
-            // the new values without having to swap the object.
-            _settings.Theme               = remote.Settings.Theme;
-            _settings.Accent              = remote.Settings.Accent;
-            _settings.Ribbon              = remote.Settings.Ribbon;
-            _settings.Density             = remote.Settings.Density;
-            _settings.SidebarWidth        = remote.Settings.SidebarWidth;
-            _settings.MailListWidth       = remote.Settings.MailListWidth;
-            _settings.Zoom                = remote.Settings.Zoom;
-            _settings.ShowHtml            = remote.Settings.ShowHtml;
-            _settings.AllowRemoteImages   = remote.Settings.AllowRemoteImages;
-            _settings.MarkReadDelaySeconds = remote.Settings.MarkReadDelaySeconds;
-            _settings.SyncIntervalMinutes = remote.Settings.SyncIntervalMinutes;
+            // the new values without having to swap the object. CopySyncableFrom
+            // owns the field-by-field assignment AND the per-PC exclusion list
+            // — see AppSettings.cs. Don't inline a property list here.
+            _settings.CopySyncableFrom(remote.Settings);
             _settingsStore.Save(_settings);
             _accountStore.Save(remote.Accounts);
             if (remote.Contacts is not null) _contactsStore.Save(remote.Contacts);
