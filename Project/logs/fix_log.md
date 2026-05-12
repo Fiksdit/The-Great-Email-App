@@ -4,6 +4,92 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-05-12-002 — Tray notifier crashed on first new-mail event, then Windows showed a "find an app in the Microsoft Store" popup
+
+**Area:** Services / TrayNotifier · NewMailPoller balloon delivery
+**Status:** ✅ Fixed
+**Priority:** P1 (crashes the process on idle)
+
+**Symptom**
+- Within ~30s of launch the app crashed with no visible dialog of its own.
+- A few seconds later Windows surfaced a "Look for an app in the Microsoft Store to open this link" popup — the .NET runtime's crash-recovery path falling through to the (unregistered) toast-activation URI handler.
+- Repeated on every launch as long as the IMAP poller had any new mail to report.
+
+**Replicate**
+1. Launch the app on a machine where the next IMAP poll cycle will surface new mail (any unread arrives within the poll interval).
+2. Wait ~30 seconds. The window closes, then the Store popup appears.
+3. `%LOCALAPPDATA%\GreatEmailApp\crash.log` contains:
+   ```
+   System.InvalidOperationException: TrayIcon is not created.
+     at H.NotifyIcon.Core.TrayIcon.EnsureCreated()
+     at H.NotifyIcon.TaskbarIcon.ShowNotification(...)
+     at GreatEmailApp.Services.TrayNotifier.ShowBalloon(...)
+   ```
+
+**Root cause**
+- `TrayNotifier` instantiates `new TaskbarIcon()` from code and sets `ToolTipText` + `IconSource`, but never hosts the icon in a XAML tree and never calls `ForceCreate()`. H.NotifyIcon's WPF binding defers native tray-icon registration to either of those triggers.
+- `_icon.ShowNotification(...)` calls `EnsureCreated()` internally — which throws when the native icon wasn't registered.
+- The `DispatcherUnhandledException` hook in `App.OnStartup` deliberately re-raises (`Handled = false`) so the process dies, by design.
+- After the crash, Windows' shell tries to deliver the queued toast activation through a `ms-notification:` / toast-callback channel that has no handler for this raw (non-MSIX, no AppUserModelID) EXE → it surfaces the "look in the Store" popup.
+
+**Tried**
+- Nothing — diagnosed in one pass by reading `crash.log` (three identical stacks across 11 minutes) plus the `H.NotifyIcon` source pointer in the trace.
+
+**Fix**
+- `TrayNotifier` calls `_icon.ForceCreate()` immediately after configuring the icon, so the native tray slot exists before any `ShowNotification` is attempted. Wrapped in try/catch with a `crash.log` append so a tray failure on shell-not-ready never crashes the app.
+- `ShowBalloon` also wraps `_icon.ShowNotification` in try/catch — same rationale, belt and suspenders. Toast delivery is best-effort; per rulebook §11 we never crash the app over a missed balloon.
+
+**Files changed**
+- `src/GreatEmailApp/Services/TrayNotifier.cs` (Rev 2 → 3)
+
+**Rulebook**
+- §11 (Error Handling) — toast/balloon delivery is non-critical I/O; surfaces of the form "service unavailable" never propagate to a process-killing exception.
+- §2 Surgical Change Rule — only TrayNotifier touched; the poller and unhandled-exception hook are unchanged.
+
+**Session:** 2026-05-12
+**Commit:** _pending_
+
+---
+
+## FIX-2026-05-12-001 — Reading pane stayed blank when switching emails in list view
+
+**Area:** Controls / MessageBodyView · Reading pane body render
+**Status:** ✅ Fixed
+**Priority:** P1 (core reading flow)
+
+**Symptom**
+- Click a message in the middle pane → headers, avatar, subject, To: line all update — but the body area in the WebView2 stays blank (or shows the previously rendered body for a flash, then goes blank).
+- Workaround discovered by users: click away to a different message and back; sometimes works on the third try. Inconsistent.
+
+**Replicate**
+1. Open Inbox, click message A. Body renders fine (first selection after launch).
+2. Click message B. Headers swap to B. Body pane is blank.
+3. Click message A again. Sometimes A's body comes back, sometimes blank.
+
+**Root cause**
+- `SelectMessageAsync` (MainViewModel.cs:328) sets `SelectedMessage = B` first → WPF re-binds `ReadingPane`'s inner DataContext → `MessageBodyView.Message` DP changes → `OnMessageChanged` fires → `Render()` runs **synchronously** reading `B.BodyHtml`/`B.BodyPlain`, both still empty at this point → WebView2 renders the empty wrapper doc.
+- THEN `_imap.FetchBodyAsync(B, …)` returns ~200 ms later → assigns the strings on the model → calls `B.OnBodyLoaded()` which fires `PropertyChanged` for `BodyHtml`, `BodyPlain`, `BodyDisplay`.
+- **Nothing in `MessageBodyView` listened for those events.** Its only render trigger was the `Message` DP changed callback — and the DP value (the `MessageViewModel` reference) was unchanged.
+- `MainViewModel` tried to nudge things at line 361 with `OnPropertyChanged(nameof(SelectedMessage))`, but the binding's new value reference-equals the old, so WPF's DP system short-circuits and `OnMessageChanged` isn't re-invoked.
+
+**Tried**
+- Nothing — diagnosed on first read of `MessageBodyView.Render()` + `OnMessageChanged` + the body-fetch tail of `SelectMessageAsync`. The control's `Refresh()` method existed but was never called, which was the tell.
+
+**Fix**
+- `MessageBodyView` now tracks `_subscribedMessage` and subscribes to `INotifyPropertyChanged.PropertyChanged` on the bound `MessageViewModel`. When `BodyHtml`/`BodyPlain`/`BodyDisplay` fires, it re-calls `Render()`. Switching messages detaches the previous subscription first to prevent leaks.
+
+**Files changed**
+- `src/GreatEmailApp/Controls/MessageBodyView.xaml.cs` (Rev 1 → 2)
+
+**Rulebook**
+- §2 Surgical Change Rule — touched only the file with the missing wiring. `MainViewModel`'s leftover `OnPropertyChanged(SelectedMessage)` call is now redundant but harmless; left in place per §2.
+- §10 (Components & UI/UX) → reinforces: DP-only re-render is a trap when the model behind the DP mutates async. Listen to `PropertyChanged` on the model when its inner state can change after the DP is set.
+
+**Session:** 2026-05-12
+**Commit:** _pending_
+
+---
+
 ## FIX-2026-05-07-001 — Avatar pretended a user was signed in when they weren't
 
 **Area:** TitleBar / Avatar button

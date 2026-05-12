@@ -1,8 +1,9 @@
 // FILE: src/GreatEmailApp/Controls/MessageBodyView.xaml.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 1
+// Created: 2026-04-30 | Revised: 2026-05-12 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -50,6 +51,12 @@ public partial class MessageBodyView : UserControl
     private bool _allowImagesForThisMessage;
     private string _pendingHtml = "";
     private bool _initialNavigationConsumed;
+    // Tracks the MessageViewModel we're currently subscribed to so we can detach
+    // on switch. Required because the body is fetched async AFTER SelectedMessage
+    // changes — without subscribing to its PropertyChanged, Render() runs once
+    // with an empty body and never sees BodyHtml/BodyPlain populate. See
+    // FIX-2026-05-12-001.
+    private MessageViewModel? _subscribedMessage;
 
     public MessageBodyView()
     {
@@ -110,7 +117,30 @@ public partial class MessageBodyView : UserControl
         view._allowImagesForThisMessage = false;
         view.BlockedBanner.Visibility = Visibility.Collapsed;
         view._initialNavigationConsumed = false;
+
+        // Detach from the previous message and attach to the new one. The body
+        // arrives async after MessageBodyView is bound — we need to re-Render
+        // when BodyHtml/BodyPlain fires PropertyChanged.
+        if (view._subscribedMessage is not null)
+            view._subscribedMessage.PropertyChanged -= view.OnMessagePropertyChanged;
+        view._subscribedMessage = e.NewValue as MessageViewModel;
+        if (view._subscribedMessage is not null)
+            view._subscribedMessage.PropertyChanged += view.OnMessagePropertyChanged;
+
         view.Render();
+    }
+
+    private void OnMessagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // The body arrives in three notifications (BodyHtml, BodyPlain, BodyDisplay).
+        // Render() is idempotent and fast — letting all three trigger keeps the
+        // logic obvious; WebView2.NavigateToString coalesces in practice.
+        if (e.PropertyName is nameof(MessageViewModel.BodyHtml)
+                            or nameof(MessageViewModel.BodyPlain)
+                            or nameof(MessageViewModel.BodyDisplay))
+        {
+            Render();
+        }
     }
 
     private void Render()

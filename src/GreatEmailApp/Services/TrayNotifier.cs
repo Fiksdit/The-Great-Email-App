@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Services/TrayNotifier.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 2
+// Created: 2026-04-30 | Revised: 2026-05-12 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Wraps an H.NotifyIcon.Wpf TaskbarIcon (purpose-built WPF tray library;
@@ -61,7 +61,30 @@ public sealed class TrayNotifier : IDisposable
         menu.Items.Add(MakeMenu("Quit",       (_, _) => Application.Current?.Shutdown()));
         _icon.ContextMenu = menu;
 
+        // Without ForceCreate, H.NotifyIcon defers native tray-icon creation
+        // until the TaskbarIcon is hosted in a XAML tree — and we instantiate
+        // it from code, never from XAML. The first ShowNotification call would
+        // then throw "TrayIcon is not created" and (since DispatcherUnhandled
+        // re-raises) take the whole process down. Windows then surfaces the
+        // "find an app in the Microsoft Store" popup as crash-recovery noise
+        // because no toast-activation handler was registered. See crash.log
+        // entries on 2026-05-12 between 10:53 and 11:04.
+        try { _icon.ForceCreate(); }
+        catch (Exception ex) { LogTraySetupFailure(ex); }
+
         _poller.NewMailDetected += OnNewMail;
+    }
+
+    private static void LogTraySetupFailure(Exception ex)
+    {
+        try
+        {
+            var path = System.IO.Path.Combine(
+                GreatEmailApp.Core.Storage.AppPaths.Root, "crash.log");
+            System.IO.File.AppendAllText(path,
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] TrayNotifier.ForceCreate failed: {ex}\n\n");
+        }
+        catch { /* logging is best-effort */ }
     }
 
     private static System.Windows.Controls.MenuItem MakeMenu(string header, RoutedEventHandler onClick)
@@ -123,12 +146,20 @@ public sealed class TrayNotifier : IDisposable
             body  = string.Join(" · ", byAccount) + "\n" + string.Join(", ", latest);
         }
 
-        _icon.ShowNotification(
-            title: Truncate(title, 63),
-            message: Truncate(body, 255),
-            icon: NotificationIcon.None,
-            largeIcon: false,
-            sound: true);
+        // ShowNotification can throw if the native tray icon never finished
+        // creation (e.g. shell hadn't loaded yet, or the WinRT toast channel
+        // is unavailable). Toast delivery is best-effort — never crash the app
+        // over a missed balloon. Per rulebook §11.
+        try
+        {
+            _icon.ShowNotification(
+                title: Truncate(title, 63),
+                message: Truncate(body, 255),
+                icon: NotificationIcon.None,
+                largeIcon: false,
+                sound: true);
+        }
+        catch (Exception ex) { LogTraySetupFailure(ex); }
     }
 
     private static string Truncate(string s, int max) =>
