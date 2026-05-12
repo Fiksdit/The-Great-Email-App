@@ -445,7 +445,62 @@ Hardware-accelerated WPF on certain GPU/driver combinations produces pure-white 
 
 ---
 
-## 18. Lessons Learned
+## 18. Search Quality (Product Pillar)
+
+Search is a **first-class product pillar**, not a feature. The vision statement in `Project/roadmap.md` commits the app to "the world's best email search" and "important mail surfaced fast." Every change in the search/notification pathway is held to that bar. The detailed phasing lives in roadmap §"Search & Index Strategy"; the rules below are inviolable.
+
+### 18.1 Strict by default
+
+- **Basic search matches only sender display name, sender email, and subject. Never the body.** False positives are worse than false negatives in basic search — the user is hunting for a known sender or topic, not exploring.
+- Body-content search lives behind the **Advanced Search** dialog (P1-5a) where the user has explicitly opted in.
+- Empty query = show all messages. Never silently apply a hidden filter.
+
+### 18.2 No query syntax
+
+- Users do **not** type `from:foo subject:"bar" before:2024-01-01`. We have a builder UI instead. Anyone tempted to add a query-language parser must justify why it's better than another field row in the builder.
+- Quotes in the search box are **literal characters**, not phrase delimiters. Case-insensitive partial-match is the default; "Exact" is a per-field toggle in the builder.
+
+### 18.3 Index is local, abundant, and rebuildable
+
+- The full-text index lives in `%LOCALAPPDATA%\GreatEmailApp\search.db` (or whatever P1-5b lands on). Not synced. Per-PC.
+- Disk usage is **not a constraint**. Don't trim the index to save MB. Do support explicit user-driven cleanup (P2-17).
+- Index updates happen off the UI thread. The UI never blocks on indexing.
+- Index must be **rebuildable from the message cache** without re-fetching from IMAP. If the schema changes, ship a one-time rebuild on first launch of the new version.
+
+### 18.4 Default scope demotes noise, not deletes it
+
+- Junk, ads, and folders the user almost never opens are **excluded from default search scope** (P1-5d).
+- Demotion ≠ deletion. The "Include all" toggle reveals everything. Never lie to the user about what's there.
+- The signal driving demotion comes from the read-frequency learner (P1-5e). It's never hand-curated heuristics.
+
+### 18.5 Notifications are gated by the same signal
+
+- New-mail notifications fire **immediately** for senders/threads with positive read-frequency signal (P1-7b).
+- Marketing/ads/auto-replies are silently delivered without a balloon — same demotion signal as search scope.
+- The user always has explicit override lists ("always notify," "never notify").
+
+### 18.6 Search and notifications never modify server state
+
+- A search-touch never marks read, never unflags. Read state flips only from explicit user actions (open, mark read, mark unread).
+- A notification never auto-archives or auto-flags. The user opens the message; the auto-mark-read delay then applies as usual.
+
+### 18.7 IMAP SEARCH is fallback only
+
+- Local index is the primary path for every user-facing search.
+- Server-side IMAP SEARCH is used **only** as backfill when the local index is incomplete (initial sync, just-rebuilt index). It is never the user's wait path.
+
+### 18.8 What "the world's best" means here
+
+- A query returning 50,000 hits shows the first hundred **in under 200 ms** and keeps streaming.
+- Re-running the same query is **instant** (cached result set, invalidated only on new mail).
+- Zero-result queries surface a one-line "Searched [N] messages across [M] folders. Try Advanced Search to include body" suggestion.
+- Cross-account "all mail" search is a single toggle, not three different code paths.
+
+Any deviation from §18 needs an entry in the Decision Log of `roadmap.md` plus owner sign-off.
+
+---
+
+## 19. Lessons Learned
 
 | Date | Category | Lesson |
 |------|----------|--------|

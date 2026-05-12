@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Models/AppSettings.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+// Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Models;
@@ -60,7 +60,50 @@ public sealed class AppSettings
     /// <summary>Show a Windows balloon when the new-mail poller detects unseen messages.</summary>
     public bool EnableNewMailNotifications { get; set; } = true;
 
-    // Sync (Firebase — Phase 4)
+    // Sync (Firebase — Phase 4). PER-PC, never copied on apply.
     public bool SyncEnabled { get; set; } = false;
     public string? SignedInEmail { get; set; }
+
+    /// <summary>
+    /// Copy every <b>syncable</b> property from <paramref name="other"/> into
+    /// this instance, in place. Anything that should NOT sync between PCs
+    /// (per-PC sign-in state, machine-local widths the user wants distinct,
+    /// etc.) must be excluded here explicitly — the default for any new
+    /// AppSettings property is "syncs across PCs." Centralizing this keeps
+    /// SyncCoordinator from having a hand-maintained property list that
+    /// silently drops new settings (the bug that hid
+    /// EnableNewMailNotifications from sync until 2026-05-10).
+    /// </summary>
+    public void CopySyncableFrom(AppSettings other)
+    {
+        if (other is null) return;
+
+        // Appearance
+        Theme         = other.Theme;
+        Accent        = other.Accent;
+        Ribbon        = other.Ribbon;
+        Density       = other.Density;
+
+        // Layout — pane widths and zoom currently sync (matches user
+        // expectation that the app "looks the same" across machines).
+        // Move to the per-PC exclusion list below if that ever changes.
+        SidebarWidth  = other.SidebarWidth;
+        MailListWidth = other.MailListWidth;
+        Zoom          = other.Zoom;
+
+        // Reading
+        ShowHtml             = other.ShowHtml;
+        AllowRemoteImages    = other.AllowRemoteImages;
+        MarkReadDelaySeconds = other.MarkReadDelaySeconds;
+
+        // Send / Receive
+        SyncIntervalMinutes        = other.SyncIntervalMinutes;
+        EnableNewMailNotifications = other.EnableNewMailNotifications;
+
+        // Explicitly NOT copied (per-PC):
+        //   SyncEnabled     — sign-in state of THIS machine
+        //   SignedInEmail   — Firebase identity of THIS machine
+        // If a new property must be per-PC, leave it out here AND add a
+        // one-line comment naming the reason.
+    }
 }

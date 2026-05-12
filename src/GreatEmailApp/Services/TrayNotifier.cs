@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Services/TrayNotifier.cs
-// Created: 2026-04-30 | Revised: 2026-05-12 | Rev: 3
+// Created: 2026-04-30 | Revised: 2026-05-12 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Wraps an H.NotifyIcon.Wpf TaskbarIcon (purpose-built WPF tray library;
@@ -146,10 +146,13 @@ public sealed class TrayNotifier : IDisposable
             body  = string.Join(" · ", byAccount) + "\n" + string.Join(", ", latest);
         }
 
-        // ShowNotification can throw if the native tray icon never finished
-        // creation (e.g. shell hadn't loaded yet, or the WinRT toast channel
-        // is unavailable). Toast delivery is best-effort — never crash the app
-        // over a missed balloon. Per rulebook §11.
+        // ShowNotification can throw `TrayIcon is not created` during the brief
+        // window between TrayNotifier ctor and the Shell_NotifyIcon registration
+        // completing — happens on first launch when the poller surfaces new mail
+        // before the icon is fully realized. The ForceCreate call in the ctor
+        // closes most of that race, but the WinRT toast channel can still be
+        // unavailable mid-startup. Toast delivery is best-effort; never crash
+        // the process over a missed balloon (rulebook §11).
         try
         {
             _icon.ShowNotification(
@@ -159,7 +162,8 @@ public sealed class TrayNotifier : IDisposable
                 largeIcon: false,
                 sound: true);
         }
-        catch (Exception ex) { LogTraySetupFailure(ex); }
+        catch (InvalidOperationException) { /* tray not realized yet */ }
+        catch (Exception) { /* tray subsystem flake — never crash on it */ }
     }
 
     private static string Truncate(string s, int max) =>

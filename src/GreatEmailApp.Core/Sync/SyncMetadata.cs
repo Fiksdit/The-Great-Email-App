@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncMetadata.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 1
+// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Text.Json;
@@ -54,8 +54,11 @@ public sealed class SyncMetadata
         var threshold = LastSyncedAt.Value.UtcDateTime;
         var newest = NewestLocalDataMtime();
         if (newest is null) return false;
-        // 2-second slop absorbs filesystem timestamp granularity differences.
-        return newest.Value > threshold.AddSeconds(-2);
+        // 2-second slop absorbs filesystem timestamp granularity differences:
+        // only count as "unpushed" when the local file is *clearly* newer than
+        // the last sync baseline. Slop in the other direction makes a freshly
+        // applied pull look like an unpushed edit forever (FIX-2026-05-10-001).
+        return newest.Value > threshold.AddSeconds(+2);
     }
 
     private static DateTime? NewestLocalDataMtime()

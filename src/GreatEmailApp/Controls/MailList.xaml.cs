@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/MailList.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 3
+// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 5
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.Generic;
@@ -39,12 +39,29 @@ public partial class MailList : UserControl
         }
     }
 
+    private void ListSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (sender is TextBox tb)
+            ListSearchPlaceholder.Visibility = string.IsNullOrEmpty(tb.Text) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void Pill_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is ToggleButton tb && tb.Tag is string tag && DataContext is MainViewModel vm)
+        if (sender is not ToggleButton tb || tb.Tag is not string tag) return;
+        if (DataContext is MainViewModel vm) vm.Filter = tag;
+
+        // Force exclusive selection: walk the parent StackPanel and set every
+        // sibling pill's IsChecked = (its tag == ours). Relying on the OneWay
+        // {Filter}-to-{IsChecked} binding alone wasn't enough — ToggleButton's
+        // built-in click behavior locally sets IsChecked, and the previously-
+        // selected pill could end up stuck checked alongside the new one.
+        if (tb.Parent is System.Windows.Controls.Panel panel)
         {
-            vm.Filter = tag;
-            tb.IsChecked = true;
+            foreach (var child in panel.Children)
+            {
+                if (child is ToggleButton sibling && sibling.Tag is string siblingTag)
+                    sibling.IsChecked = string.Equals(siblingTag, tag, System.StringComparison.Ordinal);
+            }
         }
     }
 
@@ -71,8 +88,10 @@ public partial class MailList : UserControl
 
     private void MessageMenu_Opened(object sender, RoutedEventArgs e)
     {
-        // Populate Move To submenu dynamically — every folder under every
-        // account, indented by depth. Skips the synthetic Outbox (no IMAP path).
+        // Populate Move To submenu dynamically. Subfolders nest under their
+        // parent as a real submenu (hover to open) so deeply-foldered accounts
+        // don't blow the menu past screen height. Skips the synthetic Outbox
+        // (no IMAP path).
         if (sender is not ContextMenu cm || DataContext is not MainViewModel vm) return;
         if (cm.Items.OfType<MenuItem>().FirstOrDefault(i => i.Name == "MoveToMenu") is not MenuItem moveTo) return;
 
@@ -94,25 +113,39 @@ public partial class MailList : UserControl
             moveTo.Items.Add(accountHeader);
 
             foreach (var folder in account.Folders)
-                AppendFolderMenuItem(moveTo, folder, vm, msg, depth: 0);
+            {
+                var built = BuildFolderMenuItem(folder, vm, msg);
+                if (built is not null) moveTo.Items.Add(built);
+            }
         }
     }
 
-    private void AppendFolderMenuItem(MenuItem parent, FolderViewModel folder,
-        MainViewModel vm, MessageViewModel? msg, int depth)
+    /// <summary>
+    /// Build a MenuItem for <paramref name="folder"/>, recursively attaching
+    /// child folders as a nested submenu. Returns null for folders we skip
+    /// (Outbox — no IMAP path). A folder with children is itself clickable
+    /// (move into the parent) AND opens a submenu on hover for the children.
+    /// </summary>
+    private MenuItem? BuildFolderMenuItem(FolderViewModel folder, MainViewModel vm, MessageViewModel? msg)
     {
-        if (string.IsNullOrEmpty(folder.Model.FullPath)) return; // skip Outbox
+        if (string.IsNullOrEmpty(folder.Model.FullPath)) return null;
 
-        var indent = new string(' ', depth * 2);
-        var item = new MenuItem { Header = indent + folder.Name };
-        item.Click += (_, _) =>
+        var item = new MenuItem { Header = folder.Name };
+        item.Click += (_, args) =>
         {
+            // A click on a parent folder bubbles up from child clicks too —
+            // only act when this MenuItem itself was the source.
+            if (args.OriginalSource != item) return;
             if (msg is not null) vm.MoveToFolderCommand.Execute((msg, folder));
         };
-        parent.Items.Add(item);
 
         foreach (var child in folder.Children)
-            AppendFolderMenuItem(parent, child, vm, msg, depth + 1);
+        {
+            var childItem = BuildFolderMenuItem(child, vm, msg);
+            if (childItem is not null) item.Items.Add(childItem);
+        }
+
+        return item;
     }
 
     // ── Menu item handlers ───────────────────────────────────────────

@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 4
+// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 6
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -68,12 +68,62 @@ public partial class MainViewModel : ObservableObject
     public bool HasDrafts => DraftCount > 0;
     partial void OnDraftCountChanged(int value) => OnPropertyChanged(nameof(HasDrafts));
 
+    // Filter pill + search-box plumbing. Both refresh the same default
+    // ICollectionView; the predicate combines pill-state AND search-text.
+    partial void OnFilterChanged(string value) =>
+        System.Windows.Data.CollectionViewSource.GetDefaultView(Messages)?.Refresh();
+
+    partial void OnSearchTextChanged(string value) =>
+        System.Windows.Data.CollectionViewSource.GetDefaultView(Messages)?.Refresh();
+
+    /// <summary>
+    /// Basic in-folder search. STRICT: matches only against sender display
+    /// name, sender email address, and subject. Never the body — the user
+    /// explicitly wants to avoid false positives like "sentrix" hitting
+    /// thousands of newsletter mentions when they're hunting for "mobile
+    /// sentrix" orders. Full-text / advanced search lives in roadmap P1-15+.
+    /// Case-insensitive partial match.
+    /// </summary>
+    private bool MessageMatchesFilter(object o)
+    {
+        if (o is not MessageViewModel m) return false;
+
+        // Pill predicate first (cheaper).
+        var passesPill = Filter switch
+        {
+            "Unread"   => m.Unread,
+            "Flagged"  => m.Flagged,
+            "Mentions" => true, // No data backing this yet — pass-through until the feature lands.
+            _          => true,  // "All" or anything unrecognized.
+        };
+        if (!passesPill) return false;
+
+        var q = SearchText;
+        if (string.IsNullOrWhiteSpace(q)) return true;
+
+        // Strict-fields contains-check. Three independent text fields, OR'd.
+        return ContainsCI(m.Sender, q)
+            || ContainsCI(m.SenderEmail, q)
+            || ContainsCI(m.Subject, q);
+    }
+
+    private static bool ContainsCI(string? haystack, string needle) =>
+        !string.IsNullOrEmpty(haystack)
+        && haystack.Contains(needle, System.StringComparison.OrdinalIgnoreCase);
+
     public MainViewModel(IImapService imap, ICredentialStore creds, IAccountStore accountStore)
     {
         _imap = imap;
         _creds = creds;
         _accountStore = accountStore;
         LoadAccounts();
+
+        // Wire the All/Unread/Flagged/Mentions pills to actually filter the list.
+        // The pills set MainViewModel.Filter; OnFilterChanged below refreshes the
+        // collection view so the predicate runs again. Without this hook the pills
+        // toggled state but never hid anything.
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(Messages);
+        if (view is not null) view.Filter = MessageMatchesFilter;
 
         // Subscribe once for the lifetime of the VM (App.Drafts is a singleton).
         if (!_draftSubscribed && App.Drafts is not null)

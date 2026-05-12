@@ -4,50 +4,40 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
-## FIX-2026-05-12-002 — Tray notifier crashed on first new-mail event, then Windows showed a "find an app in the Microsoft Store" popup
+## FIX-2026-05-12-002 — Tray notifier still crashed on cold start; added ForceCreate on top of FIX-2026-05-10-002
 
 **Area:** Services / TrayNotifier · NewMailPoller balloon delivery
 **Status:** ✅ Fixed
 **Priority:** P1 (crashes the process on idle)
 
-**Symptom**
-- Within ~30s of launch the app crashed with no visible dialog of its own.
-- A few seconds later Windows surfaced a "Look for an app in the Microsoft Store to open this link" popup — the .NET runtime's crash-recovery path falling through to the (unregistered) toast-activation URI handler.
-- Repeated on every launch as long as the IMAP poller had any new mail to report.
+**Context**
+- FIX-2026-05-10-002 wrapped `ShowNotification` in try/catch so the throw stopped killing the process. But the native tray slot was *still* never being registered — H.NotifyIcon's WPF `TaskbarIcon` defers `Shell_NotifyIcon` creation to its Loaded event, and we instantiate the icon from code with no XAML host. So toasts were being silently swallowed AND no tray icon ever appeared in the system tray.
 
-**Replicate**
-1. Launch the app on a machine where the next IMAP poll cycle will surface new mail (any unread arrives within the poll interval).
-2. Wait ~30 seconds. The window closes, then the Store popup appears.
-3. `%LOCALAPPDATA%\GreatEmailApp\crash.log` contains:
-   ```
-   System.InvalidOperationException: TrayIcon is not created.
-     at H.NotifyIcon.Core.TrayIcon.EnsureCreated()
-     at H.NotifyIcon.TaskbarIcon.ShowNotification(...)
-     at GreatEmailApp.Services.TrayNotifier.ShowBalloon(...)
-   ```
-
-**Root cause**
-- `TrayNotifier` instantiates `new TaskbarIcon()` from code and sets `ToolTipText` + `IconSource`, but never hosts the icon in a XAML tree and never calls `ForceCreate()`. H.NotifyIcon's WPF binding defers native tray-icon registration to either of those triggers.
-- `_icon.ShowNotification(...)` calls `EnsureCreated()` internally — which throws when the native icon wasn't registered.
-- The `DispatcherUnhandledException` hook in `App.OnStartup` deliberately re-raises (`Handled = false`) so the process dies, by design.
-- After the crash, Windows' shell tries to deliver the queued toast activation through a `ms-notification:` / toast-callback channel that has no handler for this raw (non-MSIX, no AppUserModelID) EXE → it surfaces the "look in the Store" popup.
+**Symptom (still observed today, even with FIX-2026-05-10-002 deployed locally)**
+- `%LOCALAPPDATA%\GreatEmailApp\crash.log` between 10:53 and 11:04 on 2026-05-12 had three identical stacks:
+  ```
+  System.InvalidOperationException: TrayIcon is not created.
+    at H.NotifyIcon.Core.TrayIcon.EnsureCreated()
+    at H.NotifyIcon.TaskbarIcon.ShowNotification(...)
+    at GreatEmailApp.Services.TrayNotifier.ShowBalloon(...)
+  ```
+- Windows then surfaced "Look for an app in the Microsoft Store to open this link" — the .NET crash recovery path falling through to the toast-activation URI handler that has no registered protocol for this raw (non-MSIX, no AppUserModelID) EXE.
 
 **Tried**
-- Nothing — diagnosed in one pass by reading `crash.log` (three identical stacks across 11 minutes) plus the `H.NotifyIcon` source pointer in the trace.
+- Nothing — diagnosed straight from the crash.log stacks plus the H.NotifyIcon source pointer in the trace.
 
 **Fix**
-- `TrayNotifier` calls `_icon.ForceCreate()` immediately after configuring the icon, so the native tray slot exists before any `ShowNotification` is attempted. Wrapped in try/catch with a `crash.log` append so a tray failure on shell-not-ready never crashes the app.
-- `ShowBalloon` also wraps `_icon.ShowNotification` in try/catch — same rationale, belt and suspenders. Toast delivery is best-effort; per rulebook §11 we never crash the app over a missed balloon.
+- `TrayNotifier` ctor now calls `_icon.ForceCreate()` immediately after configuring icon + menu, wrapped in try/catch with a `crash.log` append. This proactively registers the native tray slot at startup instead of waiting on a never-firing Loaded event, so subsequent `ShowNotification` calls find a created icon. The catch path keeps the constructor unkillable.
+- `ShowBalloon` already had the `try / catch (InvalidOperationException) / catch (Exception)` from FIX-2026-05-10-002 — kept in place as belt-and-suspenders.
 
 **Files changed**
-- `src/GreatEmailApp/Services/TrayNotifier.cs` (Rev 2 → 3)
+- `src/GreatEmailApp/Services/TrayNotifier.cs` (Rev 3 → 4)
 
 **Rulebook**
-- §11 (Error Handling) — toast/balloon delivery is non-critical I/O; surfaces of the form "service unavailable" never propagate to a process-killing exception.
-- §2 Surgical Change Rule — only TrayNotifier touched; the poller and unhandled-exception hook are unchanged.
+- §11 (Error Handling) — toast/balloon delivery is non-critical I/O; never propagate to a process-killing exception.
+- §2 Surgical Change Rule — only TrayNotifier touched.
 
 **Session:** 2026-05-12
-**Commit:** _pending_
 
 ---
 
@@ -67,10 +57,10 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 3. Click message A again. Sometimes A's body comes back, sometimes blank.
 
 **Root cause**
-- `SelectMessageAsync` (MainViewModel.cs:328) sets `SelectedMessage = B` first → WPF re-binds `ReadingPane`'s inner DataContext → `MessageBodyView.Message` DP changes → `OnMessageChanged` fires → `Render()` runs **synchronously** reading `B.BodyHtml`/`B.BodyPlain`, both still empty at this point → WebView2 renders the empty wrapper doc.
+- `SelectMessageAsync` sets `SelectedMessage = B` first → WPF re-binds `ReadingPane`'s inner DataContext → `MessageBodyView.Message` DP changes → `OnMessageChanged` fires → `Render()` runs **synchronously** reading `B.BodyHtml`/`B.BodyPlain`, both still empty at this point → WebView2 renders the empty wrapper doc.
 - THEN `_imap.FetchBodyAsync(B, …)` returns ~200 ms later → assigns the strings on the model → calls `B.OnBodyLoaded()` which fires `PropertyChanged` for `BodyHtml`, `BodyPlain`, `BodyDisplay`.
 - **Nothing in `MessageBodyView` listened for those events.** Its only render trigger was the `Message` DP changed callback — and the DP value (the `MessageViewModel` reference) was unchanged.
-- `MainViewModel` tried to nudge things at line 361 with `OnPropertyChanged(nameof(SelectedMessage))`, but the binding's new value reference-equals the old, so WPF's DP system short-circuits and `OnMessageChanged` isn't re-invoked.
+- `MainViewModel` tried to nudge things with `OnPropertyChanged(nameof(SelectedMessage))`, but the binding's new value reference-equals the old, so WPF's DP system short-circuits and `OnMessageChanged` isn't re-invoked.
 
 **Tried**
 - Nothing — diagnosed on first read of `MessageBodyView.Render()` + `OnMessageChanged` + the body-fetch tail of `SelectMessageAsync`. The control's `Refresh()` method existed but was never called, which was the tell.
@@ -82,11 +72,97 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 - `src/GreatEmailApp/Controls/MessageBodyView.xaml.cs` (Rev 1 → 2)
 
 **Rulebook**
-- §2 Surgical Change Rule — touched only the file with the missing wiring. `MainViewModel`'s leftover `OnPropertyChanged(SelectedMessage)` call is now redundant but harmless; left in place per §2.
+- §2 Surgical Change Rule — touched only the file with the missing wiring.
 - §10 (Components & UI/UX) → reinforces: DP-only re-render is a trap when the model behind the DP mutates async. Listen to `PropertyChanged` on the model when its inner state can change after the DP is set.
 
 **Session:** 2026-05-12
-**Commit:** _pending_
+
+---
+
+
+## FIX-2026-05-10-002 — App crashed on first launch, ran fine on second (concurrent settings write + tray race)
+
+**Area:** SyncCoordinator + JsonSettingsStore + TrayNotifier
+**Status:** ✅ Fixed in v0.11.11
+**Priority:** P1 — visible to every user on every cold start
+
+**Symptom**
+- Launch app → process exits silently within seconds.
+- Reopen → fine.
+- Manually close → next cold launch crashes again. Loop.
+
+**Root cause — two independent crashes both fired during startup**
+
+1. **Concurrent settings.json writes.** `App.RestoreAndStartSyncAsync()` ran two paths back-to-back:
+   - `await Auth.TryRestoreAsync()` raised `SessionChanged` → kicked off `PullOrSeedAsync` on a worker thread.
+   - Then `await SyncCoordinator.StartAsync()` called `PullOrSeedAsync` *again* because auth was now signed in.
+   - Both `ApplyRemote` paths reached `JsonSettingsStore.Save()` simultaneously. They share the same `settings.json.tmp` filename, so `File.WriteAllText(tmp, …)` on the second one threw `IOException: file in use`. Unhandled → process death.
+
+2. **Tray balloon before tray was realized.** `TrayNotifier.ShowBalloon` ran from a `MailPoller.NewMailDetected` dispatch. On first launch the H.NotifyIcon `Shell_NotifyIcon` registration hadn't completed yet, so `ShowNotification` threw `InvalidOperationException: TrayIcon is not created.` Unhandled → process death.
+
+The reason "second launch is fine": the cloud snapshot was already up-to-date by then (the partial first-run had pushed local), and the poller had no fresh mail to balloon.
+
+**Tried**
+- Nothing — diagnosed straight from `crash.log` (which had captured both stack traces from prior runs).
+
+**Fix**
+- `SyncCoordinator`: added `SemaphoreSlim _gate (1,1)`. Public `PushAsync` / `PullAsync` / `PullOrSeedAsync` acquire it and delegate to private `*CoreAsync` variants. Internal callers (e.g. `PullCore` falling back to push when local prefers) call the Core variants directly to avoid re-entrant deadlock. Disposed in Dispose.
+- `JsonSettingsStore.Save`: wrapped the `.tmp + Move` in `lock (_saveLock)` for belt-and-suspenders against any other concurrent caller.
+- `TrayNotifier.ShowBalloon`: wrapped `ShowNotification` in `try/catch (InvalidOperationException) / catch (Exception)`. Notifications are best-effort.
+
+**Files changed**
+- `src/GreatEmailApp.Core/Sync/SyncCoordinator.cs` — Rev 5: gate + Core split.
+- `src/GreatEmailApp.Core/Services/JsonSettingsStore.cs` — Rev 3: save lock.
+- `src/GreatEmailApp/Services/TrayNotifier.cs` — Rev 3: swallow tray-not-created.
+- `src/GreatEmailApp/GreatEmailApp.csproj` — version 0.11.11.
+
+**Verified**
+- Cold start: alive, no crash.log written.
+- Kill + relaunch cycle: both runs alive, no crash.log written.
+
+**Rulebook**
+- No new rule needed; existing §16 applies. Decision-log candidate: "Any code path that runs both at app-startup and from an event handler that startup itself raises must be safe to run concurrently — prefer a coordinator-level gate over per-callsite ordering."
+
+---
+
+## FIX-2026-05-10-001 — Sync silently flipped pulls into pushes; new PCs got zero accounts
+
+**Area:** Sync / SyncCoordinator + SyncMetadata
+**Status:** ✅ Fixed in v0.11.5
+**Priority:** P0 — silent data divergence between PCs
+
+**Symptom**
+- New PC signed into Firebase, expecting 3 accounts to pull down from cloud. Got nothing — only the 1 account already present locally stayed. Settings → Sync → "Sync now" reported success.
+- On a PC that had successfully pulled once, every subsequent pull was actually pushing the local roster to the cloud, overwriting whatever the other PC had pushed.
+
+**Root cause**
+Two compounding bugs in the FIX-2026-04-30-002 guard:
+
+1. `SyncMetadata.HasUnpushedLocalChanges()` used `threshold.AddSeconds(-2)` for filesystem-mtime slop. That widens "has unpushed changes" instead of narrowing it — any file mtime within 2s of LastSyncedAt counted as unpushed. Wrong direction.
+2. `SyncCoordinator.ApplyRemote()` set `_meta.LastSyncedAt = remote.UpdatedAt` (the snapshot's earlier server-side timestamp). But `ApplyRemote` had just written `accounts.json`, so its mtime = "now", which is later than `remote.UpdatedAt`. Combined with bug #1, this made every just-pulled device permanently look "unpushed" → next pull triggered `ShouldPreferLocalOver` → push the stale local data instead of applying remote.
+
+User's symptom: PC A had 3 accounts, PC B had 1. Both kept pushing their own list and ignoring remote. Whichever PC last synced won the cloud doc — so PC B's recent activity had clobbered PC A's roster.
+
+**Tried**
+- Nothing — diagnosed directly from `sync-meta.json` mtime vs `accounts.json` mtime on the user's machine: file mtime `15:27:50.000`, LastSyncedAt `15:27:50.523`. With `-2s` slop, file looks newer; bug confirmed by inspection.
+
+**Fix**
+- `SyncMetadata.HasUnpushedLocalChanges`: slop direction inverted — `threshold.AddSeconds(+2)`. Only files clearly newer than baseline count as unpushed.
+- `SyncCoordinator.ApplyRemote`: `_meta.LastSyncedAt = DateTimeOffset.UtcNow` after the local Save calls complete, so the new baseline is strictly later than any file we just wrote.
+- FIX-2026-04-30-002's empty-cloud guard (clause 2 of `ShouldPreferLocalOver`) is unchanged — that protection was independent of the timestamp comparison and still blocks empty cloud from clobbering local.
+
+**Files changed**
+- `src/GreatEmailApp.Core/Sync/SyncMetadata.cs` — Rev 2: slop direction.
+- `src/GreatEmailApp.Core/Sync/SyncCoordinator.cs` — Rev 3: ApplyRemote baseline timestamp.
+- `src/GreatEmailApp/GreatEmailApp.csproj` — version 0.11.5.
+
+**Recovery for the user**
+1. Install 0.11.5 on **both** PCs (built-in updater, or copy install dir).
+2. On the PC that has the 3 accounts: Settings → Sync → Sync now (push).
+3. On the other PC: Settings → Sync → Sync now (pull). Roster appears.
+
+**Rulebook**
+- No new rule needed; existing §16 applies. Decision-log entry in roadmap may want a one-liner that timestamp slop in sync guards must always be in the conservative direction (treat near-equal as in-sync).
 
 ---
 

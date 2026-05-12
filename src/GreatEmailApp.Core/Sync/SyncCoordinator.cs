@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncCoordinator.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 2
+// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 6
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Glue between local saves, sign-in events, window focus, and Firestore.
@@ -44,6 +44,10 @@ public sealed class SyncCoordinator : IDisposable
     private DateTimeOffset _lastPullAt = DateTimeOffset.MinValue;
     private readonly TimeSpan _activatePullCooldown = TimeSpan.FromSeconds(30);
     private SyncMetadata _meta = SyncMetadata.Load();
+    // Serializes all push/pull operations. App startup can fire two concurrent
+    // PullOrSeedAsync paths (SessionChanged from TryRestore + StartAsync after
+    // it returns) which previously raced on settings.json.tmp and crashed.
+    private readonly SemaphoreSlim _gate = new(1, 1);
 
     public event EventHandler<SyncEvent>? StateChanged;
 
@@ -120,6 +124,7 @@ public sealed class SyncCoordinator : IDisposable
         _rulesStore.Saved    -= OnLocalSaved;
         _auth.SessionChanged -= OnSessionChanged;
         _pushDebounce.Dispose();
+        _gate.Dispose();
     }
 
     // --------------------------------------------------------------------- //
@@ -150,6 +155,14 @@ public sealed class SyncCoordinator : IDisposable
     private async Task PushAsync()
     {
         if (!_auth.IsSignedIn) return;
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try { await PushCoreAsync().ConfigureAwait(false); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task PushCoreAsync()
+    {
+        if (!_auth.IsSignedIn) return;
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Pushing));
 
         var pushedAt = DateTimeOffset.UtcNow;
@@ -176,6 +189,14 @@ public sealed class SyncCoordinator : IDisposable
     private async Task PullAsync()
     {
         if (!_auth.IsSignedIn) return;
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try { await PullCoreAsync().ConfigureAwait(false); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task PullCoreAsync()
+    {
+        if (!_auth.IsSignedIn) return;
         _lastPullAt = DateTimeOffset.UtcNow;
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Pulling));
 
@@ -191,7 +212,16 @@ public sealed class SyncCoordinator : IDisposable
         if (ShouldPreferLocalOver(remote))
         {
             // Local has unpushed edits newer than what's on the cloud. Push, don't apply.
-            await PushAsync().ConfigureAwait(false);
+            // Already inside the gate — call the core push to avoid re-entrant lock.
+            await PushCoreAsync().ConfigureAwait(false);
+            return;
+        }
+
+        if (IsAlreadyApplied(remote))
+        {
+            // Same snapshot we last applied — nothing to do. Avoids rebuilding
+            // the UI tree on the periodic window-activated pull, which would
+            // clear the user's folder selection and message preview.
             return;
         }
 
@@ -200,6 +230,14 @@ public sealed class SyncCoordinator : IDisposable
     }
 
     private async Task PullOrSeedAsync()
+    {
+        if (!_auth.IsSignedIn) return;
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try { await PullOrSeedCoreAsync().ConfigureAwait(false); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task PullOrSeedCoreAsync()
     {
         if (!_auth.IsSignedIn) return;
         _lastPullAt = DateTimeOffset.UtcNow;
@@ -216,19 +254,36 @@ public sealed class SyncCoordinator : IDisposable
         if (remote is null)
         {
             // First device — seed the cloud with whatever we have locally.
-            await PushAsync().ConfigureAwait(false);
+            await PushCoreAsync().ConfigureAwait(false);
             return;
         }
 
         if (ShouldPreferLocalOver(remote))
         {
             // Cloud has stale state, local has unpushed edits — protect them.
-            await PushAsync().ConfigureAwait(false);
+            await PushCoreAsync().ConfigureAwait(false);
+            return;
+        }
+
+        if (IsAlreadyApplied(remote))
+        {
             return;
         }
 
         ApplyRemote(remote);
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Applied, RemoteUpdatedAt: remote.UpdatedAt));
+    }
+
+    /// <summary>
+    /// True when the remote snapshot is the same one (or older than the one)
+    /// we've already adopted locally — i.e. nothing has been pushed by another
+    /// device since our last successful sync.
+    /// </summary>
+    private bool IsAlreadyApplied(SyncSnapshot remote)
+    {
+        if (_meta.LastSyncedAt is null) return false;
+        // Remote stamp older than or equal to our baseline → already seen.
+        return remote.UpdatedAt <= _meta.LastSyncedAt.Value;
     }
 
     /// <summary>
@@ -262,18 +317,10 @@ public sealed class SyncCoordinator : IDisposable
         {
             // Mutate the live AppSettings instance in place so anyone holding a
             // reference (Theme.Apply, view models bound to App.Settings) sees
-            // the new values without having to swap the object.
-            _settings.Theme               = remote.Settings.Theme;
-            _settings.Accent              = remote.Settings.Accent;
-            _settings.Ribbon              = remote.Settings.Ribbon;
-            _settings.Density             = remote.Settings.Density;
-            _settings.SidebarWidth        = remote.Settings.SidebarWidth;
-            _settings.MailListWidth       = remote.Settings.MailListWidth;
-            _settings.Zoom                = remote.Settings.Zoom;
-            _settings.ShowHtml            = remote.Settings.ShowHtml;
-            _settings.AllowRemoteImages   = remote.Settings.AllowRemoteImages;
-            _settings.MarkReadDelaySeconds = remote.Settings.MarkReadDelaySeconds;
-            _settings.SyncIntervalMinutes = remote.Settings.SyncIntervalMinutes;
+            // the new values without having to swap the object. CopySyncableFrom
+            // owns the field-by-field assignment AND the per-PC exclusion list
+            // — see AppSettings.cs. Don't inline a property list here.
+            _settings.CopySyncableFrom(remote.Settings);
             _settingsStore.Save(_settings);
             _accountStore.Save(remote.Accounts);
             if (remote.Contacts is not null) _contactsStore.Save(remote.Contacts);
@@ -281,9 +328,12 @@ public sealed class SyncCoordinator : IDisposable
         }
         finally { _suppressPush = false; }
 
-        // Record the timestamp we just adopted so subsequent
-        // HasUnpushedLocalChanges checks have the right baseline.
-        _meta.LastSyncedAt = remote.UpdatedAt;
+        // Baseline must be AFTER the local writes above, not the remote
+        // snapshot's earlier UpdatedAt — otherwise the just-written files'
+        // mtimes will look "newer than last sync" and HasUnpushedLocalChanges
+        // returns true on every subsequent pull, flipping legitimate pulls
+        // into stale pushes (FIX-2026-05-10-001).
+        _meta.LastSyncedAt = DateTimeOffset.UtcNow;
         _meta.Save();
 
         RemotePullApplied?.Invoke(this, EventArgs.Empty);

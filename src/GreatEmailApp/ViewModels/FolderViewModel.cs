@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/FolderViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 2
+// Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -11,7 +11,11 @@ namespace GreatEmailApp.ViewModels;
 public partial class FolderViewModel : ObservableObject
 {
     [ObservableProperty] private bool isSelected;
-    [ObservableProperty] private bool isExpanded = true;
+    // Default collapsed: account header is expanded, top-level folders show,
+    // but any folder that itself has children stays collapsed until the user
+    // clicks the caret. Without this, a deeply nested account (e.g.
+    // "Fiksd IT Business" with several sub-categories) blew the sidebar height.
+    [ObservableProperty] private bool isExpanded = false;
 
     public Folder Model { get; }
     public ObservableCollection<FolderViewModel> Children { get; }
