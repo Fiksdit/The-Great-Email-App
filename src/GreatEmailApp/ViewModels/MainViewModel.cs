@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-07 | Rev: 3
+// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -645,32 +645,210 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    // ─── Folder CRUD ──────────────────────────────────────────────────
+    // All four commands share the same shape: prompt/confirm → IMAP call →
+    // reload the account's folder tree via LoadFoldersAsync so the sidebar
+    // mirrors server state. Special folders (Inbox/Sent/Drafts/Junk/Trash/
+    // Archive) are protected from Rename/Delete to avoid breaking the
+    // \Special-Use semantics other parts of the app rely on.
+
     [RelayCommand]
-    private void NewSubfolder(FolderViewModel? parent)
+    private async Task NewSubfolderAsync(FolderViewModel? parent)
     {
-        MessageBox.Show("New subfolder UI lands soon.", "New subfolder",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        if (parent is null) return;
+        var accountVm = Accounts.FirstOrDefault(a => a.Model.Id == parent.Model.AccountId);
+        if (accountVm is null) return;
+
+        var dlg = new Views.Dialogs.FolderNameDialog(
+            titleText: "New subfolder",
+            helpText: $"Create a new folder inside \"{parent.Name}\".")
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.Name)) return;
+
+        await RunFolderOpAsync(accountVm, $"Creating \"{dlg.Name}\"…",
+            async (account, password, ct) =>
+            {
+                var r = await _imap.CreateFolderAsync(account, password, parent.Model.FullPath, dlg.Name, ct);
+                return r is Result<string>.Ok ok
+                    ? (true, $"Created \"{ok.Value}\".")
+                    : (false, $"Create failed: {((Result<string>.Fail)r).Error}");
+            });
+    }
+
+    /// <summary>Create a top-level folder under the account's root namespace.
+    /// Invoked from the account-header context menu in the sidebar.</summary>
+    [RelayCommand]
+    private async Task NewTopLevelFolderAsync(AccountViewModel? accountVm)
+    {
+        if (accountVm is null) return;
+
+        var dlg = new Views.Dialogs.FolderNameDialog(
+            titleText: "New folder",
+            helpText: $"Create a new top-level folder in {accountVm.EmailAddress}.")
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.Name)) return;
+
+        await RunFolderOpAsync(accountVm, $"Creating \"{dlg.Name}\"…",
+            async (account, password, ct) =>
+            {
+                var r = await _imap.CreateFolderAsync(account, password, parentFullPath: "", dlg.Name, ct);
+                return r is Result<string>.Ok ok
+                    ? (true, $"Created \"{ok.Value}\".")
+                    : (false, $"Create failed: {((Result<string>.Fail)r).Error}");
+            });
     }
 
     [RelayCommand]
-    private void RenameFolder(FolderViewModel? folder)
+    private async Task RenameFolderAsync(FolderViewModel? folder)
     {
-        MessageBox.Show("Rename folder UI lands soon.", "Rename folder",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        if (folder is null) return;
+        if (folder.Model.Special != SpecialFolder.None)
+        {
+            MessageBox.Show($"Can't rename the {folder.Name} folder — it's a special-use folder.",
+                "Rename folder", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var accountVm = Accounts.FirstOrDefault(a => a.Model.Id == folder.Model.AccountId);
+        if (accountVm is null) return;
+
+        var dlg = new Views.Dialogs.FolderNameDialog(
+            titleText: "Rename folder",
+            helpText: $"Enter a new name for \"{folder.Name}\".",
+            initialName: folder.Name)
+        {
+            Owner = Application.Current?.MainWindow,
+        };
+        if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.Name)) return;
+        if (string.Equals(dlg.Name, folder.Name, StringComparison.Ordinal)) return;
+
+        var wasSelected = SelectedFolder == folder;
+        await RunFolderOpAsync(accountVm, $"Renaming to \"{dlg.Name}\"…",
+            async (account, password, ct) =>
+            {
+                var r = await _imap.RenameFolderAsync(account, password, folder.Model.FullPath, dlg.Name, ct);
+                return r is Result<string>.Ok ok
+                    ? (true, $"Renamed to \"{ok.Value}\".")
+                    : (false, $"Rename failed: {((Result<string>.Fail)r).Error}");
+            });
+
+        // The selected-folder reference points at the old VM, which we just
+        // rebuilt. Clear to a safe state — the user can click the renamed
+        // folder in the refreshed tree.
+        if (wasSelected)
+        {
+            SelectedFolder = null;
+            Messages.Clear();
+            SelectedMessage = null;
+        }
     }
 
     [RelayCommand]
-    private void DeleteFolder(FolderViewModel? folder)
+    private async Task DeleteFolderAsync(FolderViewModel? folder)
     {
-        MessageBox.Show("Delete folder UI lands soon.", "Delete folder",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        if (folder is null) return;
+        if (folder.Model.Special != SpecialFolder.None)
+        {
+            MessageBox.Show($"Can't delete the {folder.Name} folder — it's a special-use folder.",
+                "Delete folder", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var accountVm = Accounts.FirstOrDefault(a => a.Model.Id == folder.Model.AccountId);
+        if (accountVm is null) return;
+
+        var confirm = MessageBox.Show(
+            $"Delete the folder \"{folder.Name}\"?\n\n" +
+            "This removes the folder from the server. Messages it contains will be deleted. " +
+            "This cannot be undone.",
+            "Delete folder", MessageBoxButton.OKCancel, MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+        if (confirm != MessageBoxResult.OK) return;
+
+        var wasSelected = SelectedFolder == folder;
+        await RunFolderOpAsync(accountVm, $"Deleting \"{folder.Name}\"…",
+            async (account, password, ct) =>
+            {
+                var r = await _imap.DeleteFolderAsync(account, password, folder.Model.FullPath, ct);
+                return r is Result<bool>.Ok
+                    ? (true, $"Deleted \"{folder.Name}\".")
+                    : (false, $"Delete failed: {((Result<bool>.Fail)r).Error}");
+            });
+
+        if (wasSelected)
+        {
+            SelectedFolder = null;
+            Messages.Clear();
+            SelectedMessage = null;
+        }
     }
 
     [RelayCommand]
-    private void EmptyFolder(FolderViewModel? folder)
+    private async Task EmptyFolderAsync(FolderViewModel? folder)
     {
-        MessageBox.Show("Empty folder UI lands soon.", "Empty folder",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        if (folder is null) return;
+        var accountVm = Accounts.FirstOrDefault(a => a.Model.Id == folder.Model.AccountId);
+        if (accountVm is null) return;
+
+        var confirm = MessageBox.Show(
+            $"Permanently delete every message in \"{folder.Name}\"?\n\n" +
+            "This empties the folder on the server. This cannot be undone.",
+            "Empty folder", MessageBoxButton.OKCancel, MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+        if (confirm != MessageBoxResult.OK) return;
+
+        var wasSelected = SelectedFolder == folder;
+        await RunFolderOpAsync(accountVm, $"Emptying \"{folder.Name}\"…",
+            async (account, password, ct) =>
+            {
+                var r = await _imap.EmptyFolderAsync(account, password, folder.Model.FullPath, ct);
+                return r is Result<int>.Ok ok
+                    ? (true, $"Emptied \"{folder.Name}\" ({ok.Value} message(s) removed).")
+                    : (false, $"Empty failed: {((Result<int>.Fail)r).Error}");
+            });
+
+        if (wasSelected)
+        {
+            // Refresh the message list for this folder — empty now.
+            Messages.Clear();
+            SelectedMessage = null;
+        }
+    }
+
+    /// <summary>Shared scaffolding for folder CRUD: pulls creds, runs the op,
+    /// surfaces the result on StatusMessage, then reloads the folder tree so
+    /// the sidebar reflects server state. <paramref name="op"/> returns
+    /// (success, statusMessage).</summary>
+    private async Task RunFolderOpAsync(
+        AccountViewModel accountVm,
+        string busyMessage,
+        Func<Account, string, CancellationToken, Task<(bool ok, string status)>> op)
+    {
+        var account = accountVm.Model;
+        var creds = _creds.Read(account.Id);
+        if (creds is null)
+        {
+            StatusMessage = $"No password stored for {account.EmailAddress}.";
+            return;
+        }
+
+        IsBusy = true;
+        StatusMessage = busyMessage;
+        try
+        {
+            var (_, status) = await op(account, creds.Value.Password, CancellationToken.None);
+            StatusMessage = status;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        // Always refresh the folder tree on completion — even on failure the
+        // server state may have changed (partial ops, race with another client).
+        await LoadFoldersAsync(accountVm);
     }
 
     [RelayCommand]

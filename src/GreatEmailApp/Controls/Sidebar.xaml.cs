@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/Sidebar.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
+// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Windows;
@@ -122,5 +122,22 @@ public partial class Sidebar : UserControl
     {
         if (DataContext is MainViewModel vm && TargetOf(sender) is FolderViewModel f)
             vm.EmptyFolderCommand.Execute(f);
+    }
+
+    // ── Account-header context menu ──────────────────────────────────
+
+    private static AccountViewModel? AccountTargetOf(object sender)
+    {
+        if (sender is MenuItem mi
+            && FindContextMenu(mi) is { PlacementTarget: FrameworkElement target }
+            && target.Tag is AccountViewModel acc)
+            return acc;
+        return null;
+    }
+
+    private void NewTopLevelFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && AccountTargetOf(sender) is AccountViewModel acc)
+            vm.NewTopLevelFolderCommand.Execute(acc);
     }
 }

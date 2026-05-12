@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Controls/Sidebar.xaml
-     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 3
+     Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 4
      Changed by: Claude Opus 4.7 on behalf of James Reed
      Account/folder tree. Accounts collapse/expand at top level. Folders nest
      recursively via a self-referential DataTemplate (FolderItemTemplate) — each
@@ -119,6 +119,11 @@
                                 <Border Background="Transparent" Margin="6,8,6,2" CornerRadius="6"
                                         Padding="6,4" Cursor="Hand"
                                         PreviewMouseLeftButtonDown="AccountHeader_Click" Tag="{Binding}">
+                                    <Border.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="New top-level folder…" Click="NewTopLevelFolder_Click" />
+                                        </ContextMenu>
+                                    </Border.ContextMenu>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />

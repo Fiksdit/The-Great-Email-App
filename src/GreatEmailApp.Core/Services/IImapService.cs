@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Services/IImapService.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using GreatEmailApp.Core.Models;
@@ -53,4 +53,27 @@ public interface IImapService
     /// </summary>
     Task<Result<bool>> AppendToSentAsync(Account account, string password,
         MimeKit.MimeMessage message, CancellationToken ct = default);
+
+    /// <summary>
+    /// Create a new folder. Pass empty <paramref name="parentFullPath"/> to create
+    /// at the root of the account's personal namespace; otherwise the new folder
+    /// is created as a child of that path. Returns the full path of the new folder.
+    /// </summary>
+    Task<Result<string>> CreateFolderAsync(Account account, string password,
+        string parentFullPath, string name, CancellationToken ct = default);
+
+    /// <summary>Rename a folder in place — keeps the same parent, changes the leaf name.
+    /// Returns the new full path.</summary>
+    Task<Result<string>> RenameFolderAsync(Account account, string password,
+        string folderFullPath, string newName, CancellationToken ct = default);
+
+    /// <summary>Delete a folder. Server semantics decide whether non-empty folders
+    /// or folders with subfolders are refused — surfaced as a Fail result.</summary>
+    Task<Result<bool>> DeleteFolderAsync(Account account, string password,
+        string folderFullPath, CancellationToken ct = default);
+
+    /// <summary>Mark every message in the folder \Deleted and expunge. The folder
+    /// itself remains. Returns the count of messages removed.</summary>
+    Task<Result<int>> EmptyFolderAsync(Account account, string password,
+        string folderFullPath, CancellationToken ct = default);
 }

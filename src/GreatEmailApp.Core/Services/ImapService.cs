@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Services/ImapService.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 // MailKit-backed IMAP. Single-shot operations: open → do → close. We do NOT
 // hold a long-lived connection in Phase 2 — IDLE / push lands in Phase 5.
@@ -211,6 +211,105 @@ public sealed class ImapService : IImapService
             return Result.Ok(true);
         }
         catch (Exception ex) { return Result.Fail<bool>(SanitizeError(ex), ex); }
+    }
+
+    public async Task<Result<string>> CreateFolderAsync(
+        Account account, string password, string parentFullPath, string name,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return Result.Fail<string>("Folder name is required.");
+
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+
+            // Empty parent path → root of the account's personal namespace.
+            IMailFolder parent = string.IsNullOrEmpty(parentFullPath)
+                ? client.GetFolder(client.PersonalNamespaces[0])
+                : await client.GetFolderAsync(parentFullPath, ct);
+
+            // isMessageFolder: true → child can hold messages (vs container-only).
+            var created = await parent.CreateAsync(name, isMessageFolder: true, ct);
+            await client.DisconnectAsync(true, ct);
+            return Result.Ok(created.FullName);
+        }
+        catch (Exception ex) { return Result.Fail<string>(SanitizeError(ex), ex); }
+    }
+
+    public async Task<Result<string>> RenameFolderAsync(
+        Account account, string password, string folderFullPath, string newName,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(newName))
+                return Result.Fail<string>("New name is required.");
+
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+
+            var folder = await client.GetFolderAsync(folderFullPath, ct);
+            // RenameAsync(parent, name) — passing the existing parent keeps it in
+            // place and only changes the leaf name.
+            var parent = folder.ParentFolder;
+            if (parent is null)
+                return Result.Fail<string>("Cannot rename a root namespace folder.");
+
+            await folder.RenameAsync(parent, newName, ct);
+            var newPath = folder.FullName; // MailKit updates this on success
+            await client.DisconnectAsync(true, ct);
+            return Result.Ok(newPath);
+        }
+        catch (Exception ex) { return Result.Fail<string>(SanitizeError(ex), ex); }
+    }
+
+    public async Task<Result<bool>> DeleteFolderAsync(
+        Account account, string password, string folderFullPath,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+
+            var folder = await client.GetFolderAsync(folderFullPath, ct);
+            // NOTE: many servers refuse DELETE on a folder with children. Surface
+            // that verbatim via SanitizeError rather than recursing — the caller
+            // already shows a confirm prompt, and silent recursive deletion would
+            // be a footgun.
+            if (folder.IsOpen) await folder.CloseAsync(expunge: false, ct);
+            await folder.DeleteAsync(ct);
+            await client.DisconnectAsync(true, ct);
+            return Result.Ok(true);
+        }
+        catch (Exception ex) { return Result.Fail<bool>(SanitizeError(ex), ex); }
+    }
+
+    public async Task<Result<int>> EmptyFolderAsync(
+        Account account, string password, string folderFullPath,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+
+            var folder = await client.GetFolderAsync(folderFullPath, ct);
+            await folder.OpenAsync(FolderAccess.ReadWrite, ct);
+
+            var uids = await folder.SearchAsync(SearchQuery.All, ct);
+            int count = uids.Count;
+            if (count > 0)
+            {
+                await folder.AddFlagsAsync(uids, MessageFlags.Deleted, silent: true, ct);
+                await folder.ExpungeAsync(ct);
+            }
+            await client.DisconnectAsync(true, ct);
+            return Result.Ok(count);
+        }
+        catch (Exception ex) { return Result.Fail<int>(SanitizeError(ex), ex); }
     }
 
     public async Task<Result<string>> MoveToSpecialAsync(
