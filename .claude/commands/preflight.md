@@ -66,6 +66,29 @@ Only build from source when actively developing.
 
 ---
 
+## Step 0.1: Which build is the user actually running?
+
+Critical on any machine where both a release install and a source checkout exist (this is the default on James's main desktop). Skipping this causes hours of "my fix didn't appear" confusion that the user has already lived through once — see session log 2026-05-12.
+
+**Check both locations:**
+- Installed release: `C:\Users\<user>\AppData\Local\Programs\GreatEmailApp\GreatEmailApp.exe`
+- Dev Debug build: `<repo>\src\GreatEmailApp\bin\Debug\net8.0-windows\GreatEmailApp.exe`
+
+Compare timestamps with `Get-Item` (PowerShell) on both paths. If both exist they are **two separate apps writing to the same** `%LOCALAPPDATA%\GreatEmailApp\` state directory.
+
+**Then ask explicitly which one the user is launching from their shortcut / taskbar.** Do not assume the Debug build is the one being tested just because it's the freshest binary. James's normal workflow on this PC is the **installed release**, updated in-app via Settings → About → Check for updates (pulls the latest GitHub release).
+
+**Delivery flow for a fix to reach the installed app:**
+1. Commit + push to GitHub.
+2. On the dev PC (where releases are cut), pull, build a release, tag, and push.
+3. In the installed app, click Settings → About → Check for updates.
+
+Until step 3 runs, fixes in `bin\Debug\` are invisible to the user's normal workflow. The `/relaunch` skill targets the Debug build — only invoke it when the user has explicitly said "test the dev build" or you've agreed to verify a fix at the source level. Otherwise, just commit and let the release flow do its job.
+
+**Output:** "Installed release: [path · mtime / not present]. Dev Debug build: [path · mtime / not present]. User confirmed launching from: [installed / debug]."
+
+---
+
 ## Step 0: Session Log
 
 Before anything else, make sure today's session log exists.

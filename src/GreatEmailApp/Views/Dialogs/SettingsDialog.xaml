@@ -227,7 +227,7 @@
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource RowLabel}" Text="Auto Send/Receive" />
                                     <TextBlock Style="{StaticResource RowDescription}"
-                                               Text="Check for new mail at this interval (in minutes). 0 = manual only. (Auto-sync timer is wired in Phase 5.)" />
+                                               Text="Check for new mail at this interval (in minutes). 0 = manual only." />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBox Text="{Binding SyncIntervalMinutes, UpdateSourceTrigger=PropertyChanged}"
@@ -247,7 +247,7 @@
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource RowLabel}" Text="Render HTML email bodies" />
                                     <TextBlock Style="{StaticResource RowDescription}"
-                                               Text="When off, fall back to plain-text rendering. (HTML rendering surface lands in Phase 5.)" />
+                                               Text="When off, fall back to plain-text rendering." />
                                 </StackPanel>
                                 <CheckBox Grid.Column="1" VerticalAlignment="Center" IsChecked="{Binding ShowHtml}" />
                             </Grid>

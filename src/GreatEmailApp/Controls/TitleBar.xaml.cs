@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/TitleBar.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-07 | Rev: 3
+// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System;
@@ -95,11 +95,65 @@ public partial class TitleBar : UserControl
             return;
         }
 
-        // Signed-in: lightweight info popup. Full popover with Sign Out lands later.
-        MessageBox.Show(
-            $"Signed in: {AccountEmail}\nSync: on",
-            "Account",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        // Signed-in: open a small popover menu under the avatar. The menu shows
+        // the signed-in email (read-only header) plus Sign out and a shortcut
+        // to Settings → Sync. ContextMenu's `Placement=Bottom` aligns it under
+        // the avatar so it reads as a popover, not a context menu.
+        var menu = new ContextMenu
+        {
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+            PlacementTarget = AvatarButton,
+            StaysOpen = false,
+        };
+
+        var header = new MenuItem
+        {
+            Header = $"Signed in as {AccountEmail}",
+            IsEnabled = false,
+        };
+        menu.Items.Add(header);
+
+        menu.Items.Add(new Separator());
+
+        var syncSettings = new MenuItem { Header = "Sync settings…" };
+        syncSettings.Click += (_, _) =>
+        {
+            var dlg = new Views.Dialogs.SettingsDialog { Owner = Window.GetWindow(this) };
+            dlg.OpenOnTab("Sync");
+            dlg.ShowDialog();
+        };
+        menu.Items.Add(syncSettings);
+
+        var signOut = new MenuItem { Header = "Sign out" };
+        signOut.Click += async (_, _) => await SignOutAsync();
+        menu.Items.Add(signOut);
+
+        menu.IsOpen = true;
+    }
+
+    private async Task SignOutAsync()
+    {
+        if (App.Auth is null) return;
+        try
+        {
+            var res = await App.Auth.SignOutAsync();
+            // SignOutAsync clears the session and fires SessionChanged. The
+            // MainViewModel handler in App.xaml.cs reacts and the avatar
+            // repaints to "?"/"Sign in" automatically — no manual UI update
+            // needed here. If the call itself failed, surface the error.
+            if (res is Result<bool>.Fail f)
+            {
+                MessageBox.Show(Window.GetWindow(this),
+                    $"Sign out failed: {f.Error}", "Sign out",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(Window.GetWindow(this),
+                $"Sign out error: {ex.Message}", "Sign out",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     // --------------------------------------------------------------------- //
