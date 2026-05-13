@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/RichTextEditor.xaml.cs
-// Created: 2026-05-01 | Revised: 2026-05-01 | Rev: 1
+// Created: 2026-05-01 | Revised: 2026-05-13 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Rich-text body authoring on a WebView2 contenteditable surface.
@@ -73,11 +73,15 @@ public partial class RichTextEditor : UserControl
             Web.CoreWebView2.NewWindowRequested += (_, ev) =>
             {
                 ev.Handled = true;
-                if (!string.IsNullOrEmpty(ev.Uri))
-                {
-                    try { Process.Start(new ProcessStartInfo { FileName = ev.Uri, UseShellExecute = true }); }
-                    catch { }
-                }
+                // Same whitelist as MessageBodyView: only forward http(s) to the
+                // shell. mailto:/tel:/custom schemes pasted into a compose body
+                // can otherwise pop the "find an app in the Microsoft Store"
+                // dialog when the user clicks them mid-compose.
+                if (string.IsNullOrEmpty(ev.Uri)) return;
+                if (!Uri.TryCreate(ev.Uri, UriKind.Absolute, out var parsed)) return;
+                if (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps) return;
+                try { Process.Start(new ProcessStartInfo { FileName = ev.Uri, UseShellExecute = true }); }
+                catch { }
             };
 
             // The page raises a postMessage on every input event — we forward it

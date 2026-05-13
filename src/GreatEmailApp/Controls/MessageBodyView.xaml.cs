@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/MessageBodyView.xaml.cs
-// Created: 2026-04-30 | Revised: 2026-05-12 | Rev: 2
+// Created: 2026-04-30 | Revised: 2026-05-13 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System;
@@ -216,27 +216,40 @@ public partial class MessageBodyView : UserControl
             return;
         }
 
-        // Anything after that is a link click. Hand it off to the system browser.
+        // Anything after that is a link click or an in-body meta-refresh / iframe nav.
+        // Cancel the WebView2 nav and route through OpenExternal, which whitelists
+        // http(s) only. See OpenExternal for why.
         e.Cancel = true;
-        var uri = e.Uri;
-        if (string.IsNullOrEmpty(uri)) return;
-        try
-        {
-            Process.Start(new ProcessStartInfo { FileName = uri, UseShellExecute = true });
-        }
-        catch { /* ignore — user can copy it manually */ }
+        OpenExternal(e.Uri);
     }
 
     private void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
     {
         e.Handled = true;
-        var uri = e.Uri;
+        OpenExternal(e.Uri);
+    }
+
+    /// <summary>
+    /// Forward a URI from the WebView2 to the Windows shell, but ONLY for
+    /// http(s) schemes. Email bodies routinely embed mailto:, tel:, webcal:,
+    /// outlook:, and assorted tracking schemes. Passing those to
+    /// <c>UseShellExecute=true</c> on a machine with no handler surfaces the
+    /// Windows "Look for an app in the Microsoft Store to open this link"
+    /// popup — and worse, blindly invoking any registered scheme handler from
+    /// email-controlled URIs is a security smell. Drop non-http silently;
+    /// users can still copy/paste the address. mailto: handled in-app is a
+    /// follow-up (open a Compose window).
+    /// </summary>
+    private static void OpenExternal(string? uri)
+    {
         if (string.IsNullOrEmpty(uri)) return;
+        if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed)) return;
+        if (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps) return;
         try
         {
             Process.Start(new ProcessStartInfo { FileName = uri, UseShellExecute = true });
         }
-        catch { /* ignore */ }
+        catch { /* user can copy it manually */ }
     }
 
     private void ShowImagesOnce_Click(object sender, RoutedEventArgs e)

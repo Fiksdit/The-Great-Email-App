@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 6
+// Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 7
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -51,6 +51,15 @@ public partial class MainViewModel : ObservableObject
     }
     public string AccountEmail => App.Auth?.Current?.Email ?? "Sign in";
     public bool IsSignedIn => App.Auth?.IsSignedIn ?? false;
+
+    // Title-bar sync chip. Driven by real auth + SyncCoordinator state — never
+    // a hardcoded "Sync on" literal. Hidden when signed-out so the chip stops
+    // claiming sync is active on a fresh-install machine that hasn't signed in
+    // yet. Updated via UpdateSyncIndicator() from SessionChanged + StateChanged.
+    [ObservableProperty] private bool syncIndicatorVisible;
+    [ObservableProperty] private string syncIndicatorText = "Sync on";
+    [ObservableProperty] private System.Windows.Media.Brush? syncIndicatorBrush;
+    [ObservableProperty] private string syncIndicatorTooltip = "";
 
     private CancellationTokenSource? _messageLoadCts;
     private CancellationTokenSource? _bodyLoadCts;
@@ -135,7 +144,9 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Repaint the avatar when sign-in state changes (Settings → Sync → Google sign-in,
-        // sign-out, or silent restore at startup).
+        // sign-out, or silent restore at startup). Also re-evaluates the title-bar sync
+        // chip — signed-out hides it; signed-in shows "Sync on" until a coordinator
+        // event refines the label.
         if (App.Auth is not null)
         {
             App.Auth.SessionChanged += (_, _) =>
@@ -144,7 +155,62 @@ public partial class MainViewModel : ObservableObject
                     OnPropertyChanged(nameof(AccountInitial));
                     OnPropertyChanged(nameof(AccountEmail));
                     OnPropertyChanged(nameof(IsSignedIn));
+                    UpdateSyncIndicator(null);
                 }));
+        }
+
+        // Live sync state for the title-bar chip. The coordinator fires from
+        // background tasks, so marshal to the UI thread before touching VM
+        // properties.
+        if (App.SyncCoordinator is not null)
+        {
+            App.SyncCoordinator.StateChanged += (_, ev) =>
+                Application.Current?.Dispatcher.BeginInvoke(new Action(() => UpdateSyncIndicator(ev)));
+        }
+
+        UpdateSyncIndicator(null);
+    }
+
+    /// <summary>
+    /// Compute the title-bar sync chip's visibility, label, color, and tooltip
+    /// from the current auth state and the latest coordinator event. Called on
+    /// SessionChanged and on every coordinator StateChanged tick.
+    /// </summary>
+    private void UpdateSyncIndicator(GreatEmailApp.Core.Sync.SyncEvent? ev)
+    {
+        if (!IsSignedIn)
+        {
+            // Signed-out: hide entirely. The avatar is the affordance to sign in;
+            // the chip stays out of the way so it never falsely advertises "Sync on."
+            SyncIndicatorVisible = false;
+            SyncIndicatorTooltip = "";
+            return;
+        }
+
+        SyncIndicatorVisible = true;
+        var kind = ev?.Kind ?? GreatEmailApp.Core.Sync.SyncEventKind.Idle;
+        switch (kind)
+        {
+            case GreatEmailApp.Core.Sync.SyncEventKind.Pulling:
+            case GreatEmailApp.Core.Sync.SyncEventKind.Pushing:
+                SyncIndicatorText = "Syncing…";
+                SyncIndicatorBrush = Application.Current?.TryFindResource("AccentBrush") as System.Windows.Media.Brush;
+                SyncIndicatorTooltip = "Syncing settings, accounts, contacts, and rules with Firebase.";
+                break;
+            case GreatEmailApp.Core.Sync.SyncEventKind.Failed:
+                SyncIndicatorText = "Sync error";
+                SyncIndicatorBrush = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(0xE1, 0x4D, 0x4D));
+                SyncIndicatorTooltip = string.IsNullOrEmpty(ev?.Detail)
+                    ? "Sync failed. Open Settings → Sync to retry."
+                    : $"Sync failed: {ev.Detail}";
+                break;
+            default:
+                // Idle / Pushed / Applied — sync is live and quiet.
+                SyncIndicatorText = "Sync on";
+                SyncIndicatorBrush = Application.Current?.TryFindResource("GreenBrush") as System.Windows.Media.Brush;
+                SyncIndicatorTooltip = "Firebase sync is live. Settings, accounts, contacts, and rules sync across PCs.";
+                break;
         }
     }
 

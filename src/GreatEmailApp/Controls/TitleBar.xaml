@@ -1,13 +1,17 @@
 <!-- FILE: src/GreatEmailApp/Controls/TitleBar.xaml
-     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+     Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 2
      Changed by: Claude Opus 4.7 on behalf of James Reed -->
 <UserControl x:Class="GreatEmailApp.Controls.TitleBar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:conv="clr-namespace:GreatEmailApp.Converters"
              mc:Ignorable="d"
              Height="{DynamicResource TitleBarHeight}">
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolVis" />
+    </UserControl.Resources>
     <Border Background="{DynamicResource TitleBarBackgroundBrush}"
             BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1">
         <Grid>
@@ -150,13 +154,19 @@
                 </Popup>
             </Grid>
 
-            <!-- Sync indicator -->
+            <!-- Sync indicator — bound to MainViewModel.SyncIndicator* via TitleBar DPs.
+                 Hidden when signed out so the chip never claims sync is active before
+                 the user has actually authenticated with Firebase. -->
             <Border Grid.Column="2" Margin="0,0,8,0" VerticalAlignment="Center"
                     Background="{DynamicResource ChipBackgroundBrush}"
-                    CornerRadius="4" Padding="8,3">
+                    CornerRadius="4" Padding="8,3"
+                    Visibility="{Binding SyncChipVisible, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolVis}}"
+                    ToolTip="{Binding SyncChipTooltip, RelativeSource={RelativeSource AncestorType=UserControl}}">
                 <StackPanel Orientation="Horizontal">
-                    <Ellipse Width="6" Height="6" Fill="{DynamicResource GreenBrush}" Margin="0,0,6,0" />
-                    <TextBlock Text="Sync on" FontSize="11"
+                    <Ellipse Width="6" Height="6" Margin="0,0,6,0"
+                             Fill="{Binding SyncChipBrush, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                    <TextBlock Text="{Binding SyncChipText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                               FontSize="11"
                                Foreground="{DynamicResource SecondaryTextBrush}"
                                VerticalAlignment="Center" />
                 </StackPanel>

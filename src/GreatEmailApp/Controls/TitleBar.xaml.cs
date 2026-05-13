@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/TitleBar.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 4
+// Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 5
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System;
@@ -39,6 +39,45 @@ public partial class TitleBar : UserControl
     {
         get => (string)GetValue(AccountEmailProperty);
         set => SetValue(AccountEmailProperty, value);
+    }
+
+    // Sync chip — bound from MainWindow.xaml to MainViewModel.SyncIndicator*. Hidden
+    // until the user signs in; the visible label tracks SyncCoordinator state
+    // (Sync on / Syncing… / Sync error) so it never lies about live sync.
+    public static readonly DependencyProperty SyncChipVisibleProperty =
+        DependencyProperty.Register(nameof(SyncChipVisible), typeof(bool), typeof(TitleBar),
+            new PropertyMetadata(false));
+    public bool SyncChipVisible
+    {
+        get => (bool)GetValue(SyncChipVisibleProperty);
+        set => SetValue(SyncChipVisibleProperty, value);
+    }
+
+    public static readonly DependencyProperty SyncChipTextProperty =
+        DependencyProperty.Register(nameof(SyncChipText), typeof(string), typeof(TitleBar),
+            new PropertyMetadata("Sync on"));
+    public string SyncChipText
+    {
+        get => (string)GetValue(SyncChipTextProperty);
+        set => SetValue(SyncChipTextProperty, value);
+    }
+
+    public static readonly DependencyProperty SyncChipBrushProperty =
+        DependencyProperty.Register(nameof(SyncChipBrush), typeof(System.Windows.Media.Brush), typeof(TitleBar),
+            new PropertyMetadata(null));
+    public System.Windows.Media.Brush? SyncChipBrush
+    {
+        get => (System.Windows.Media.Brush?)GetValue(SyncChipBrushProperty);
+        set => SetValue(SyncChipBrushProperty, value);
+    }
+
+    public static readonly DependencyProperty SyncChipTooltipProperty =
+        DependencyProperty.Register(nameof(SyncChipTooltip), typeof(string), typeof(TitleBar),
+            new PropertyMetadata(""));
+    public string SyncChipTooltip
+    {
+        get => (string)GetValue(SyncChipTooltipProperty);
+        set => SetValue(SyncChipTooltipProperty, value);
     }
 
     private void OnDragArea(object sender, MouseButtonEventArgs e)

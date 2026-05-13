@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/MainWindow.xaml
-     Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 2
+     Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 3
      Changed by: Claude Opus 4.7 on behalf of James Reed
      Composition: TitleBar / Ribbon / [Sidebar | MailList | ReadingPane] / StatusBar.
      Splitters between sidebar and mail list, and between mail list and reading pane,
@@ -39,7 +39,11 @@
 
         <c:TitleBar Grid.Row="0"
                     AccountInitial="{Binding AccountInitial}"
-                    AccountEmail="{Binding AccountEmail}" />
+                    AccountEmail="{Binding AccountEmail}"
+                    SyncChipVisible="{Binding SyncIndicatorVisible}"
+                    SyncChipText="{Binding SyncIndicatorText}"
+                    SyncChipBrush="{Binding SyncIndicatorBrush}"
+                    SyncChipTooltip="{Binding SyncIndicatorTooltip}" />
 
         <c:Ribbon Grid.Row="1" />
 

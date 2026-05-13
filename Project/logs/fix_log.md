@@ -4,6 +4,106 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-05-13-001 — Title-bar "Sync on" chip lied about sync state before sign-in
+
+**Area:** Controls / TitleBar · sync status chip
+**Status:** ✅ Fixed
+**Priority:** P2 (misleading UI; sync mechanics already worked)
+
+**Symptom**
+- Fresh install on a new PC, app launched from desktop shortcut: title-bar chip showed a green dot + "Sync on" before the user had signed into Firebase. Implied that settings/accounts/rules were syncing when nothing was — the user reasonably read it as "sync is not live yet" since sign-in hadn't happened.
+
+**Replicate**
+1. Fresh install (no `auth.dat`), launch app.
+2. Look at the top-right title bar — green chip says "Sync on" with no qualifier.
+3. There is no IMAP account or Firebase session yet.
+
+**Root cause**
+- [TitleBar.xaml:159](src/GreatEmailApp/Controls/TitleBar.xaml:159) had a hardcoded `<TextBlock Text="Sync on" />` and a green `<Ellipse Fill="{DynamicResource GreenBrush}" />` — pure visual decoration with no binding to auth or sync state.
+- Spiritual sibling of FIX-2026-05-07-001 (avatar pretended a user was signed in when they weren't). That fix repaired the avatar code-behind but missed the visible chip literal in the title-bar XAML.
+
+**Tried**
+- Nothing — diagnosed on first read. Grep for `"Sync.{0,5}[Oo]n"` immediately surfaced the hardcoded literal in TitleBar.xaml; cross-checked with SettingsViewModel/SyncCoordinator confirmed sync wiring itself was already correct.
+
+**Fix**
+- `MainViewModel`: added `SyncIndicatorVisible` / `SyncIndicatorText` / `SyncIndicatorBrush` / `SyncIndicatorTooltip` observable properties, plus `UpdateSyncIndicator(SyncEvent?)` driven by `App.Auth.SessionChanged` AND `App.SyncCoordinator.StateChanged`. Computes state from `IsSignedIn` + latest `SyncEventKind`.
+- `TitleBar`: added 4 matching `SyncChip*` DPs following the existing `AccountInitial`/`AccountEmail` pattern. XAML chip's `Visibility`, `Ellipse.Fill`, `TextBlock.Text`, and `ToolTip` now bind to these DPs. Local `BoolVis` converter declared in `UserControl.Resources`.
+- `MainWindow.xaml`: wired MainViewModel's `SyncIndicator*` properties into TitleBar's `SyncChip*` DPs.
+- Sync mechanics (SyncCoordinator, FirestoreSyncService, push/pull paths, vault) — untouched. Pure visual binding fix.
+
+**Behavior now:**
+| Auth | Coordinator | Chip |
+|------|-------------|------|
+| Signed-out | — | hidden |
+| Signed-in | Idle / Pushed / Applied | green · "Sync on" · "Firebase sync is live. Settings, accounts, contacts, and rules sync across PCs." |
+| Signed-in | Pushing / Pulling | accent · "Syncing…" |
+| Signed-in | Failed | red · "Sync error" + detail tooltip |
+
+**Files changed**
+- `src/GreatEmailApp/ViewModels/MainViewModel.cs` (Rev 6 → 7)
+- `src/GreatEmailApp/Controls/TitleBar.xaml.cs` (Rev 4 → 5)
+- `src/GreatEmailApp/Controls/TitleBar.xaml` (Rev 1 → 2)
+- `src/GreatEmailApp/MainWindow.xaml` (Rev 2 → 3)
+
+**Rulebook**
+- §2 Surgical Change Rule — only the 4 binding-related files touched; sync pipeline left alone.
+- §10 (Components & UI/UX) — reinforces: never let visible literals advertise state that isn't bound to a real source of truth. Same anti-pattern as FIX-2026-05-07-001 (avatar).
+
+**Session:** 2026-05-13
+**Commit:** _pending_
+
+---
+
+## FIX-2026-05-13-002 — "Look for an app in the Microsoft Store" popup after sign-in (mailto:/non-http schemes from email bodies)
+
+**Area:** Controls / MessageBodyView + RichTextEditor · WebView2 link handoff
+**Status:** ✅ Fixed
+**Priority:** P1 (visible on every email with a mailto: or non-http URI)
+
+**Symptom**
+- Windows dialog: "Your PC doesn't have an app that can open this link. Try looking for a compatible app in the Microsoft Store."
+- Pops up autonomously after sign-in on a fresh install. Also observed on a second PC running the app yesterday.
+- No new-mail balloon visible at the same time. Disabling new-mail notifications in Settings did NOT stop the popup.
+
+**Replicate**
+1. Sign in with an account that has HTML emails containing `mailto:` / `tel:` / `webcal:` / tracking-scheme links (any typical marketing email).
+2. Select a message in the reading pane, OR let one with `<meta http-equiv="refresh">` auto-fire `OnNavigationStarting`.
+3. Popup appears.
+
+**Root cause**
+- [MessageBodyView.xaml.cs:225 + :237](src/GreatEmailApp/Controls/MessageBodyView.xaml.cs:225) called `Process.Start(new ProcessStartInfo { FileName = uri, UseShellExecute = true })` for **any** URI WebView2 hands them — no scheme validation. Email-controlled URIs with no registered Windows handler (mailto: without a default mail app, tel:, webcal:, outlook:, tracking schemes) fall back to the shell's "Look for an app in the Microsoft Store" dialog.
+- [RichTextEditor.xaml.cs:78](src/GreatEmailApp/Controls/RichTextEditor.xaml.cs:78) had the same hole in the compose-window editor.
+- Same bonus security issue: blindly shelling out email-controlled URIs lets a malicious sender invoke any registered scheme handler (`javascript:`, `file:`, custom schemes) via `UseShellExecute=true`.
+
+**Tried**
+- **Hypothesis A — modern toast activator (per FIX-2026-05-12-002's wording).** Added `Services/ToastAumid.cs`: `SetCurrentProcessExplicitAppUserModelID("Fiksdit.TheGreatEmailApp")` + writes a Start-menu .lnk with `PKEY_AppUserModel_ID`. Wired from `App.OnStartup`. Build clean, shortcut created at `%APPDATA%\Microsoft\Windows\Start Menu\Programs\The Great Email App.lnk`. Popup still appeared. **Hypothesis rejected** — modern toasts on H.NotifyIcon weren't the trigger.
+- **Hypothesis B — Windows toast pipeline regardless of visibility.** Asked user to toggle off new-mail notifications and reproduce. Popup still appeared with notifications fully off. Toast pipeline definitively ruled out.
+- Then grep for `Process.Start.*UseShellExecute` surfaced the MessageBodyView call sites; HTML email auto-refresh / mailto: handoff was the obvious match for "autonomous + no visible balloon."
+
+**Fix**
+- `MessageBodyView.xaml.cs`: extracted `OpenExternal(string? uri)` helper that whitelists `http`/`https` only. Drops other schemes silently. Both `OnNavigationStarting` and `OnNewWindowRequested` route through it.
+- `RichTextEditor.xaml.cs`: inline scheme whitelist in the `NewWindowRequested` handler.
+- `Services/ToastAumid.cs` and the `App.OnStartup` call are **kept** as defense-in-depth — they're correct shell hygiene for future toast click-to-open work, even though they weren't the popup's actual fix.
+
+**Behavior change (acceptable, per owner):** `mailto:` links inside email bodies now silently no-op instead of trying to launch a system mail client. Follow-up: route mailto: into an in-app Compose window (separate task).
+
+**Files changed**
+- `src/GreatEmailApp/Controls/MessageBodyView.xaml.cs` (Rev 2 → 3) — scheme whitelist
+- `src/GreatEmailApp/Controls/RichTextEditor.xaml.cs` (Rev 1 → 2) — scheme whitelist
+- `src/GreatEmailApp/Services/ToastAumid.cs` (new) — AUMID + Start-menu .lnk (defense-in-depth)
+- `src/GreatEmailApp/App.xaml.cs` (Rev 10 → 11) — calls `ToastAumid.EnsureRegistered()` early in OnStartup
+
+**Rulebook**
+- §2 Surgical Change Rule — diagnosis ruled out toast pipeline before code changes landed in MessageBodyView; AUMID work that did land is kept as legitimate hygiene rather than reverted.
+- §5 Routes & Security — `UseShellExecute=true` on attacker-controlled URIs is now scoped to http(s) only.
+- §11 Error Handling — non-http schemes drop silently; never crash on a link click.
+- Spiritual update to FIX-2026-05-12-002's diagnosis: that entry blamed the toast-activation URI handler under crash conditions. With the crash gone, autonomous popups had a different (and previously unknown) cause: the MessageBodyView shell-out path.
+
+**Session:** 2026-05-13
+**Commit:** _pending_
+
+---
+
 ## FIX-2026-05-12-002 — Tray notifier still crashed on cold start; added ForceCreate on top of FIX-2026-05-10-002
 
 **Area:** Services / TrayNotifier · NewMailPoller balloon delivery

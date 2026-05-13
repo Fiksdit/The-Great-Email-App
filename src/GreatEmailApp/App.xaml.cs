@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/App.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-07 | Rev: 10
+// Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 11
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.IO;
@@ -60,6 +60,13 @@ public partial class App : Application
             System.Windows.Interop.RenderMode.SoftwareOnly;
 
         base.OnStartup(e);
+
+        // Register the process AppUserModelID and Start-menu shortcut BEFORE
+        // any toast can fire. The poller spins up below; if a new-mail toast
+        // lands without an AUMID-bound Start-menu .lnk, Windows surfaces the
+        // "Look for an app in the Microsoft Store" popup on every notification.
+        // See FIX-2026-05-13-002.
+        ToastAumid.EnsureRegistered();
 
         AppPaths.EnsureRoot();
 
