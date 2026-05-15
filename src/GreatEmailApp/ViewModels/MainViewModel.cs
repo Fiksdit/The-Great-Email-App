@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 8
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 9
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -168,7 +168,97 @@ public partial class MainViewModel : ObservableObject
                 Application.Current?.Dispatcher.BeginInvoke(new Action(() => UpdateSyncIndicator(ev)));
         }
 
+        // Auto-refresh the visible mail list when the new-mail poller finishes
+        // a cycle. Without this, mail arriving while the user is alt-tabbed
+        // away updates the cache + search index + spam filter + rules engine
+        // but never reaches the on-screen Messages collection — so the user
+        // came back to a stale list and had to click a folder to see new mail.
+        // The poller fires on a worker thread; marshal to UI before touching
+        // Messages.
+        if (App.MailPoller is not null)
+        {
+            App.MailPoller.MessagesPolled += (_, ev) =>
+                Application.Current?.Dispatcher.BeginInvoke(new Action(() => OnInboxPolled(ev)));
+        }
+
         UpdateSyncIndicator(null);
+    }
+
+    /// <summary>
+    /// Marshalled to the UI thread from MailPoller.MessagesPolled. If the
+    /// user is currently viewing the inbox of the polled account, re-pull
+    /// the message list from IMAP — server state is the source of truth and
+    /// also reflects any moves the spam filter just performed (so freshly
+    /// auto-junked mail doesn't briefly flash in the list).
+    /// </summary>
+    private async void OnInboxPolled(GreatEmailApp.Core.Notifications.MessagesPolledEvent ev)
+    {
+        try
+        {
+            var folder = SelectedFolder;
+            if (folder is null) return;
+            if (folder.Model.Special != SpecialFolder.Inbox) return;
+            if (folder.Model.AccountId != ev.Account.Id) return;
+
+            await RefreshCurrentFolderAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            // Refresh failure must not blow up the UI thread. Worst case the
+            // user sees the stale list and the next poll tries again.
+            Console.Error.WriteLine($"[MainViewModel.OnInboxPolled] {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Re-pull the SelectedFolder's message list from IMAP and replace
+    /// Messages in place. Preserves SelectedMessage selection if the UID is
+    /// still present after the refresh. Quietly no-ops if nothing's selected
+    /// or credentials are missing. Does NOT touch StatusMessage or IsBusy —
+    /// the user shouldn't see "Loading…" pop up out of nowhere.
+    /// </summary>
+    private async Task RefreshCurrentFolderAsync()
+    {
+        var folder = SelectedFolder;
+        if (folder is null || string.IsNullOrEmpty(folder.Model.FullPath)) return;
+
+        var account = Accounts.FirstOrDefault(a => a.Model.Id == folder.Model.AccountId)?.Model;
+        if (account is null) return;
+        var creds = _creds.Read(account.Id);
+        if (creds is null) return;
+
+        var res = await _imap.ListMessagesAsync(account, creds.Value.Password, folder.Model.FullPath, 200);
+        if (res is not Result<System.Collections.Generic.List<Message>>.Ok ok) return;
+
+        // Re-verify the user is still on the same folder. The 0.5-3s IMAP
+        // round-trip gives plenty of window to click into a different folder;
+        // without this check the refresh would clobber the new folder's list
+        // with stale data from the folder we started loading.
+        if (!ReferenceEquals(SelectedFolder, folder)) return;
+
+        // Snapshot the current selection so we can restore it if the UID is
+        // still in the list after refresh. If it's gone (e.g. the spam filter
+        // just moved it), selection clears — that's the correct behavior.
+        var selectedUid = SelectedMessage?.Model.Id;
+
+        Messages.Clear();
+        foreach (var m in ok.Value)
+            Messages.Add(new MessageViewModel(m));
+        MarkGroupTransitions();
+
+        if (!string.IsNullOrEmpty(selectedUid))
+        {
+            var restore = Messages.FirstOrDefault(m => m.Model.Id == selectedUid);
+            if (restore is not null)
+            {
+                restore.IsSelected = true;
+                SelectedMessage = restore;
+            }
+            else
+            {
+                SelectedMessage = null;
+            }
+        }
     }
 
     /// <summary>

@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Spam/SpamFilterConfig.cs
-// Created: 2026-05-15 | Revised: 2026-05-15 | Rev: 1
+// Created: 2026-05-15 | Revised: 2026-05-15 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Spam;
@@ -46,7 +46,25 @@ public sealed class SpamFilterConfig
         "replica watches", "replica handbags",
         // Adult / gambling
         "casino bonus", "gambling winnings",
+        // Financial / investor cold-outreach. The app owner does not receive
+        // banking or investment correspondence at this address, so any of these
+        // patterns is high-signal spam. Each is rare in legitimate mail. Two
+        // hits in the same message reliably clears the default 70 threshold.
+        "family office", "actively investing", "growth equity", "private equity firm",
+        "this week or next", "regarding your business", "discuss your business",
+        "portfolio companies", "deal flow", "managing director, investments",
+        "investor relations", "venture capital firm", "buy-side opportunity",
+        "interested in your company",
     };
+
+    /// <summary>
+    /// Built-in default keyword list. Used by the config store to merge new
+    /// shipping defaults into an existing user file so users upgrading don't
+    /// miss freshly-added patterns. Kept in sync with the field initializer
+    /// above — if you add a keyword there, add it here too. Phase 2 will
+    /// track user-removed defaults so this merge can be smarter.
+    /// </summary>
+    public static IReadOnlyList<string> BuiltInKeywords => new SpamFilterConfig().SubjectKeywords;
 
     /// <summary>
     /// Sender email addresses (exact match) or domains (leading "@", e.g.
