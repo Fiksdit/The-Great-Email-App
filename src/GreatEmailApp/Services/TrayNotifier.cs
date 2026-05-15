@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Services/TrayNotifier.cs
-// Created: 2026-04-30 | Revised: 2026-05-12 | Rev: 4
+// Created: 2026-04-30 | Revised: 2026-05-15 | Rev: 5
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Wraps an H.NotifyIcon.Wpf TaskbarIcon (purpose-built WPF tray library;
@@ -100,6 +100,12 @@ public sealed class TrayNotifier : IDisposable
 
     private void OnNewMail(object? sender, NewMailEvent e)
     {
+        // Gate balloon delivery on AppSettings.EnableNewMailNotifications.
+        // Rev 5 moved this check here from NewMailPoller so the toggle only
+        // suppresses the toast, not the entire poll cycle (which other
+        // subsystems depend on — see NewMailPoller header comment).
+        if (App.Settings?.EnableNewMailNotifications == false) return;
+
         lock (_bufferLock)
         {
             _buffered.Add(e);

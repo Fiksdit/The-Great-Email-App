@@ -1,10 +1,17 @@
 // FILE: src/GreatEmailApp.Core/Notifications/NewMailPoller.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 1
+// Created: 2026-04-30 | Revised: 2026-05-15 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // Background poller: every Settings.SyncIntervalMinutes, walks each account's
 // inbox and diffs the recent UID list against the per-account "last seen"
 // snapshot. New UIDs fan out as NewMailEvent for the UI layer to surface.
+//
+// Polling is ALWAYS on while the app is open (memory: "app open implies
+// polling on"). The EnableNewMailNotifications setting gates only the toast
+// balloon delivery in TrayNotifier — not the poll itself. Before Rev 2 that
+// flag silently gated the whole poll loop, which meant the search index,
+// spam filter, rules engine, and mail-list auto-refresh all went dormant
+// whenever the user turned off balloons. Decoupled here.
 //
 // Why polling and not IMAP IDLE: IDLE keeps a connection open per account, is
 // touchier across mobile-NAT / sleep / wake transitions, and would belong with
@@ -93,7 +100,11 @@ public sealed class NewMailPoller : INewMailPoller, IDisposable
         try
         {
             EnsureStateLoaded();
-            if (!_settings.EnableNewMailNotifications) { Reschedule(); return; }
+            // NOTE: do NOT gate the poll on EnableNewMailNotifications here.
+            // That setting controls balloon delivery (TrayNotifier.OnNewMail),
+            // not whether we fetch from IMAP. Subscribers like the search
+            // indexer, spam filter, rules engine, and UI auto-refresh all
+            // depend on this cycle running regardless of the toast toggle.
 
             foreach (var account in _accountStore.LoadAll())
             {
