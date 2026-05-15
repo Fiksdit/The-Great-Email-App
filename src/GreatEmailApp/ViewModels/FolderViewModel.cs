@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/FolderViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 3
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -23,7 +23,13 @@ public partial class FolderViewModel : ObservableObject
     public string Id => Model.Id;
     public string Name => Model.Name;
     public int UnreadCount => Model.UnreadCount;
-    public bool HasUnread => Model.UnreadCount > 0;
+    // Suppress the orange unread chip on the Junk folder unless the user has
+    // opted in. The spam filter auto-routes mail here and marks it read, so
+    // an unread count on Junk is usually noise (and was a constant nag for
+    // anyone testing the filter). AppSettings.ShowJunkUnreadBadge defaults to
+    // false; flip it in Settings to see at-a-glance how much was caught.
+    public bool HasUnread => Model.UnreadCount > 0
+        && (Model.Special != SpecialFolder.Junk || (App.Settings?.ShowJunkUnreadBadge ?? false));
     public bool IsNested => Model.IsNested;
     public bool HasChildren => Children.Count > 0;
 

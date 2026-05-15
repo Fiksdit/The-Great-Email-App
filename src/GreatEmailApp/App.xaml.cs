@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/App.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 11
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 12
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.IO;
@@ -12,6 +12,7 @@ using GreatEmailApp.Core.Notifications;
 using GreatEmailApp.Core.Rules;
 using GreatEmailApp.Core.Search;
 using GreatEmailApp.Core.Services;
+using GreatEmailApp.Core.Spam;
 using GreatEmailApp.Core.Storage;
 using GreatEmailApp.Core.Sync;
 using GreatEmailApp.Core.Updates;
@@ -32,6 +33,9 @@ public partial class App : Application
     public static IRulesStore Rules { get; private set; } = null!;
     public static IRulesEngine RulesEngine { get; private set; } = null!;
     public static IRuleSuggestionEngine RuleSuggestions { get; private set; } = null!;
+    public static ISpamConfigStore SpamConfig { get; private set; } = null!;
+    public static ISpamFilter SpamFilter { get; private set; } = null!;
+    public static ISpamFilterEngine SpamFilterEngine { get; private set; } = null!;
     public static IFolderCache FolderCache { get; private set; } = null!;
     public static IDraftStore Drafts { get; private set; } = null!;
     public static ISettingsStore SettingsStore { get; private set; } = null!;
@@ -125,6 +129,17 @@ public partial class App : Application
         RulesEngine = new RulesEngine(Rules, Accounts, Credentials, Imap, MailPoller);
         RulesEngine.Start();
         RuleSuggestions = new RuleSuggestionEngine(MessageCache, Rules);
+
+        // Spam filter: keyword + heuristic classifier. Same wire-in shape as
+        // RulesEngine — subscribes to MessagesPolled, classifies each new
+        // inbox message, marks Spam verdicts \Seen and moves them to Junk so
+        // they never visibly land in the user's inbox. First-run scan of the
+        // Sent folder seeds the trusted-senders list so anyone the user has
+        // emailed gets a free pass.
+        SpamConfig = new JsonSpamConfigStore();
+        SpamFilter = new SpamFilter();
+        SpamFilterEngine = new SpamFilterEngine(SpamConfig, SpamFilter, Accounts, Credentials, Imap, MailPoller);
+        SpamFilterEngine.Start();
         Exit += (_, _) => { _tray?.Dispose(); (MailPoller as IDisposable)?.Dispose(); };
 
         Theme.Apply(Settings.Theme, Settings.Accent);

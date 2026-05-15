@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Models/AppSettings.cs
-// Created: 2026-04-29 | Revised: 2026-05-10 | Rev: 2
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Models;
@@ -60,6 +60,14 @@ public sealed class AppSettings
     /// <summary>Show a Windows balloon when the new-mail poller detects unseen messages.</summary>
     public bool EnableNewMailNotifications { get; set; } = true;
 
+    /// <summary>
+    /// Show the orange unread-count badge on the Junk folder in the sidebar.
+    /// Default OFF — once spam is auto-classified into Junk the user usually
+    /// doesn't want a constant nag pulling their attention there. Flip on if
+    /// you want to see at-a-glance how much was caught.
+    /// </summary>
+    public bool ShowJunkUnreadBadge { get; set; } = false;
+
     // Sync (Firebase — Phase 4). PER-PC, never copied on apply.
     public bool SyncEnabled { get; set; } = false;
     public string? SignedInEmail { get; set; }
@@ -99,6 +107,7 @@ public sealed class AppSettings
         // Send / Receive
         SyncIntervalMinutes        = other.SyncIntervalMinutes;
         EnableNewMailNotifications = other.EnableNewMailNotifications;
+        ShowJunkUnreadBadge        = other.ShowJunkUnreadBadge;
 
         // Explicitly NOT copied (per-PC):
         //   SyncEnabled     — sign-in state of THIS machine

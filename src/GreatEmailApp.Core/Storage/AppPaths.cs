@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Storage/AppPaths.cs
-// Created: 2026-04-29 | Revised: 2026-05-07 | Rev: 4
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 5
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Storage;
@@ -17,6 +17,9 @@ public static class AppPaths
     public static string AccountsJson => Path.Combine(Root, "accounts.json");
     public static string ContactsJson => Path.Combine(Root, "contacts.json");
     public static string RulesJson    => Path.Combine(Root, "rules.json");
+    /// <summary>Spam filter config — enabled flag, threshold, keyword list,
+    /// blocked + trusted sender lists. Synced across PCs.</summary>
+    public static string SpamConfigJson => Path.Combine(Root, "spam-filter.json");
     public static string FoldersCacheJson => Path.Combine(Root, "folders-cache.json");
     public static string DraftsJson    => Path.Combine(Root, "drafts.json");
 
