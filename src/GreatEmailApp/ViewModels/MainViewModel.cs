@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 11
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 12
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -87,13 +87,36 @@ public partial class MainViewModel : ObservableObject
     public bool HasDrafts => DraftCount > 0;
     partial void OnDraftCountChanged(int value) => OnPropertyChanged(nameof(HasDrafts));
 
+    // True iff there's a non-empty search box value. Drives the visibility
+    // of the "Search server for more results" link in the mail list.
+    public bool HasSearchText => !string.IsNullOrWhiteSpace(SearchText);
+
+    // Set to true while a server-side search result set is what's currently
+    // populating Messages. When the user clears the search box, this flag
+    // tells us to reload the folder (to wipe the cross-folder hits and
+    // restore the normal local view).
+    private bool _serverSearchActive;
+
     // Filter pill + search-box plumbing. Both refresh the same default
     // ICollectionView; the predicate combines pill-state AND search-text.
     partial void OnFilterChanged(string value) =>
         System.Windows.Data.CollectionViewSource.GetDefaultView(Messages)?.Refresh();
 
-    partial void OnSearchTextChanged(string value) =>
+    partial void OnSearchTextChanged(string value)
+    {
         System.Windows.Data.CollectionViewSource.GetDefaultView(Messages)?.Refresh();
+        OnPropertyChanged(nameof(HasSearchText));
+
+        // If the user cleared the box AND we had server-search results in
+        // the list (which include other folders), reload the current folder
+        // to restore the normal view. Without this the cross-folder hits
+        // would linger after the user emptied the box.
+        if (string.IsNullOrWhiteSpace(value) && _serverSearchActive)
+        {
+            _serverSearchActive = false;
+            _ = SelectFolderAsync(SelectedFolder);
+        }
+    }
 
     /// <summary>
     /// Basic in-folder search. STRICT: matches only against sender display
@@ -472,6 +495,49 @@ public partial class MainViewModel : ObservableObject
     public void ReloadAccounts()
     {
         LoadAccounts();
+    }
+
+    /// <summary>
+    /// Bound to the "Search server for more results…" link in MailList.
+    /// Runs an IMAP SEARCH (FromContains OR SubjectContains) against every
+    /// selectable folder of the currently-viewed account, then replaces
+    /// Messages with the union of those hits. Clearing the search box
+    /// reloads the original folder via OnSearchTextChanged.
+    /// </summary>
+    [RelayCommand]
+    private async Task SearchServerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SearchText)) return;
+        if (SelectedFolder is null) return;
+        var account = Accounts.FirstOrDefault(a => a.Model.Id == SelectedFolder.Model.AccountId)?.Model;
+        if (account is null) return;
+        var creds = _creds.Read(account.Id);
+        if (creds is null) return;
+
+        var query = SearchText.Trim();
+        IsBusy = true;
+        StatusMessage = $"Searching {account.EmailAddress} for \"{query}\"…";
+
+        try
+        {
+            var res = await _imap.SearchAccountAsync(account, creds.Value.Password, query, 200);
+            if (res is Result<System.Collections.Generic.List<Message>>.Ok ok)
+            {
+                Messages.Clear();
+                foreach (var m in ok.Value)
+                    Messages.Add(new MessageViewModel(m));
+                MarkGroupTransitions();
+                _serverSearchActive = true;
+                StatusMessage = ok.Value.Count == 0
+                    ? $"No matches on the server for \"{query}\"."
+                    : $"Found {ok.Value.Count} on the server.";
+            }
+            else if (res is Result<System.Collections.Generic.List<Message>>.Fail f)
+            {
+                StatusMessage = $"Server search failed: {f.Error}";
+            }
+        }
+        finally { IsBusy = false; }
     }
 
     /// <summary>

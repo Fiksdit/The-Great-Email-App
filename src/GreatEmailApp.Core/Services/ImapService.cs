@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Services/ImapService.cs
-// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 2
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 // MailKit-backed IMAP. Single-shot operations: open → do → close. We do NOT
 // hold a long-lived connection in Phase 2 — IDLE / push lands in Phase 5.
@@ -407,6 +407,104 @@ public sealed class ImapService : IImapService
         catch (Exception ex)
         {
             return Result.Fail<(string, string)>(SanitizeError(ex), ex);
+        }
+    }
+
+    public async Task<Result<List<Message>>> SearchAccountAsync(
+        Account account, string password, string query, int limit = 200,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+
+            // Match Outlook's basic-search semantics: substring on From OR
+            // Subject. From-header substring covers both display name and
+            // address ("Doug Miller <doug@exioacquire.com>" matches "exio"
+            // or "Doug"). MailKit translates these to IMAP SEARCH FROM /
+            // SUBJECT terms; servers handle the heavy lifting.
+            var imapQuery = SearchQuery.FromContains(query)
+                .Or(SearchQuery.SubjectContains(query));
+
+            // Gather every selectable folder. INBOX sits outside the personal
+            // namespace on many servers (Dovecot, fiksdit.com) — include it
+            // explicitly. Skip non-selectable container folders.
+            var foldersToSearch = new List<IMailFolder>();
+            try { foldersToSearch.Add(client.Inbox); } catch { /* edge case */ }
+            try
+            {
+                var personal = client.GetFolder(client.PersonalNamespaces[0]);
+                await CollectSelectableFoldersAsync(personal, foldersToSearch, ct);
+            }
+            catch { /* if namespace unavailable, fall back to INBOX-only */ }
+
+            var results = new List<Message>();
+            var seenKeys = new HashSet<string>();
+            foreach (var folder in foldersToSearch)
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    await folder.OpenAsync(FolderAccess.ReadOnly, ct);
+                    var uids = await folder.SearchAsync(imapQuery, ct);
+                    if (uids.Count > 0)
+                    {
+                        // Cap per-folder so one noisy folder (newsletters etc.)
+                        // can't dominate the result set. Take newest UIDs.
+                        var top = uids.OrderByDescending(u => u.Id).Take(50).ToList();
+                        var summaries = await folder.FetchAsync(top,
+                            MessageSummaryItems.Envelope | MessageSummaryItems.Flags |
+                            MessageSummaryItems.UniqueId | MessageSummaryItems.PreviewText,
+                            ct);
+                        foreach (var s in summaries)
+                        {
+                            // Dedupe across folders by (folder|uid). GMail-style
+                            // virtual folders can return the same Message-ID
+                            // from multiple labels; the (folder,uid) key keeps
+                            // each occurrence distinct from the user's POV.
+                            var key = folder.FullName + "|" + s.UniqueId.Id;
+                            if (seenKeys.Add(key))
+                                results.Add(Map(s, account.Id, folder.FullName));
+                        }
+                    }
+                    if (folder.IsOpen)
+                        await folder.CloseAsync(false, ct);
+                }
+                catch
+                {
+                    // Folder may be unopenable (\NoSelect that slipped through,
+                    // permission denied, etc.). Skip — never let one bad folder
+                    // sink the whole search.
+                }
+
+                if (results.Count >= limit) break;
+            }
+
+            await client.DisconnectAsync(true, ct);
+
+            return Result.Ok(results
+                .OrderByDescending(m => m.SentAt ?? DateTimeOffset.MinValue)
+                .Take(limit)
+                .ToList());
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<List<Message>>(SanitizeError(ex), ex);
+        }
+    }
+
+    private static async Task CollectSelectableFoldersAsync(
+        IMailFolder parent, List<IMailFolder> output, CancellationToken ct)
+    {
+        var children = await parent.GetSubfoldersAsync(false, ct);
+        foreach (var c in children)
+        {
+            if ((c.Attributes & FolderAttributes.NonExistent) != 0) continue;
+            if ((c.Attributes & FolderAttributes.NoSelect) == 0)
+                output.Add(c);
+            if ((c.Attributes & FolderAttributes.HasChildren) != 0)
+                await CollectSelectableFoldersAsync(c, output, ct);
         }
     }
 

@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Controls/MailList.xaml
-     Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 3
+     Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 4
      Changed by: Claude Opus 4.7 on behalf of James Reed
      Middle pane — message list with grouping, filter pills, search. -->
 <UserControl x:Class="GreatEmailApp.Controls.MailList"
@@ -100,6 +100,24 @@
                                       Click="Pill_Click" Tag="Mentions" />
                     </StackPanel>
                 </StackPanel>
+            </Border>
+
+            <!-- "Search server for more results" — Outlook-style link anchored
+                 to the bottom of the message pane, visible only when the
+                 search box is non-empty. The local filter still runs as the
+                 user types; this is the explicit escape hatch when nothing
+                 local matches or they want broader cross-folder coverage. -->
+            <Border DockPanel.Dock="Bottom"
+                    Visibility="{Binding HasSearchText, Converter={StaticResource BoolVis}}"
+                    BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0"
+                    Padding="14,8" Background="{DynamicResource PaneBackgroundBrush}">
+                <TextBlock TextWrapping="Wrap" FontSize="12"
+                           Foreground="{DynamicResource SecondaryTextBrush}">
+                    <Hyperlink Command="{Binding SearchServerCommand}"
+                               Foreground="{DynamicResource AccentBrush}">
+                        <Run Text="Search server for more results…" />
+                    </Hyperlink>
+                </TextBlock>
             </Border>
 
             <!-- List -->

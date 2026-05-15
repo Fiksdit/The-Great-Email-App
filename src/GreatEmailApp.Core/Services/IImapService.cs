@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Services/IImapService.cs
-// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 2
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using GreatEmailApp.Core.Models;
@@ -76,4 +76,15 @@ public interface IImapService
     /// itself remains. Returns the count of messages removed.</summary>
     Task<Result<int>> EmptyFolderAsync(Account account, string password,
         string folderFullPath, CancellationToken ct = default);
+
+    /// <summary>
+    /// Search every selectable folder in the account for messages whose From
+    /// header OR subject contains <paramref name="query"/>. Returns at most
+    /// <paramref name="limit"/> results, ordered newest-first by envelope
+    /// date. Used by the "Search server for more results" link in the mail
+    /// list — the local in-memory filter only sees the latest 200 of the
+    /// current folder, so anything older or in another folder needs this.
+    /// </summary>
+    Task<Result<List<Message>>> SearchAccountAsync(Account account, string password,
+        string query, int limit = 200, CancellationToken ct = default);
 }
