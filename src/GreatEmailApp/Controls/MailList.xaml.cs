@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/MailList.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 5
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 6
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.Generic;
@@ -15,9 +15,29 @@ namespace GreatEmailApp.Controls;
 
 public partial class MailList : UserControl
 {
+    private MainViewModel? _boundVm;
+
     public MailList()
     {
         InitializeComponent();
+        // Listen for folder-click events on whichever MainViewModel is bound
+        // (re-binds correctly if DataContext ever swaps).
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_boundVm is not null) _boundVm.FolderLoaded -= OnFolderLoaded;
+        _boundVm = e.NewValue as MainViewModel;
+        if (_boundVm is not null) _boundVm.FolderLoaded += OnFolderLoaded;
+    }
+
+    private void OnFolderLoaded(object? sender, EventArgs e)
+    {
+        // Marshal to UI thread defensively — the event is raised from an
+        // async method whose continuation runs on the captured context, but
+        // belt-and-suspenders here in case that ever changes.
+        Dispatcher.BeginInvoke(new Action(() => MessageScroll?.ScrollToTop()));
     }
 
     private void Row_Click(object sender, MouseButtonEventArgs e)

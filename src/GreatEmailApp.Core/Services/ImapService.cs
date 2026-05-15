@@ -550,6 +550,9 @@ public sealed class ImapService : IImapService
             Preview = s.PreviewText ?? "",
             Time = time,
             FullTime = fullTime,
+            // Source of truth for chronological ordering. Cache reads/writes
+            // pivot on this — FullTime is just a render-time string.
+            SentAt = s.Date != default ? s.Date : null,
             Unread = unread,
             Flagged = flagged,
             Important = false,

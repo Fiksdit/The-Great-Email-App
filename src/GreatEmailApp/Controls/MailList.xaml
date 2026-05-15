@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Controls/MailList.xaml
-     Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 2
+     Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 3
      Changed by: Claude Opus 4.7 on behalf of James Reed
      Middle pane — message list with grouping, filter pills, search. -->
 <UserControl x:Class="GreatEmailApp.Controls.MailList"
@@ -103,7 +103,8 @@
             </Border>
 
             <!-- List -->
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer x:Name="MessageScroll"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl ItemsSource="{Binding Messages}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>

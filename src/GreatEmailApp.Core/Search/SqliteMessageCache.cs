@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Search/SqliteMessageCache.cs
-// Created: 2026-04-30 | Revised: 2026-05-13 | Rev: 2
+// Created: 2026-04-30 | Revised: 2026-05-15 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // SQLite-backed message envelope + body cache, with FTS5 for search.
@@ -148,7 +148,14 @@ public sealed class SqliteMessageCache : IMessageCache
                 pSemail.Value = m.SenderEmail ?? "";
                 pSubj.Value   = m.Subject ?? "";
                 pPrev.Value   = m.Preview ?? "";
-                pSent.Value   = (object?)m.FullTime ?? DBNull.Value;  // Time is short, FullTime is the long form
+                // Store ISO 8601 UTC so SQLite's lexicographic sort is also
+                // chronological. The previous version stored m.FullTime, a
+                // human-display string ("Wed, May 13, 2026, 3:22 PM"), which
+                // sorted alphabetically by day-of-week prefix — surfacing
+                // Tuesday-dated emails above today's Friday-dated ones.
+                pSent.Value   = m.SentAt.HasValue
+                    ? (object)m.SentAt.Value.UtcDateTime.ToString("o", System.Globalization.CultureInfo.InvariantCulture)
+                    : DBNull.Value;
                 pAtt.Value    = (m.Attachments?.Count ?? 0) > 0 ? 1 : 0;
                 pUn.Value     = m.Unread ? 1 : 0;
                 await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
@@ -199,12 +206,21 @@ public sealed class SqliteMessageCache : IMessageCache
             await using var conn = new SqliteConnection(_connStr);
             await conn.OpenAsync(ct).ConfigureAwait(false);
             await using var cmd = conn.CreateCommand();
+            // Filter to ISO-formatted sent_at entries only (YYYY-MM-DDT…). Legacy
+            // rows from before Rev 3 stored a localized display string like
+            // "Wed, May 13, 2026, 3:22 PM" which sorts lexicographically by
+            // day-of-week and surfaces stale dates (e.g. Tuesday-May-6 ahead
+            // of today). Those legacy rows get re-upserted with ISO format on
+            // the next poll cycle; until then we skip them so the cache-paint
+            // never shows the wrong "newest" mail.
             cmd.CommandText = @"
                 SELECT uid, sender, sender_email, subject, preview, sent_at,
                        has_attachments, unread
                 FROM messages
                 WHERE account_id = @aid AND folder_path = @folder
-                ORDER BY COALESCE(sent_at, '') DESC
+                  AND sent_at IS NOT NULL
+                  AND sent_at LIKE '____-__-__T%'
+                ORDER BY sent_at DESC
                 LIMIT @limit;";
             cmd.Parameters.AddWithValue("@aid", accountId);
             cmd.Parameters.AddWithValue("@folder", folderPath);
@@ -219,13 +235,16 @@ public sealed class SqliteMessageCache : IMessageCache
                 var senderEmail = rdr.GetString(2);
                 var subject = rdr.GetString(3);
                 var preview = rdr.GetString(4);
+                DateTimeOffset? sentAt = null;
                 string fullTime = "";
                 string shortTime = "";
                 if (!rdr.IsDBNull(5))
                 {
                     var s = rdr.GetString(5);
-                    if (DateTimeOffset.TryParse(s, out var dt))
+                    if (DateTimeOffset.TryParse(s, System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.AssumeUniversal, out var dt))
                     {
+                        sentAt = dt;
                         fullTime = dt.LocalDateTime.ToString("ddd, MMM d, yyyy, h:mm tt");
                         shortTime = dt.LocalDateTime.ToString("MMM d");
                     }
@@ -244,6 +263,7 @@ public sealed class SqliteMessageCache : IMessageCache
                     Preview = preview,
                     Time = shortTime,
                     FullTime = fullTime,
+                    SentAt = sentAt,
                     Unread = unread,
                     Attachments = hasAtt ? new List<Attachment> { new() { Name = "", Size = "" } } : new(),
                 });

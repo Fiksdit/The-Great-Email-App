@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 10
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 11
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -23,6 +23,16 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<AccountViewModel> Accounts { get; } = new();
     public ObservableCollection<MessageViewModel> Messages { get; } = new();
+
+    /// <summary>
+    /// Raised when SelectFolderAsync finishes loading a folder the user just
+    /// clicked. MailList listens and snaps its ScrollViewer back to the top
+    /// so each folder click lands at the newest message. NOT raised by
+    /// RefreshCurrentFolderAsync (auto-refresh on poll) — that path
+    /// deliberately preserves the user's scroll position so a 5-min poll
+    /// doesn't yank them away from whatever they're reading.
+    /// </summary>
+    public event EventHandler? FolderLoaded;
 
     [ObservableProperty] private string activeRibbonTab = "Home";
     [ObservableProperty] private FolderViewModel? selectedFolder;
@@ -569,6 +579,12 @@ public partial class MainViewModel : ObservableObject
             var first = Messages.FirstOrDefault();
             if (first is not null)
                 await SelectMessageAsync(first);
+
+            // Signal the view that this was an explicit folder click so it
+            // resets scroll to top. WPF's ScrollViewer doesn't auto-rewind
+            // when the underlying ObservableCollection is rebuilt; without
+            // this nudge the user could click a folder and land mid-list.
+            FolderLoaded?.Invoke(this, EventArgs.Empty);
         }
         else if (res is Result<System.Collections.Generic.List<Message>>.Fail f)
         {

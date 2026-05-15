@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Models/Message.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Models;
@@ -28,6 +28,15 @@ public sealed class Message
     public string Preview { get; set; } = "";
     public string Time { get; set; } = "";     // short: "9:14 AM", "Yesterday", "Apr 21"
     public string FullTime { get; set; } = ""; // long: "Tue, Apr 28, 2026, 9:14 AM"
+
+    /// <summary>
+    /// Structured received-date for chronological ordering. Comes from the IMAP
+    /// envelope's Date header. Stored in the cache as ISO 8601 so it sorts
+    /// correctly — Time/FullTime are display-only strings whose lexicographic
+    /// order makes no chronological sense ("Wed" sorts before "Tue" sorts
+    /// before "Thu", etc.). Null when the IMAP envelope had no parseable date.
+    /// </summary>
+    public DateTimeOffset? SentAt { get; set; }
 
     public bool Unread { get; set; }
     public bool Flagged { get; set; }
