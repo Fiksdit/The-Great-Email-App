@@ -172,7 +172,15 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnAllowRemoteImagesChanged(bool v) => _settings.AllowRemoteImages = v;
     partial void OnEnableNewMailNotificationsChanged(bool v) => _settings.EnableNewMailNotifications = v;
     partial void OnMarkReadDelaySecondsChanged(int v) => _settings.MarkReadDelaySeconds = v;
-    partial void OnSyncIntervalMinutesChanged(int v)  => _settings.SyncIntervalMinutes = v;
+    partial void OnSyncIntervalMinutesChanged(int v)
+    {
+        // Clamp to >=1. The NewMailPoller already clamps internally as a
+        // safety net, but enforcing here means the value persisted to
+        // settings.json (and synced to Firestore) matches what actually runs.
+        // Recursive set terminates after one bounce since v == 1 second time.
+        if (v < 1) { SyncIntervalMinutes = 1; return; }
+        _settings.SyncIntervalMinutes = v;
+    }
 
     partial void OnIsSyncBusyChanged(bool value)
     {

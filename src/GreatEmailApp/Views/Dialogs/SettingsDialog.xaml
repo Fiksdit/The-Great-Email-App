@@ -227,7 +227,7 @@
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource RowLabel}" Text="Auto Send/Receive" />
                                     <TextBlock Style="{StaticResource RowDescription}"
-                                               Text="Check for new mail at this interval (in minutes). 0 = manual only." />
+                                               Text="Check for new mail at this interval. Minimum 1 minute." />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBox Text="{Binding SyncIntervalMinutes, UpdateSourceTrigger=PropertyChanged}"
