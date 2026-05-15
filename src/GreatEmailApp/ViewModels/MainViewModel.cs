@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 7
+// Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 8
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -189,27 +189,32 @@ public partial class MainViewModel : ObservableObject
 
         SyncIndicatorVisible = true;
         var kind = ev?.Kind ?? GreatEmailApp.Core.Sync.SyncEventKind.Idle;
+        // Legend appended to every tooltip so hovering any state explains all
+        // three colors. Without this the user might never see amber/red and
+        // wouldn't know what they mean if they did.
+        const string Legend = "\n\nGreen — live and idle\nAmber — currently syncing\nRed — last sync failed";
         switch (kind)
         {
             case GreatEmailApp.Core.Sync.SyncEventKind.Pulling:
             case GreatEmailApp.Core.Sync.SyncEventKind.Pushing:
                 SyncIndicatorText = "Syncing…";
                 SyncIndicatorBrush = Application.Current?.TryFindResource("AccentBrush") as System.Windows.Media.Brush;
-                SyncIndicatorTooltip = "Syncing settings, accounts, contacts, and rules with Firebase.";
+                SyncIndicatorTooltip = "Syncing settings, accounts, contacts, and rules with Firebase." + Legend;
                 break;
             case GreatEmailApp.Core.Sync.SyncEventKind.Failed:
                 SyncIndicatorText = "Sync error";
                 SyncIndicatorBrush = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromRgb(0xE1, 0x4D, 0x4D));
-                SyncIndicatorTooltip = string.IsNullOrEmpty(ev?.Detail)
+                var failHeader = string.IsNullOrEmpty(ev?.Detail)
                     ? "Sync failed. Open Settings → Sync to retry."
                     : $"Sync failed: {ev.Detail}";
+                SyncIndicatorTooltip = failHeader + Legend;
                 break;
             default:
                 // Idle / Pushed / Applied — sync is live and quiet.
                 SyncIndicatorText = "Sync on";
                 SyncIndicatorBrush = Application.Current?.TryFindResource("GreenBrush") as System.Windows.Media.Brush;
-                SyncIndicatorTooltip = "Firebase sync is live. Settings, accounts, contacts, and rules sync across PCs.";
+                SyncIndicatorTooltip = "Firebase sync is live. Settings, accounts, contacts, and rules sync across PCs." + Legend;
                 break;
         }
     }
@@ -232,17 +237,25 @@ public partial class MainViewModel : ObservableObject
         }
 
         HasAccounts = true;
+        // Only the FIRST account (by stored order) is allowed to auto-select its
+        // inbox at startup. Otherwise, multi-account setups race: whichever
+        // account's IMAP LIST answered first won the SelectedFolder slot, so the
+        // app appeared to "start in a random folder." Now the primary account
+        // wins deterministically; the user can still click into any account
+        // after startup.
+        bool isPrimary = true;
         foreach (var a in stored)
         {
             var vm = new AccountViewModel(a);
             Accounts.Add(vm);
             // Kick off folder load. Fire-and-forget; UI updates on completion.
-            _ = LoadFoldersAsync(vm);
+            _ = LoadFoldersAsync(vm, autoSelectInbox: isPrimary);
+            isPrimary = false;
         }
         StatusMessage = $"Loaded {stored.Count} account(s).";
     }
 
-    private async Task LoadFoldersAsync(AccountViewModel accountVm)
+    private async Task LoadFoldersAsync(AccountViewModel accountVm, bool autoSelectInbox = false)
     {
         var account = accountVm.Model;
         var creds = _creds.Read(account.Id);
@@ -321,8 +334,10 @@ public partial class MainViewModel : ObservableObject
                 }
                 StatusMessage = $"{account.EmailAddress}: {ok.Value.Count} folders.";
 
-                // Auto-select inbox if nothing's selected
-                if (SelectedFolder is null)
+                // Auto-select inbox only when this load was tagged as primary AND
+                // nothing else is selected yet. Non-primary accounts no longer win
+                // the race based on IMAP response speed.
+                if (autoSelectInbox && SelectedFolder is null)
                 {
                     var inbox = accountVm.Folders.FirstOrDefault(x => x.Model.Special == SpecialFolder.Inbox)
                               ?? accountVm.Folders.FirstOrDefault();
@@ -378,7 +393,10 @@ public partial class MainViewModel : ObservableObject
         }
         var vm = new AccountViewModel(account);
         Accounts.Add(vm);
-        _ = LoadFoldersAsync(vm);
+        // Newly-added account during a session: auto-select its inbox iff nothing
+        // else is selected. If the user already has another folder open, don't
+        // yank them away.
+        _ = LoadFoldersAsync(vm, autoSelectInbox: true);
     }
 
     [RelayCommand]
@@ -415,11 +433,28 @@ public partial class MainViewModel : ObservableObject
         Messages.Clear();
         SelectedMessage = null;
 
+        // Paint cached envelopes immediately so the list isn't blank during the
+        // 0.5–3s IMAP round-trip. Mirrors the cached-folders paint in
+        // LoadFoldersAsync. The live IMAP fetch below replaces these in place
+        // when it returns; if IMAP fails, the user at least has the cached view
+        // to work with.
+        var cached = await App.MessageCache.GetEnvelopesAsync(account.Id, folder.Model.FullPath, 25, ct);
+        if (!ct.IsCancellationRequested && cached is Result<System.Collections.Generic.List<Message>>.Ok cachedOk && cachedOk.Value.Count > 0)
+        {
+            foreach (var m in cachedOk.Value)
+                Messages.Add(new MessageViewModel(m));
+            MarkGroupTransitions();
+            StatusMessage = $"{folder.Name}: {cachedOk.Value.Count} cached, refreshing…";
+        }
+
         var res = await _imap.ListMessagesAsync(account, creds.Value.Password, folder.Model.FullPath, 200, ct);
         if (ct.IsCancellationRequested) return;
 
         if (res is Result<System.Collections.Generic.List<Message>>.Ok ok)
         {
+            // Replace cached envelopes with the fresh server state. Clear first
+            // so we don't end up with duplicates from the cache pre-paint.
+            Messages.Clear();
             foreach (var m in ok.Value)
                 Messages.Add(new MessageViewModel(m));
             MarkGroupTransitions();

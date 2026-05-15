@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Themes/Controls.xaml
-     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+     Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 2
      Changed by: Claude Opus 4.7 on behalf of James Reed
      Shared control styles. Aim: Fluent feel without depending on WinUI/MahApps. -->
 <ResourceDictionary
@@ -114,6 +114,34 @@
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
         <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+    </Style>
+
+    <!-- Global ToolTip skin. Without this, tooltip popups use the Windows-default
+         light background — and the implicit TextBlock style above sets Foreground
+         to PrimaryTextBrush (light in dark theme), so every tooltip in the app
+         rendered as invisible text on a light background ("blank popup" bug).
+         Forcing a dark popup with a 1px border lets our light TextBlock content
+         show up; string-form tooltips render via the same template too. -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="{DynamicResource ElevatedBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="HasDropShadow" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style TargetType="TextBox">

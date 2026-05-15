@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Controls/MailList.xaml
-     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
+     Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 2
      Changed by: Claude Opus 4.7 on behalf of James Reed
      Middle pane — message list with grouping, filter pills, search. -->
 <UserControl x:Class="GreatEmailApp.Controls.MailList"
@@ -245,8 +245,16 @@
                                 </Border>
                             </StackPanel>
                             <DataTemplate.Triggers>
+                                <!-- Selected row: keep the AccentSoftBrush tint (so it looks
+                                     consistent with unread when both apply) AND add a 1.5px
+                                     accent border so selection is visually distinct from a
+                                     row that's merely unread. Previously selected used the
+                                     SAME brush as unread, making the two states impossible
+                                     to tell apart. -->
                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                     <Setter TargetName="Row" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                    <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                    <Setter TargetName="Row" Property="BorderThickness" Value="1.5" />
                                 </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>

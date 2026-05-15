@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/MessageBodyView.xaml.cs
-// Created: 2026-04-30 | Revised: 2026-05-13 | Rev: 3
+// Created: 2026-04-30 | Revised: 2026-05-13 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System;
@@ -57,6 +57,15 @@ public partial class MessageBodyView : UserControl
     // with an empty body and never sees BodyHtml/BodyPlain populate. See
     // FIX-2026-05-12-001.
     private MessageViewModel? _subscribedMessage;
+    // Navigation serialization. FIX-2026-05-12-001 wired the BodyHtml/Plain/Display
+    // subscription so a body that arrives 200ms after Message-DP-change still
+    // triggers a re-Render. But calling NavigateToString a second time while the
+    // first navigation is still in flight is unreliable in WebView2 — the second
+    // call sometimes gets dropped, leaving the pane blank until the user picks a
+    // different message. Queue any new HTML while a nav is in flight and flush it
+    // from NavigationCompleted. See FIX-2026-05-13-003.
+    private bool _navigationInFlight;
+    private string? _queuedHtml;
 
     public MessageBodyView()
     {
@@ -88,6 +97,7 @@ public partial class MessageBodyView : UserControl
             Web.CoreWebView2.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
             Web.CoreWebView2.WebResourceRequested += OnWebResourceRequested;
             Web.CoreWebView2.NavigationStarting += OnNavigationStarting;
+            Web.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
             Web.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
 
             _coreReady = true;
@@ -164,8 +174,34 @@ public partial class MessageBodyView : UserControl
     {
         _pendingHtml = html;
         if (!_coreReady) return;
+
+        // If WebView2 is mid-navigate, queue this and let NavigationCompleted flush
+        // it. Calling NavigateToString twice in rapid succession races: the second
+        // call (the one with the populated body) can be silently dropped, leaving
+        // the pane blank. Only the LATEST queued HTML wins — earlier queued values
+        // are discarded, which is correct (we only ever want the current body).
+        if (_navigationInFlight)
+        {
+            _queuedHtml = html;
+            return;
+        }
+
+        _navigationInFlight = true;
         _initialNavigationConsumed = false;
         Web.NavigateToString(html);
+    }
+
+    private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    {
+        _navigationInFlight = false;
+        // Flush any HTML that arrived while we were navigating. Re-entering
+        // LoadHtml is safe — the flag is now false so it'll go straight through.
+        if (_queuedHtml is not null)
+        {
+            var html = _queuedHtml;
+            _queuedHtml = null;
+            LoadHtml(html);
+        }
     }
 
     public void Refresh() => Render();

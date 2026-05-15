@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Search/IMessageCache.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 1
+// Created: 2026-04-30 | Revised: 2026-05-13 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using GreatEmailApp.Core.Models;
@@ -33,6 +33,15 @@ public interface IMessageCache
     /// <summary>Persist a message body so future searches can find on body text.</summary>
     Task<Result<bool>> UpsertBodyAsync(string accountId, string folderPath, uint uid,
         string bodyPlain, CancellationToken ct = default);
+
+    /// <summary>
+    /// Return the most recent <paramref name="limit"/> cached envelopes for a
+    /// folder, newest first. Used to paint the mail list instantly while the
+    /// live IMAP fetch is in flight (typically 0.5–3s on first open) — without
+    /// this the user stares at an empty list every time they click a folder.
+    /// </summary>
+    Task<Result<List<Message>>> GetEnvelopesAsync(string accountId, string folderPath,
+        int limit, CancellationToken ct = default);
 
     /// <summary>Run a full-text search across cached messages. Returns ranked hits.</summary>
     Task<Result<List<SearchHit>>> SearchAsync(string query, int limit = 30, CancellationToken ct = default);

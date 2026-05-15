@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Controls/TitleBar.xaml
-     Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 2
+     Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 3
      Changed by: Claude Opus 4.7 on behalf of James Reed -->
 <UserControl x:Class="GreatEmailApp.Controls.TitleBar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -156,12 +156,30 @@
 
             <!-- Sync indicator — bound to MainViewModel.SyncIndicator* via TitleBar DPs.
                  Hidden when signed out so the chip never claims sync is active before
-                 the user has actually authenticated with Firebase. -->
+                 the user has actually authenticated with Firebase.
+                 ToolTip uses an explicit element (not a string binding) so we can
+                 force TextWrapping + MaxWidth — the previous implicit string ToolTip
+                 was rendering blank for multi-line content. -->
             <Border Grid.Column="2" Margin="0,0,8,0" VerticalAlignment="Center"
                     Background="{DynamicResource ChipBackgroundBrush}"
                     CornerRadius="4" Padding="8,3"
                     Visibility="{Binding SyncChipVisible, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolVis}}"
-                    ToolTip="{Binding SyncChipTooltip, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    ToolTipService.InitialShowDelay="400"
+                    ToolTipService.ShowDuration="20000">
+                <Border.ToolTip>
+                    <!-- DataContext flows: chip Border inherits MainViewModel from
+                         MainWindow → TitleBar. The ToolTip is in a separate visual
+                         tree, so we copy DataContext across explicitly via
+                         PlacementTarget. Then the inner TextBlock binds directly
+                         to MainViewModel.SyncIndicatorTooltip — no DP/Tag indirection
+                         to misfire. -->
+                    <ToolTip DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                        <TextBlock Text="{Binding SyncIndicatorTooltip}"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="320"
+                                   FontSize="12" />
+                    </ToolTip>
+                </Border.ToolTip>
                 <StackPanel Orientation="Horizontal">
                     <Ellipse Width="6" Height="6" Margin="0,0,6,0"
                              Fill="{Binding SyncChipBrush, RelativeSource={RelativeSource AncestorType=UserControl}}" />

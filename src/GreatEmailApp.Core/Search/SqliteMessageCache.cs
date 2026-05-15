@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Search/SqliteMessageCache.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 1
+// Created: 2026-04-30 | Revised: 2026-05-13 | Rev: 2
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 //
 // SQLite-backed message envelope + body cache, with FTS5 for search.
@@ -189,6 +189,71 @@ public sealed class SqliteMessageCache : IMessageCache
             return Result.Fail<bool>($"UpsertBody failed: {ex.Message}", ex);
         }
         finally { _writeGate.Release(); }
+    }
+
+    public async Task<Result<List<Message>>> GetEnvelopesAsync(
+        string accountId, string folderPath, int limit, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var conn = new SqliteConnection(_connStr);
+            await conn.OpenAsync(ct).ConfigureAwait(false);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT uid, sender, sender_email, subject, preview, sent_at,
+                       has_attachments, unread
+                FROM messages
+                WHERE account_id = @aid AND folder_path = @folder
+                ORDER BY COALESCE(sent_at, '') DESC
+                LIMIT @limit;";
+            cmd.Parameters.AddWithValue("@aid", accountId);
+            cmd.Parameters.AddWithValue("@folder", folderPath);
+            cmd.Parameters.AddWithValue("@limit", limit);
+
+            var messages = new List<Message>();
+            await using var rdr = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await rdr.ReadAsync(ct).ConfigureAwait(false))
+            {
+                var uid = (uint)rdr.GetInt64(0);
+                var sender = rdr.GetString(1);
+                var senderEmail = rdr.GetString(2);
+                var subject = rdr.GetString(3);
+                var preview = rdr.GetString(4);
+                string fullTime = "";
+                string shortTime = "";
+                if (!rdr.IsDBNull(5))
+                {
+                    var s = rdr.GetString(5);
+                    if (DateTimeOffset.TryParse(s, out var dt))
+                    {
+                        fullTime = dt.LocalDateTime.ToString("ddd, MMM d, yyyy, h:mm tt");
+                        shortTime = dt.LocalDateTime.ToString("MMM d");
+                    }
+                }
+                var hasAtt = !rdr.IsDBNull(6) && rdr.GetInt64(6) != 0;
+                var unread = !rdr.IsDBNull(7) && rdr.GetInt64(7) != 0;
+
+                messages.Add(new Message
+                {
+                    Id = uid.ToString(),
+                    AccountId = accountId,
+                    FolderId = folderPath,
+                    Sender = sender,
+                    SenderEmail = senderEmail,
+                    Subject = subject,
+                    Preview = preview,
+                    Time = shortTime,
+                    FullTime = fullTime,
+                    Unread = unread,
+                    Attachments = hasAtt ? new List<Attachment> { new() { Name = "", Size = "" } } : new(),
+                });
+            }
+            return Result.Ok(messages);
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<List<Message>>($"GetEnvelopes failed: {ex.Message}", ex);
+        }
     }
 
     public async Task<Result<List<SearchHit>>> SearchAsync(
