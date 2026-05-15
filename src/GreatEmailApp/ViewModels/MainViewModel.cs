@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 9
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 10
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -236,10 +236,15 @@ public partial class MainViewModel : ObservableObject
         // with stale data from the folder we started loading.
         if (!ReferenceEquals(SelectedFolder, folder)) return;
 
-        // Snapshot the current selection so we can restore it if the UID is
-        // still in the list after refresh. If it's gone (e.g. the spam filter
-        // just moved it), selection clears — that's the correct behavior.
+        // Snapshot the current selection PLUS its loaded body. We're about to
+        // rebuild the message list with fresh envelope objects from IMAP —
+        // those envelopes don't carry BodyHtml/BodyPlain (those come from the
+        // separate FetchBodyAsync call on selection). If we just swap the VM,
+        // MessageBodyView sees the new (empty) body and the reading pane goes
+        // blank mid-read. Carrying the bodies across keeps the pane stable.
         var selectedUid = SelectedMessage?.Model.Id;
+        var snapBodyHtml = SelectedMessage?.Model.BodyHtml;
+        var snapBodyPlain = SelectedMessage?.Model.BodyPlain;
 
         Messages.Clear();
         foreach (var m in ok.Value)
@@ -251,6 +256,13 @@ public partial class MainViewModel : ObservableObject
             var restore = Messages.FirstOrDefault(m => m.Model.Id == selectedUid);
             if (restore is not null)
             {
+                // Copy the already-fetched body across to the new VM so the
+                // reading pane stays populated. OnBodyLoaded fires the property
+                // change notifications MessageBodyView listens for.
+                if (!string.IsNullOrEmpty(snapBodyHtml)) restore.Model.BodyHtml = snapBodyHtml!;
+                if (!string.IsNullOrEmpty(snapBodyPlain)) restore.Model.BodyPlain = snapBodyPlain!;
+                if (!string.IsNullOrEmpty(snapBodyHtml) || !string.IsNullOrEmpty(snapBodyPlain))
+                    restore.OnBodyLoaded();
                 restore.IsSelected = true;
                 SelectedMessage = restore;
             }

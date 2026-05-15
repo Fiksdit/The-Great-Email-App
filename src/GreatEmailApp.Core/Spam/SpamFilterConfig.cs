@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Spam/SpamFilterConfig.cs
-// Created: 2026-05-15 | Revised: 2026-05-15 | Rev: 2
+// Created: 2026-05-15 | Revised: 2026-05-15 | Rev: 3
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Spam;
@@ -55,6 +55,20 @@ public sealed class SpamFilterConfig
         "portfolio companies", "deal flow", "managing director, investments",
         "investor relations", "venture capital firm", "buy-side opportunity",
         "interested in your company",
+        // Business-acquisition cold outreach ("we represent buyers who want to
+        // purchase your small business"). Patterns from the GoExio / Doug
+        // Miller class of email — strong specific phrases, rare in legit mail.
+        "qualified buyers", "considered selling", "buyers are paying",
+        "worth a private chat", "zero obligation", "what buyers are paying",
+        "ebitda", "ask us to find", "deals closed at",
+        // Overseas-manufacturer cold outreach (ITZR-style). Mostly Chinese
+        // contract manufacturers cold-pitching laptops/PCBs/SMT services.
+        "iso-compliant", "smt lines", "low moq", "monthly capacity",
+        "could we arrange a brief discussion", "convenient time",
+        "tailored to specific requirements", "global clients",
+        // Phishing / fake-corporate notification language.
+        "complete the process at", "verify your identity", "view request",
+        "respond to a line of credit",
     };
 
     /// <summary>
