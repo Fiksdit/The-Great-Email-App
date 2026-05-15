@@ -30,7 +30,7 @@ $DistDir   = Join-Path $Root "dist"
 $PublishDir = Join-Path $Root "src/GreatEmailApp/bin/$Configuration/net8.0-windows/win-x64/publish"
 
 if ($Version) {
-    Write-Host "→ Bumping version to $Version in $Csproj" -ForegroundColor Cyan
+    Write-Host "-> Bumping version to $Version in $Csproj" -ForegroundColor Cyan
     $xml = [xml](Get-Content $Csproj)
     $pg  = $xml.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1
     $pg.Version         = $Version
@@ -44,7 +44,7 @@ $xml = [xml](Get-Content $Csproj)
 $pg  = $xml.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1
 $Resolved = $pg.Version
 if (-not $Resolved) { throw "Could not read <Version> from $Csproj" }
-Write-Host "→ Publishing GreatEmailApp v$Resolved ($Configuration)" -ForegroundColor Cyan
+Write-Host "-> Publishing GreatEmailApp v$Resolved ($Configuration)" -ForegroundColor Cyan
 
 # Clean publish dir to make sure stale files don't ride along.
 if (Test-Path $PublishDir) { Remove-Item -Recurse -Force $PublishDir }
@@ -66,15 +66,15 @@ $ZipName = "GreatEmailApp-v$Resolved.zip"
 $ZipPath = Join-Path $DistDir $ZipName
 if (Test-Path $ZipPath) { Remove-Item $ZipPath }
 
-Write-Host "→ Zipping $PublishDir → $ZipPath" -ForegroundColor Cyan
+Write-Host "-> Zipping $PublishDir -> $ZipPath" -ForegroundColor Cyan
 Compress-Archive -Path (Join-Path $PublishDir "*") -DestinationPath $ZipPath -Force
 
 $bytes = (Get-Item $ZipPath).Length
 $mb    = [math]::Round($bytes / 1MB, 2)
 Write-Host ""
-Write-Host "✓ Built  $ZipName  ($mb MB)" -ForegroundColor Green
+Write-Host "OK  Built  $ZipName  ($mb MB)" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next:" -ForegroundColor Yellow
-Write-Host "  git add -A && git commit -m 'Release v$Resolved' && git push" -ForegroundColor Gray
-Write-Host "  git tag v$Resolved && git push --tags" -ForegroundColor Gray
-Write-Host "  Open GitHub → Releases → Draft new release → tag v$Resolved → upload $ZipName" -ForegroundColor Gray
+Write-Host "  git add -A; git commit -m 'Release v$Resolved'; git push" -ForegroundColor Gray
+Write-Host "  git tag v$Resolved; git push --tags" -ForegroundColor Gray
+Write-Host "  Open GitHub Releases -> Draft new release -> tag v$Resolved -> upload $ZipName" -ForegroundColor Gray

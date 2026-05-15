@@ -10,9 +10,9 @@
     <AssemblyName>GreatEmailApp</AssemblyName>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
     <UseWindowsForms>false</UseWindowsForms>
-    <Version>0.12.4</Version>
-    <AssemblyVersion>0.12.4.0</AssemblyVersion>
-    <FileVersion>0.12.4.0</FileVersion>
+    <Version>0.12.5</Version>
+    <AssemblyVersion>0.12.5.0</AssemblyVersion>
+    <FileVersion>0.12.5.0</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />

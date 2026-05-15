@@ -249,6 +249,26 @@ Customer-readable release notes. Newest first. Surfaced in **Settings → About 
 
 > **Maintenance rule:** every release that ships a user-visible change adds a row here **before** the build is published. Pure internal refactors with no user impact may be omitted. Keep entries short, plain-English, and free of file paths or class names.
 
+### v0.12.5 — 2026-05-15
+**What's new**
+- **Built-in spam filter.** Auto-classifies incoming mail and quietly routes spam to the Junk folder, marking it read so the unread badge stays clean. Ships with ~70 default keyword patterns across pharma / lottery / phishing / investor cold-outreach / business-acquisition / overseas-manufacturer pitches / mailbox-quota fraud. Per-account trusted-sender list bootstraps from everyone you've ever emailed (your Sent folder) so legitimate correspondents are never caught. Config lives at `%LOCALAPPDATA%\GreatEmailApp\spam-filter.json` — Settings UI coming in a later release.
+- **"Search server for more results."** Outlook-style link at the bottom of the message list. Type in the search box; if local results miss something (or the message is in a different folder), click the link and the app runs an IMAP SEARCH across every folder of the current account. Clearing the search restores the normal view.
+- **Auto-refreshing message list.** When new mail arrives in the background, the visible list now updates in place instead of waiting for you to click a folder to refresh.
+
+**Bug fixes**
+- Fixed: the **new-mail notifications toggle** silently disabled the entire polling subsystem when turned off — not just balloons. With it off, the search index, future spam filter, mail rules, and auto-refresh all went dormant. Toggle now only controls the balloon; polling always runs while the app is open.
+- Fixed: the message list briefly showed weeks-old mail when you re-opened the Inbox. The local cache was sorting display strings alphabetically by day-of-week ("Wed" > "Tue" > "Thu"), surfacing Tuesday-dated mail above today's mail. Now uses proper chronological order — the cache also self-heals old entries on the next sync.
+- Fixed: clicking a folder doesn't always scroll back to the top. The mail list now resets to the newest message on every folder switch.
+- Fixed: the reading pane briefly went blank when a background refresh fired while you were reading a message. The current message's body is now preserved across refreshes.
+- Fixed: Settings → Send/Receive said "0 = manual only" but the app silently treated 0 as 1 minute. Description corrected and value clamped to ≥ 1.
+
+**Polish**
+- Search box placeholder text now disappears the moment you click into the box, not just on the first keystroke — so you can tell whether the search box has focus.
+- Selected message in the list now has a clear accent border so it's visually distinct from an unread row (they used to share the same tint).
+- Junk folder unread badge is hidden by default — flip on in Settings if you want to see how much was caught.
+- Multi-account setups deterministically land on the first account's inbox at startup instead of racing on whichever IMAP server answered first.
+- Sync chip tooltip now wraps cleanly and includes a green/amber/red legend so the chip's color always tells the whole story.
+
 ### v0.12.1 — 2026-05-10
 **Bug fixes**
 - Fixed: the **new-mail notifications toggle** in Settings → Notifications wasn't syncing across PCs. The HTML rendering and remote-images security toggles already synced correctly, but the notification toggle was being pushed to the cloud and silently dropped when the other PC pulled. All settings now share a single sync path so future toggles can't be forgotten.
