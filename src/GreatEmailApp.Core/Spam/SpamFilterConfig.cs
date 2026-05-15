@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Spam/SpamFilterConfig.cs
-// Created: 2026-05-15 | Revised: 2026-05-15 | Rev: 3
+// Created: 2026-05-15 | Revised: 2026-05-15 | Rev: 4
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Spam;
@@ -69,6 +69,15 @@ public sealed class SpamFilterConfig
         // Phishing / fake-corporate notification language.
         "complete the process at", "verify your identity", "view request",
         "respond to a line of credit",
+        // Mailbox-quota / IT-impersonation phishing. Pretends to be from
+        // the user's own mail provider ("your mailbox needs attention,
+        // click here to avoid suspension"). The user's mailbox admin is
+        // their own domain — these never come from outside legitimately.
+        "mailbox requires attention", "mailbox status", "resolve mailbox",
+        "update your mailbox", "verify your mailbox", "mailbox quota",
+        "messages may be temporarily held", "mailbox suspended",
+        "use the link below", "to avoid suspension", "to avoid interruption",
+        "kindly verify",
     };
 
     /// <summary>
