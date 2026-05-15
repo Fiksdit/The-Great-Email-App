@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/MailList.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 6
+// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 7
 // Changed by: Claude Opus 4.7 on behalf of James Reed
 
 using System.Collections.Generic;
@@ -59,11 +59,10 @@ public partial class MailList : UserControl
         }
     }
 
-    private void ListSearchBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (sender is TextBox tb)
-            ListSearchPlaceholder.Visibility = string.IsNullOrEmpty(tb.Text) ? Visibility.Visible : Visibility.Collapsed;
-    }
+    // ListSearchBox_TextChanged removed — placeholder visibility is now
+    // driven entirely by a XAML MultiDataTrigger on ListSearchPlaceholder
+    // (empty text AND not focused). Removed the TextChanged handler hook
+    // in MailList.xaml too.
 
     private void Pill_Click(object sender, RoutedEventArgs e)
     {

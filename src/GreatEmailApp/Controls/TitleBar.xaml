@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Controls/TitleBar.xaml
-     Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 3
+     Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 4
      Changed by: Claude Opus 4.7 on behalf of James Reed -->
 <UserControl x:Class="GreatEmailApp.Controls.TitleBar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -69,7 +69,27 @@
                                    Foreground="{DynamicResource TertiaryTextBrush}"
                                    FontSize="12"
                                    VerticalAlignment="Center"
-                                   IsHitTestVisible="False" />
+                                   IsHitTestVisible="False">
+                            <!-- Placeholder is visible ONLY when the box is
+                                 empty AND not focused. Clicking into the box
+                                 immediately hides it — without this, the
+                                 placeholder lingers until the first keystroke
+                                 so the user can't tell if they have focus. -->
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding Text, ElementName=SearchBox}" Value="" />
+                                                <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=SearchBox}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </Grid>
                 </Border>
 

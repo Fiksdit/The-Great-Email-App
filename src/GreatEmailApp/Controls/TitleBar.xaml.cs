@@ -204,8 +204,9 @@ public partial class TitleBar : UserControl
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        SearchPlaceholder.Visibility = string.IsNullOrEmpty(SearchBox.Text)
-            ? Visibility.Visible : Visibility.Collapsed;
+        // Placeholder visibility is now driven entirely by the XAML
+        // MultiDataTrigger on SearchPlaceholder (empty text AND no focus).
+        // Removed the imperative set here so the trigger isn't fought over.
 
         // Debounce: 250ms after the last keystroke, run the query.
         _debounce ??= new DispatcherTimerWrapper(TimeSpan.FromMilliseconds(250), RunSearch);

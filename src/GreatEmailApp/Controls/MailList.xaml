@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Controls/MailList.xaml
-     Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 4
+     Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 5
      Changed by: Claude Opus 4.7 on behalf of James Reed
      Middle pane — message list with grouping, filter pills, search. -->
 <UserControl x:Class="GreatEmailApp.Controls.MailList"
@@ -73,14 +73,31 @@
                                            Text="Search sender or subject"
                                            Foreground="{DynamicResource TertiaryTextBrush}"
                                            FontSize="12" VerticalAlignment="Center"
-                                           IsHitTestVisible="False" />
+                                           IsHitTestVisible="False">
+                                    <!-- Visible only when empty AND not focused;
+                                         keeps the placeholder from lingering after
+                                         the user clicks into the box. -->
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding Text, ElementName=ListSearchBox}" Value="" />
+                                                        <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=ListSearchBox}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <TextBox x:Name="ListSearchBox"
                                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                          BorderThickness="0" Background="Transparent"
                                          FontSize="12" VerticalAlignment="Center"
                                          Foreground="{DynamicResource PrimaryTextBrush}"
-                                         CaretBrush="{DynamicResource PrimaryTextBrush}"
-                                         TextChanged="ListSearchBox_TextChanged" />
+                                         CaretBrush="{DynamicResource PrimaryTextBrush}" />
                             </Grid>
                         </Grid>
                     </Border>
