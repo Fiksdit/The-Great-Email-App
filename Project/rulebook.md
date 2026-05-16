@@ -1,5 +1,6 @@
 # The Great Email App — DEVELOPMENT RULEBOOK
-**Version:** 1.0 · Revision 1
+**Version:** 1.0 · Revision 2
+**Updated:** 2026-05-15
 **Stack:** WPF + .NET 8 (C#) + MailKit (IMAP/SMTP) + SQLite (local cache) + Firebase (Auth + Firestore for settings sync)
 **Authority:** Mandatory for All AI + Human Contributors
 **Owner:** James Reed (coolman0804@outlook.com)
@@ -504,4 +505,7 @@ Any deviation from §18 needs an entry in the Decision Log of `roadmap.md` plus 
 
 | Date | Category | Lesson |
 |------|----------|--------|
-| _(none yet)_ | — | — |
+| 2026-05-15 | Pipeline coupling | Never gate background pipelines (poller, indexer, rules engine) on a UI delivery toggle. `EnableNewMailNotifications` was conflated with the entire poll cycle — when the user turned it off to silence balloons, the search indexer, spam filter, rules engine, and mail-list auto-refresh all went silent too. Subscribers should opt into events; the toggle should only suppress the consumer (`TrayNotifier`), not the producer. |
+| 2026-05-15 | SQLite sort columns | Any column hit by `ORDER BY` must be written in a sortable representation. SqliteMessageCache stored `m.FullTime` (human-display string like "Wed, May 13, 2026, 3:22 PM") in `sent_at`, then sorted lexicographically — surfacing Tuesday-dated mail above Friday-dated mail because "Wed" > "Tue" > "Thu" alphabetically. Use ISO 8601 for dates, lowercase for names, etc. |
+| 2026-05-15 | ObservableCollection rebuild | When refreshing a list by `Clear()` + re-`Add()`, any lazily-fetched state on the destroyed `*ViewModel`s is lost. The reading pane went blank during auto-refresh because the new `MessageViewModel` carried envelope fields but not `BodyHtml`/`BodyPlain` (fetched separately on first selection). Snapshot lazy-loaded state on the survivors (current selection, expanded rows, etc.) and copy it onto the corresponding rebuilt VMs. |
+| 2026-05-15 | PowerShell script glyphs | Don't put non-ASCII glyphs (`✓`, `→`, `…`) in `.ps1` files unless every shell that will run them is PowerShell 7+. Windows PowerShell 5.1 reads them as mojibake and the parser dies on unrelated downstream tokens. `scripts/publish.ps1` bricked the entire release flow this way — fixed by replacing with plain ASCII (`OK`, `->`). Same principle for any tooling expected to run cross-shell. |

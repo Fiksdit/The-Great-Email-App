@@ -1,5 +1,5 @@
 # The Great Email App — Master Roadmap
-**Created:** 2026-04-29 | **Updated:** 2026-05-10
+**Created:** 2026-04-29 | **Updated:** 2026-05-15
 **Stack:** WPF + .NET 8 (C#) + MailKit + SQLite + Firebase
 **Owner:** James Reed (coolman0804@outlook.com)
 **Vision:** A clean, fast, native-Windows IMAP email client with Outlook's familiar ribbon UX, dark/light theming, and Firebase-backed settings sync across multiple PCs.
@@ -68,7 +68,7 @@ Core email workflow that makes the app actually usable.
 | P1-5 | Basic in-folder search (sender / email / subject only — strict) | ⚠️ PARTIAL | v0.12.0 wires up the in-list search box, scoped to current folder, matching sender display name + sender email + subject. Body is **deliberately excluded** to avoid false positives. Case-insensitive contains. See Search Roadmap below for the rest of the journey. |
 | P1-5a | **Advanced search builder** (toolbar dialog) | 📋 PLANNED | A dialog/flyout with a row per criterion the user picks: *date range*, *sender name*, *sender email*, *subject*, *body*, *folder scope*, *has attachment*, *flagged*, *read state*. Each row defaults to **partial match**, with an **"Exact"** toggle. Multiple rows AND together; an "Any of these" group switches to OR. No query syntax to memorize. Replaces the legacy `from:foo subject:bar` formula. |
 | P1-5b | Local full-text index (Lucene.NET or SQLite FTS5) | 📋 PLANNED | Index every message body the user is likely to search. Built incrementally on poll; rebuildable from cache. Disk usage **not a constraint** — accuracy and speed first. Indexing happens off the UI thread; results stream back. See "Search & Index Strategy" below. |
-| P1-5c | Cross-folder + cross-account search | 📋 PLANNED | "Search all mail" / "Search this account" pickers. Default scope = current folder; explicit broaden when the user asks. |
+| P1-5c | Cross-folder + cross-account search | ⚠️ PARTIAL | v0.12.5 ships cross-folder server search within the current account (Outlook-style "Search server for more results" link, runs IMAP SEARCH FromContains OR SubjectContains across all selectable folders). Cross-account search and local-FTS-first remain. |
 | P1-5d | Junk/marketing demotion in default search scope | 📋 PLANNED | Search excludes Junk + folders the user never opens (read-frequency learning, P1-5e) by default. Toggle "Include all" reveals them. Cuts the "8 million false positives" problem at the source. |
 | P1-5e | **Read-frequency learning** | 📋 PLANNED | Per-folder, per-sender open/read counters update on every Open and OnReadStateChanged. The signal feeds: (a) search-scope demotion (P1-5d), (b) notification prioritization (P1-7b), (c) a future "Important" view. Stored locally in SQLite — never synced (per-PC behavior). |
 | P1-6 | Auto sync interval (configurable polling per account) | 📋 PLANNED | |
@@ -84,6 +84,7 @@ Core email workflow that makes the app actually usable.
 | P1-13 | First-run onboarding when launched with zero accounts | 📋 PLANNED | Replaces sample data with a guided Add Account flow |
 | P1-14 | App icon + branded taskbar/installer presence | 📋 PLANNED | .ico + AppxManifest fields |
 | P1-15 | Brand the Google OAuth consent screen | 📋 PLANNED | Currently shows the GCP project ID (`project-6464…`) during sign-in. Set **App name = "The Great Email App"**, support email, logo, privacy/TOS URLs in GCP → APIs & Services → OAuth consent screen. If publishing status is "In production," any change re-triggers Google verification (days). Easier while still in "Testing." No code/rebuild needed. |
+| P1-16 | **Built-in spam filter** (keyword + heuristic) | ⚠️ PARTIAL | v0.12.5 ships Phase 1: classifier service, ~70 default keywords across pharma / phishing / investor cold-outreach / business-acquisition / overseas-manufacturer / mailbox-quota phishing classes; auto-routes scoring ≥ 70 to Junk with \Seen flag set; trusted-sender list bootstraps from each account's Sent folder. **Distinct from P3-AI-7** (which is the ML-based ads/marketing classifier). Phases 2–5 (Settings UI, right-click Mark-as-spam/Not-spam, Firestore sync of config, stats) scheduled for sprint week of 2026-05-18. |
 
 ---
 
@@ -326,4 +327,8 @@ Internal milestone log — feature ships rolled into the master roadmap. The cus
 
 | ID | Feature | Shipped | Notes |
 |----|---------|---------|-------|
-| _(none yet)_ | — | — | — |
+| P1-16 (Phase 1) | Built-in spam filter — classifier + auto-route to Junk + trusted-sender bootstrap from Sent | 2026-05-15 (v0.12.5) | 9 new files in `Core/Spam/` + `Core/Services/`. ~70 default keywords. JSON-merge-on-load preserves user customizations across keyword expansions. |
+| P1-5c (partial) | Cross-folder server search ("Search server for more results" link) | 2026-05-15 (v0.12.5) | IMAP SEARCH FromContains OR SubjectContains across all selectable folders of the current account. Per-folder cap 50, total cap 200, sorted by SentAt desc. |
+| — | Mail-list auto-refresh on poll | 2026-05-15 (v0.12.5) | MainViewModel subscribes to `MessagesPolled` and refreshes Messages in place when the polled folder matches the visible folder. Preserves SelectedMessage's BodyHtml/BodyPlain across the rebuild. |
+| — | Decoupled poller from notification toggle | 2026-05-15 (v0.12.5) | `EnableNewMailNotifications` no longer gates the entire poll. `TrayNotifier.OnNewMail` now gates the balloon; cache/indexer/rules/spam/auto-refresh all keep running. |
+| — | ISO 8601 cache sort (sent_at) | 2026-05-15 (v0.12.5) | Replaces lexicographic-on-display-string sort that surfaced Tuesday-dated mail above today's. `Message.SentAt` (DateTimeOffset?) added; cache self-heals legacy rows on next poll. |
