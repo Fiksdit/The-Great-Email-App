@@ -119,7 +119,7 @@ Core email workflow that makes the app actually usable.
 | P2-TD-4 | Auto-update mechanism (Velopack preferred over Squirrel) | 📋 PLANNED | |
 | P2-TD-5 | Replace `Console.Error.WriteLine` with `Microsoft.Extensions.Logging` per rulebook §11 | 📋 PLANNED | |
 | P2-TD-6 | CI build check — `.github/workflows/build.yml` runs `dotnet build` on push | 📋 PLANNED | Catches broken builds before merge |
-| P2-TD-7 | Code signing for the installer | 📋 PLANNED | Requires cert |
+| P2-TD-7 | Code signing for the installer | ✅ DONE 2026-05-28 | `scripts/release.ps1` signs `GreatEmailApp.exe` via Microsoft Trusted Signing using the shared `Fiksdit-Signing` / `PrintMaestro` cert (same cert covers PrintMaestro / TGFF / TGFO / TGFR). See `scripts/SIGNING.md`. Reputation note: SmartScreen warning persists for the first ~few hundred downloads of each new artifact, then clears. |
 | P2-TD-8 | Tests project skeleton at `tests/GreatEmailApp.Tests/` | 📋 PLANNED | Referenced in rulebook §3 but doesn't exist yet |
 | P2-TD-9 | MailKit transitive BouncyCastle advisory (GHSA-9j88-vvj5-vhgr) | 📋 PLANNED | Currently a build warning. Track upstream fix in MailKit 4.14+. |
 

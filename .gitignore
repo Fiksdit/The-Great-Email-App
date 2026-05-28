@@ -57,3 +57,8 @@ Great Email App.zip
 
 # Release output of scripts/publish.ps1 — uploaded to GitHub Releases, not committed.
 dist/
+
+# Microsoft Trusted Signing dlib auto-downloaded by scripts/release.ps1
+# on first run. ~10 MB NuGet package; cached locally to skip the network
+# round-trip on subsequent signs. Not part of the source tree.
+scripts/trusted-signing-dlib/
