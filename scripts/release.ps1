@@ -85,6 +85,8 @@ param(
   [string]$EndpointSlug    = $env:GREATEMAIL_TS_ENDPOINT,
   [string]$AccountName     = $env:GREATEMAIL_TS_ACCOUNT,
   [string]$CertificateProfile = $env:GREATEMAIL_TS_PROFILE,
+  [string]$Tenant          = $env:GREATEMAIL_TS_TENANT,
+  [string]$SubscriptionId  = $env:GREATEMAIL_TS_SUBSCRIPTION,
   [string]$SignToolPath,
   [switch]$SkipAzLogin
 )
@@ -110,6 +112,11 @@ if (-not $ArtifactPath) {
 if (-not $EndpointSlug)        { $EndpointSlug        = 'cus.codesigning.azure.net' }
 if (-not $AccountName)         { $AccountName         = 'Fiksdit-Signing' }
 if (-not $CertificateProfile)  { $CertificateProfile  = 'PrintMaestro' }
+# Tenant + subscription pinning — see TGFO's release.ps1 for the full
+# backstory on AADSTS50076. Fresh-machine `az login` without --tenant
+# can MFA-fail.
+if (-not $Tenant)              { $Tenant              = 'a907e5a2-c0fe-4581-b73d-70c3fcbefd79' }
+if (-not $SubscriptionId)      { $SubscriptionId      = '7376ef6f-9922-4235-a540-89bcaf58618f' }
 
 function Write-Step { param($m) Write-Host "`n>>> $m" -ForegroundColor Cyan }
 function Write-Ok   { param($m) Write-Host "    [ OK ] $m" -ForegroundColor Green }
@@ -223,10 +230,11 @@ if ($SkipAzLogin) {
   if ($LASTEXITCODE -eq 0) {
     Write-Note 'az session already authenticated.'
   } else {
-    Write-Note 'az login (browser will open)...'
-    & $Az login --only-show-errors | Out-Null
+    Write-Note "az login --tenant $Tenant (browser will open)..."
+    & $Az login --tenant $Tenant --only-show-errors | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'az login failed' }
   }
+  & $Az account set --subscription $SubscriptionId --only-show-errors 2>$null
 }
 Write-Ok 'authenticated'
 
@@ -243,7 +251,10 @@ $metadata = @{
   CorrelationId = [Guid]::NewGuid().ToString()
 } | ConvertTo-Json -Depth 3
 $metadataPath = Join-Path $env:TEMP "greatemail-ts-metadata-$([Guid]::NewGuid()).json"
-$metadata | Set-Content -Path $metadataPath -Encoding UTF8
+# Write UTF-8 WITHOUT a BOM. PowerShell 5.1's `Set-Content -Encoding UTF8`
+# emits a BOM (`EF BB BF`) which the Trusted Signing dlib's
+# System.Text.Json parser rejects.
+[System.IO.File]::WriteAllText($metadataPath, $metadata, [System.Text.UTF8Encoding]::new($false))
 
 # --- 4. sign + verify ------------------------------------------------------
 

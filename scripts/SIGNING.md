@@ -19,6 +19,35 @@ These install once per machine and are then shared across every 5DLS
 app that needs to sign. If you've already done this for any other
 5DLS app, you're done — `release.ps1` finds them automatically.
 
+## First-time per-Azure-account setup (one-time per signing identity)
+
+The first user to sign with a given Azure account against the
+`PrintMaestro` cert profile needs to grant themselves the **Artifact
+Signing Certificate Profile Signer** role on that profile. Generic
+Subscription Owner doesn't cover it — the Trusted Signing API checks
+for that specific role and fails with `SignerSign() failed` /
+`0x80004005` if it's missing.
+
+Run once per Azure user account, after `az login` succeeds:
+
+```powershell
+$me = az ad signed-in-user show --query id -o tsv
+$profileScope = "/subscriptions/7376ef6f-9922-4235-a540-89bcaf58618f/resourceGroups/trusted-signing/providers/Microsoft.CodeSigning/codeSigningAccounts/Fiksdit-Signing/certificateProfiles/PrintMaestro"
+az role assignment create `
+  --role "Artifact Signing Certificate Profile Signer" `
+  --assignee $me `
+  --scope $profileScope
+```
+
+Wait ~60s for the role to propagate, then run `release.ps1`.
+
+> **Heads up about the role name:** the role used to be called
+> `Trusted Signing Certificate Profile Signer`. Microsoft renamed
+> the entire product Trusted Signing → Artifact Signing at some point;
+> documentation predating ~mid-2026 still uses the old name and
+> **will fail** with `Role 'Trusted Signing Certificate Profile Signer'
+> doesn't exist.`
+
 ## Build → sign → ship
 
 The recommended flow:
@@ -85,11 +114,16 @@ cert profile if per-app isolation becomes important later.
 
 | Value | What |
 |-------|------|
+| Subscription friendly name | `5DLS` |
 | Subscription ID | `7376ef6f-9922-4235-a540-89bcaf58618f` |
 | Resource group | `trusted-signing` |
-| Tenant | `jreedfiksdit.onmicrosoft.com` |
+| Tenant friendly name | `jreedfiksdit.onmicrosoft.com` (a.k.a. `Default Directory`) |
+| **Tenant ID** | `a907e5a2-c0fe-4581-b73d-70c3fcbefd79` |
 | Identity validation ID | `b410387b-0fc3-45c7-850b-7e4381f6b666` (CN: `FIKS'D IT`) |
+| Account name (cert account) | `Fiksdit-Signing` |
+| Cert profile name | `PrintMaestro` |
 | Cert profile EKU | `1.3.6.1.5.5.7.3.3` (code signing) |
+| Leaf cert rotation | Auto — Microsoft issues a fresh short-lived cert per ~3 days; the `signtool /td` timestamp pins each signature to a valid-at-the-time chain. |
 
 Direct portal links:
 - [Fiksdit-Signing account overview](https://portal.azure.com/#@/resource/subscriptions/7376ef6f-9922-4235-a540-89bcaf58618f/resourceGroups/trusted-signing/providers/Microsoft.CodeSigning/codeSigningAccounts/Fiksdit-Signing/overview)
