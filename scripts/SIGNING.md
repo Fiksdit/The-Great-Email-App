@@ -19,6 +19,18 @@ These install once per machine and are then shared across every 5DLS
 app that needs to sign. If you've already done this for any other
 5DLS app, you're done — `release.ps1` finds them automatically.
 
+> **✅ Tooling status on James's main desktop (`B:`) — installed 2026-05-28:**
+> - Azure CLI 2.86.0 at `C:\Program Files\Microsoft SDKs\Azure\CLI2\`
+> - Windows SDK 10.0.26100.0 at `C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe`
+> - `Artifact Signing Certificate Profile Signer` role granted to
+>   `jreed_fiksdit.com#EXT#@jreedfiksdit.onmicrosoft.com` on the
+>   `PrintMaestro` cert profile.
+>
+> No further per-machine or per-account setup needed on this box.
+> Same applies to every other 5DLS repo — they all use the same shared
+> tooling. First-ever successful sign was TGFO.App.exe on 2026-05-28
+> 18:12 — see TGFO commit `e0ee7bb` for the SHA-256 + signed-at timestamp.
+
 ## First-time per-Azure-account setup (one-time per signing identity)
 
 The first user to sign with a given Azure account against the
