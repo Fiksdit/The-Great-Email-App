@@ -4,6 +4,221 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-05-15-001 — New-mail notification toggle silently disabled the entire polling subsystem
+
+**Area:** Notifications / NewMailPoller + TrayNotifier · poll cycle gating
+**Status:** ✅ Fixed in v0.12.5
+**Priority:** P1 (turning off one checkbox bricked search index, spam filter, rules, and auto-refresh)
+
+**Symptom**
+- Settings → Notifications → "New-mail notifications" off → balloons stop (expected) **and** the search indexer, spam filter, rules engine, and mail-list auto-refresh all go dormant (not expected). The only visible symptom was "no balloons"; the actual blast radius was the whole background subsystem.
+
+**Replicate**
+1. Turn off new-mail notifications in Settings.
+2. Receive new mail. No cache update, no spam routing, no rules, no auto-refresh — nothing fires until the toggle is turned back on.
+
+**Root cause**
+- `NewMailPoller.PollOnceAsync` had an early return gated on `App.Settings.EnableNewMailNotifications`. With it false, the poll bailed before raising `MessagesPolled` / `NewMailDetected`, so every downstream subscriber (cache writer, `RulesEngine`, `SpamFilterEngine`, `MainViewModel` auto-refresh) was starved of events. The toggle was wired to the wrong layer — it gated the *poll*, not the *balloon*.
+- Side effect: the Phase-1 spam filter built earlier the same session had genuinely never run on incoming mail, because the poller bailed before `SpamFilterEngine`'s `MessagesPolled` handler could fire.
+
+**Tried**
+- Nothing — diagnosed on first read of `PollOnceAsync`. The early-return-on-a-notification-flag was the obvious mismatch against the design intent "app open implies polling on."
+
+**Fix**
+- `NewMailPoller`: dropped the early return. Polling now always runs while the app is open; subscribers get events on every cycle.
+- `TrayNotifier.OnNewMail`: now gates on `App.Settings.EnableNewMailNotifications` before buffering the event, so balloon behavior is unchanged from the user's perspective — the gate just moved to the correct (balloon-only) layer.
+
+**Files changed**
+- `src/GreatEmailApp.Core/Notifications/NewMailPoller.cs` — removed poll-gating early return.
+- `src/GreatEmailApp/Services/TrayNotifier.cs` — gate balloon on the notification setting.
+
+**Rulebook**
+- §2 Surgical Change Rule — only the two responsible files touched; subscriber wiring left alone.
+- Decision-log candidate: "A user-facing toggle must gate the narrowest behavior it names. A 'notifications' switch controls notifications, never the data pipeline they observe."
+
+**Session:** 2026-05-15
+**Commit:** 70e024f
+
+---
+
+## FIX-2026-05-15-002 — Mail list briefly showed weeks-old ("May 6") mail because the cache sorted display strings, not dates
+
+**Area:** Search / SqliteMessageCache · envelope sort order
+**Status:** ✅ Fixed in v0.12.5
+**Priority:** P1 (wrong mail on top every time a folder repaints from cache)
+
+**Symptom**
+- Reopen the Inbox and, for a flash, weeks-old messages (e.g. dated "May 6") sit above today's mail before the live IMAP fetch corrects it. The cache-paint's top 25 reliably returned Tuesday-dated mail ahead of today's.
+
+**Replicate**
+1. Open a folder (paints from cache instantly).
+2. Watch the first ~25 rows before the IMAP round-trip completes — order is non-chronological.
+
+**Root cause**
+- `SqliteMessageCache` stored `sent_at` as the human-display `FullTime` string (`"Wed, May 13, 2026, 3:22 PM"`), then `SELECT ... ORDER BY sent_at DESC` sorted **lexicographically**. The day-of-week prefix dominated: "Wed" > "Tue" > "Thu" > … — completely independent of the actual date.
+
+**Tried**
+- Nothing — diagnosed on first read. The `ORDER BY sent_at DESC` over a column holding `"Wed, May 13…"` strings was self-evidently a lexicographic-vs-chronological bug.
+
+**Fix**
+- Added `Message.SentAt` (`DateTimeOffset?`) sourced from MailKit's envelope `Date`.
+- `UpsertEnvelopesAsync` now writes ISO 8601 UTC to `sent_at`; `GetEnvelopesAsync` reads it back, repopulates `SentAt` + display strings, and filters its `SELECT` to ISO rows only (`WHERE sent_at LIKE '____-__-__T%'`) so legacy display-format rows are skipped until the next poll rewrites them. **No migration needed — the cache self-heals** on the next poll.
+
+**Files changed**
+- `src/GreatEmailApp.Core/Models/Message.cs` — `SentAt` property.
+- `src/GreatEmailApp.Core/Search/SqliteMessageCache.cs` — ISO write/read + ISO-only SELECT filter.
+- `src/GreatEmailApp.Core/Services/ImapService.cs` — populate `SentAt` from envelope `Date`.
+
+**Rulebook**
+- §2 Surgical Change Rule — cache + model only; UI untouched.
+- §14 — any ordered list query must sort on a sortable key, never a localized display string.
+
+**Session:** 2026-05-15
+**Commit:** 0e81369
+
+---
+
+## FIX-2026-05-15-003 — Mail list didn't reset to the top when switching folders
+
+**Area:** Controls / MailList · ScrollViewer offset on folder change
+**Status:** ✅ Fixed in v0.12.5
+**Priority:** P2 (navigation annoyance)
+
+**Symptom**
+- Click a folder and the list keeps the scroll position from the folder you just left, instead of showing the newest message at the top.
+
+**Replicate**
+1. Scroll halfway down folder A.
+2. Click folder B → list opens mid-scroll rather than at the top.
+
+**Root cause**
+- The `ScrollViewer` wrapping the mail-list `ItemsControl` had no signal to reset its vertical offset when the `Messages` collection was rebuilt via Clear + Add. WPF preserved the prior offset across the rebuild.
+
+**Tried**
+- Nothing — diagnosed alongside FIX-2026-05-15-002 (same commit); the missing scroll-reset on collection rebuild was clear from the control wiring.
+
+**Fix**
+- `MainViewModel` raises `FolderLoaded` after `SelectFolderAsync` finishes its live IMAP fetch. `MailList.xaml.cs` subscribes via `DataContextChanged` and calls `MessageScroll.ScrollToTop()` on the named `ScrollViewer`.
+- Deliberately **not** raised from `RefreshCurrentFolderAsync` (auto-refresh on poll) — preserving the user's scroll position is correct there; a background poll shouldn't yank them away from what they're reading.
+
+**Files changed**
+- `src/GreatEmailApp/ViewModels/MainViewModel.cs` — `FolderLoaded` event after folder fetch.
+- `src/GreatEmailApp/Controls/MailList.xaml` + `MailList.xaml.cs` — named `ScrollViewer` + `ScrollToTop()` on `FolderLoaded`.
+
+**Rulebook**
+- §2 Surgical Change Rule — scoped to folder-switch path; refresh path intentionally excluded.
+
+**Session:** 2026-05-15
+**Commit:** 0e81369
+
+---
+
+## FIX-2026-05-15-004 — Reading pane went blank on the selected message after a background auto-refresh
+
+**Area:** ViewModels / MainViewModel + Controls / MessageBodyView · body preservation across refresh
+**Status:** ✅ Fixed in v0.12.5
+**Priority:** P1 (current message blanks out while reading)
+
+**Symptom**
+- While reading a message, the 5-minute poll fires the new auto-refresh and the reading pane for the currently-selected message goes blank.
+
+**Replicate**
+1. Open and read a message.
+2. Wait for (or trigger) a background poll that refreshes the visible folder.
+3. The body pane blanks even though the same message is still selected.
+
+**Root cause**
+- `RefreshCurrentFolderAsync` calls `Messages.Clear()` and rebuilds every VM from fresh IMAP envelopes. Envelopes carry headers/preview but **not** `BodyHtml`/`BodyPlain` (those are fetched separately by `SelectMessageAsync`). The reading pane then bound to a brand-new VM with an empty body.
+
+**Tried**
+- Nothing — diagnosed on first read. The Clear-and-rebuild in the refresh path dropping the separately-fetched body was the obvious cause; this is the auto-refresh-era sibling of FIX-2026-05-12-001.
+
+**Fix**
+- Snapshot `SelectedMessage`'s `BodyHtml` + `BodyPlain` before the clear; copy them onto the new VM during selection-restore; fire `OnBodyLoaded` so `MessageBodyView`'s `PropertyChanged` subscription (FIX-2026-05-12-001) re-renders. The displayed message stays visible across refreshes.
+
+**Files changed**
+- `src/GreatEmailApp/ViewModels/MainViewModel.cs` — body snapshot + restore in `RefreshCurrentFolderAsync`.
+
+**Rulebook**
+- §2 Surgical Change Rule — refresh path only.
+- §10 — when a collection rebuild discards async-fetched state, carry that state forward explicitly; don't assume the new VM has it.
+
+**Session:** 2026-05-15
+**Commit:** e3ca017
+
+---
+
+## FIX-2026-05-15-005 — "Auto Send/Receive" said "0 = manual only" but the poller silently clamped 0 to 1 minute
+
+**Area:** Settings / SettingsViewModel + SettingsDialog · sync-interval honesty
+**Status:** ✅ Fixed in v0.12.5
+**Priority:** P2 (UI promised an off-switch that doesn't exist)
+
+**Symptom**
+- Settings → Send/Receive row read "0 = manual only", but entering 0 still polled every minute. `NewMailPoller` force-clamps via `Math.Max(1, SyncIntervalMinutes)`, so 0 was identical to 1.
+
+**Replicate**
+1. Set the Auto Send/Receive interval to 0 expecting manual-only.
+2. Observe the app keeps polling once a minute.
+
+**Root cause**
+- The poller's `Math.Max(1, …)` clamp was correct defensive code, but the Settings description advertised a manual-only mode that was never implemented, and 0 was being persisted (and synced to Firestore) even though it could never take effect.
+
+**Tried**
+- Nothing — the mismatch between the description literal and the poller's clamp was a direct read. Owner chose "make the description honest" over "build a real manual-only mode" (the latter left as a separate future change: drop the clamp in `Reschedule` and gate `Start()` on non-zero).
+
+**Fix**
+- Description now reads "Check for new mail at this interval. Minimum 1 minute."
+- `SettingsViewModel.OnSyncIntervalMinutesChanged` clamps to `>= 1` before writing to `AppSettings`, so the persisted (and synced) value matches what the poller actually runs.
+
+**Files changed**
+- `src/GreatEmailApp/ViewModels/SettingsViewModel.cs` — clamp on change.
+- `src/GreatEmailApp/Views/Dialogs/SettingsDialog.xaml` — honest description text.
+
+**Rulebook**
+- §2 Surgical Change Rule — no behavior change to the poller; only the VM clamp + label.
+- Sibling of the spirit behind FIX-2026-05-13-001: never let a visible literal advertise behavior the code doesn't deliver.
+
+**Session:** 2026-05-15
+**Commit:** e2d5579
+
+---
+
+## FIX-2026-05-15-006 — Search-box placeholder stayed visible after clicking in, hiding only on first keystroke
+
+**Area:** Controls / TitleBar + MailList · search placeholder focus behavior
+**Status:** ✅ Fixed in v0.12.5
+**Priority:** P3 (polish; no focus cue against the dark background)
+
+**Symptom**
+- Click into the title-bar search box (or the mail-list one) and the placeholder text stays put, only disappearing on the first keystroke. With no clear cursor cue against the dark background, the user can't tell whether the box has focus.
+
+**Replicate**
+1. Click into a search box without typing.
+2. Placeholder remains; no obvious focus indication.
+
+**Root cause**
+- Placeholder visibility was driven by imperative `TextChanged` handlers that only flipped on text content, never on focus.
+
+**Tried**
+- Nothing — straightforward: the placeholder needed to react to focus, not just text.
+
+**Fix**
+- Both placeholders are now driven by a `MultiDataTrigger` on the parent `TextBlock`'s `Style`: visible only when `Text == ""` **AND** the `TextBox` is not keyboard-focused. Clicking in immediately collapses the placeholder; clicking out with no text restores it. The prior imperative `TextChanged` handlers were removed.
+
+**Files changed**
+- `src/GreatEmailApp/Controls/TitleBar.xaml` + `TitleBar.xaml.cs` — `MultiDataTrigger` style; `SearchBox_TextChanged` no longer sets Visibility.
+- `src/GreatEmailApp/Controls/MailList.xaml` + `MailList.xaml.cs` — same treatment; `ListSearchBox_TextChanged` handler removed.
+
+**Rulebook**
+- §2 Surgical Change Rule — declarative trigger replaces imperative handlers; no other behavior touched.
+- §10 — prefer declarative XAML triggers for visual state that depends on focus/content.
+
+**Session:** 2026-05-15
+**Commit:** 99bfaab
+
+---
+
 ## FIX-2026-05-13-001 — Title-bar "Sync on" chip lied about sync state before sign-in
 
 **Area:** Controls / TitleBar · sync status chip
