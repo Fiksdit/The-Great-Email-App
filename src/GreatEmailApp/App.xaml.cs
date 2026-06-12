@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/App.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 12
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 13
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 
 using System.IO;
 using System.Windows;
@@ -98,6 +98,10 @@ public partial class App : Application
         Accounts = new JsonAccountStore();
         Contacts = new JsonContactsStore();
         Rules = new JsonRulesStore();
+        // SpamConfig store is created here (ahead of the spam filter/engine
+        // below) because SyncCoordinator needs it to push/pull the spam config
+        // doc alongside settings/accounts/rules.
+        SpamConfig = new JsonSpamConfigStore();
         FolderCache = new JsonFolderCache();
         Drafts = new JsonDraftStore();
         SettingsStore = new JsonSettingsStore();
@@ -106,7 +110,7 @@ public partial class App : Application
         Sync = new FirestoreSyncService(Config, Auth);
         VaultSync = new FirestoreVaultSync(Config, Auth);
         Vault = new VaultManager(VaultSync, new DpapiLocalDataKeyCache(), Credentials, Accounts);
-        SyncCoordinator = new SyncCoordinator(Settings, SettingsStore, Accounts, Contacts, Rules, Auth, Sync);
+        SyncCoordinator = new SyncCoordinator(Settings, SettingsStore, Accounts, Contacts, Rules, SpamConfig, Auth, Sync);
         SyncCoordinator.RemotePullApplied += OnRemotePullApplied;
         Updates = new GitHubUpdateService();
         UpdateInstaller = new UpdateInstaller();
@@ -135,8 +139,8 @@ public partial class App : Application
         // inbox message, marks Spam verdicts \Seen and moves them to Junk so
         // they never visibly land in the user's inbox. First-run scan of the
         // Sent folder seeds the trusted-senders list so anyone the user has
-        // emailed gets a free pass.
-        SpamConfig = new JsonSpamConfigStore();
+        // emailed gets a free pass. (SpamConfig store is instantiated earlier,
+        // above the SyncCoordinator, so the config can sync across PCs.)
         SpamFilter = new SpamFilter();
         SpamFilterEngine = new SpamFilterEngine(SpamConfig, SpamFilter, Accounts, Credentials, Imap, MailPoller);
         SpamFilterEngine.Start();

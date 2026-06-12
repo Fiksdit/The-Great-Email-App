@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Views/Dialogs/SettingsDialog.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 3
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 
 using System.Diagnostics;
 using System.Windows;
@@ -22,7 +22,7 @@ public partial class SettingsDialog : Window
     public SettingsDialog()
     {
         InitializeComponent();
-        _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Contacts, App.Rules, App.Credentials, App.SettingsStore, App.Auth, App.Sync, App.SyncCoordinator, App.Updates, App.UpdateInstaller, App.Vault);
+        _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Contacts, App.Rules, App.SpamConfig, App.Credentials, App.SettingsStore, App.Auth, App.Sync, App.SyncCoordinator, App.Updates, App.UpdateInstaller, App.Vault);
         DataContext = _vm;
         Loaded += async (_, _) => await LoadSuggestionsAsync();
     }
@@ -34,6 +34,7 @@ public partial class SettingsDialog : Window
     {
         // Persist on close. Theme/accent already applied live.
         App.PersistSettings();
+        _vm.SaveSpamConfig();
         DialogResult = true;
         Close();
     }

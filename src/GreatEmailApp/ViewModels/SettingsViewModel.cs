@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/ViewModels/SettingsViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-07 | Rev: 5
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 6
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -10,6 +10,7 @@ using GreatEmailApp.Core.Auth;
 using GreatEmailApp.Core.Crypto;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Services;
+using GreatEmailApp.Core.Spam;
 using GreatEmailApp.Core.Sync;
 using GreatEmailApp.Core.Updates;
 using GreatEmailApp.Views.Dialogs;
@@ -22,6 +23,8 @@ public partial class SettingsViewModel : ObservableObject
     private readonly IAccountStore _accountStore;
     private readonly IContactsStore _contactsStore;
     private readonly IRulesStore _rulesStore;
+    private readonly ISpamConfigStore _spamStore;
+    private readonly SpamFilterConfig _spamConfig;
     private readonly ICredentialStore _creds;
     private readonly ISettingsStore _settingsStore;
     private readonly IAuthService _auth;
@@ -85,6 +88,25 @@ public partial class SettingsViewModel : ObservableObject
     // --- Rules state ---
     public ObservableCollection<MailRule> ManagedRules { get; } = new();
 
+    // --- Spam filter state ---
+    // SpamEnabled / SpamThreshold map to SpamFilterConfig; ShowJunkUnreadBadge
+    // is an AppSettings flag (UI concern) but lives on the Spam tab because
+    // that's where users think about junk. The three string lists are the
+    // editable keyword / blocked / trusted sets, mirrored into _spamConfig on
+    // save (SaveSpamConfig, called from the dialog's Close path).
+    [ObservableProperty] private bool spamEnabled;
+    [ObservableProperty] private int spamThreshold;
+    [ObservableProperty] private bool showJunkUnreadBadge;
+    [ObservableProperty] private string newSpamKeyword = "";
+    [ObservableProperty] private string newBlockedSender = "";
+    [ObservableProperty] private string newTrustedSender = "";
+    [ObservableProperty] private string spamSenderError = "";
+    public bool HasSpamSenderError => !string.IsNullOrEmpty(SpamSenderError);
+    partial void OnSpamSenderErrorChanged(string value) => OnPropertyChanged(nameof(HasSpamSenderError));
+    public ObservableCollection<string> SpamKeywords { get; } = new();
+    public ObservableCollection<string> BlockedSenders { get; } = new();
+    public ObservableCollection<string> TrustedSenders { get; } = new();
+
     public IAsyncRelayCommand SignInCommand { get; }
     public IAsyncRelayCommand SignOutCommand { get; }
     public IAsyncRelayCommand SyncNowCommand { get; }
@@ -99,6 +121,7 @@ public partial class SettingsViewModel : ObservableObject
         IAccountStore accountStore,
         IContactsStore contactsStore,
         IRulesStore rulesStore,
+        ISpamConfigStore spamStore,
         ICredentialStore creds,
         ISettingsStore settingsStore,
         IAuthService auth,
@@ -112,6 +135,7 @@ public partial class SettingsViewModel : ObservableObject
         _accountStore = accountStore;
         _contactsStore = contactsStore;
         _rulesStore = rulesStore;
+        _spamStore = spamStore;
         _creds = creds;
         _settingsStore = settingsStore;
         _auth = auth;
@@ -138,6 +162,19 @@ public partial class SettingsViewModel : ObservableObject
             ManagedContacts.Add(c);
         foreach (var r in _rulesStore.LoadAll())
             ManagedRules.Add(r);
+
+        // Spam config — load once, hydrate the editable collections + toggles.
+        // ShowJunkUnreadBadge comes from AppSettings, not the spam config.
+        _spamConfig = _spamStore.Load();
+        spamEnabled = _spamConfig.Enabled;
+        spamThreshold = _spamConfig.ThresholdScore;
+        showJunkUnreadBadge = settings.ShowJunkUnreadBadge;
+        foreach (var k in _spamConfig.SubjectKeywords.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+            SpamKeywords.Add(k);
+        foreach (var s in _spamConfig.BlockedSenders.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+            BlockedSenders.Add(s);
+        foreach (var s in _spamConfig.TrustedSenders.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+            TrustedSenders.Add(s);
 
         SignInCommand           = new AsyncRelayCommand(SignInAsync,         () => !IsSyncBusy && !IsSignedIn);
         SignOutCommand          = new AsyncRelayCommand(SignOutAsync,        () => !IsSyncBusy &&  IsSignedIn);
@@ -180,6 +217,106 @@ public partial class SettingsViewModel : ObservableObject
         // Recursive set terminates after one bounce since v == 1 second time.
         if (v < 1) { SyncIntervalMinutes = 1; return; }
         _settings.SyncIntervalMinutes = v;
+    }
+
+    // ----- Spam tab ----- //
+
+    partial void OnSpamThresholdChanged(int v)
+    {
+        // Clamp to [0, 100]. One-bounce recursion terminates (clamped value is
+        // already in range the second time through).
+        if (v < 0)   { SpamThreshold = 0;   return; }
+        if (v > 100) { SpamThreshold = 100; return; }
+    }
+
+    partial void OnShowJunkUnreadBadgeChanged(bool v)
+    {
+        _settings.ShowJunkUnreadBadge = v;
+        // Repaint the sidebar Junk chip immediately — no restart needed.
+        if (Application.Current.MainWindow?.DataContext is MainViewModel mvm)
+            mvm.RefreshAllFolderBadges();
+    }
+
+    [RelayCommand]
+    private void AddSpamKeyword(string? keyword)
+    {
+        var k = (keyword ?? "").Trim();
+        if (k.Length == 0) return;
+        if (SpamKeywords.Any(x => x.Equals(k, StringComparison.OrdinalIgnoreCase))) return;
+        SpamKeywords.Add(k);
+        NewSpamKeyword = "";
+    }
+
+    [RelayCommand]
+    private void RemoveSpamKeyword(string? keyword)
+    {
+        if (keyword is null) return;
+        var match = SpamKeywords.FirstOrDefault(x => x.Equals(keyword, StringComparison.OrdinalIgnoreCase));
+        if (match is not null) SpamKeywords.Remove(match);
+    }
+
+    [RelayCommand]
+    private void RestoreDefaultKeywords()
+    {
+        // Re-merge the shipping defaults; user additions are preserved.
+        foreach (var k in SpamFilterConfig.BuiltInKeywords)
+        {
+            if (!SpamKeywords.Any(x => x.Equals(k, StringComparison.OrdinalIgnoreCase)))
+                SpamKeywords.Add(k);
+        }
+    }
+
+    [RelayCommand]
+    private void AddBlockedSender(string? sender) => AddSender(sender, BlockedSenders);
+
+    [RelayCommand]
+    private void RemoveBlockedSender(string? sender) => RemoveSender(sender, BlockedSenders);
+
+    [RelayCommand]
+    private void AddTrustedSender(string? sender) => AddSender(sender, TrustedSenders);
+
+    [RelayCommand]
+    private void RemoveTrustedSender(string? sender) => RemoveSender(sender, TrustedSenders);
+
+    private void AddSender(string? sender, ObservableCollection<string> target)
+    {
+        var s = (sender ?? "").Trim();
+        if (s.Length == 0) return;
+        // Accept a full address (foo@bar.com) or a domain wildcard (@bar.com).
+        // Anything without an '@' is rejected.
+        if (!s.Contains('@'))
+        {
+            SpamSenderError = $"\"{s}\" isn't a valid address or @domain.";
+            return;
+        }
+        SpamSenderError = "";
+        if (target.Any(x => x.Equals(s, StringComparison.OrdinalIgnoreCase))) return;
+        target.Add(s);
+        NewBlockedSender = "";
+        NewTrustedSender = "";
+    }
+
+    private static void RemoveSender(string? sender, ObservableCollection<string> target)
+    {
+        if (sender is null) return;
+        var match = target.FirstOrDefault(x => x.Equals(sender, StringComparison.OrdinalIgnoreCase));
+        if (match is not null) target.Remove(match);
+    }
+
+    /// <summary>
+    /// Flush the in-memory spam edits back to the config store. Called from the
+    /// dialog's Close path (alongside App.PersistSettings). The Saved event the
+    /// store raises kicks the SyncCoordinator's debounced push so block/trust
+    /// lists travel to other PCs.
+    /// </summary>
+    public void SaveSpamConfig()
+    {
+        _spamConfig.Enabled = SpamEnabled;
+        _spamConfig.ThresholdScore = SpamThreshold;
+        _spamConfig.SubjectKeywords = SpamKeywords.ToList();
+        _spamConfig.BlockedSenders = BlockedSenders.ToList();
+        _spamConfig.TrustedSenders = TrustedSenders.ToList();
+        _spamStore.Save(_spamConfig);
     }
 
     partial void OnIsSyncBusyChanged(bool value)

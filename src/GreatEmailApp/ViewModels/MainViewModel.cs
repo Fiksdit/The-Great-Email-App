@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 12
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 13
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Services;
+using GreatEmailApp.Core.Spam;
 
 namespace GreatEmailApp.ViewModels;
 
@@ -498,6 +499,24 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Re-emit unread bindings on every folder in the tree. Called when the
+    /// "Show Junk unread badge" setting changes so the sidebar chip on the
+    /// Junk folder appears/disappears without an app restart.
+    /// </summary>
+    public void RefreshAllFolderBadges()
+    {
+        static void Walk(IEnumerable<FolderViewModel> folders)
+        {
+            foreach (var f in folders)
+            {
+                f.OnUnreadChanged();
+                Walk(f.Children);
+            }
+        }
+        foreach (var a in Accounts) Walk(a.Folders);
+    }
+
+    /// <summary>
     /// Bound to the "Search server for more results…" link in MailList.
     /// Runs an IMAP SEARCH (FromContains OR SubjectContains) against every
     /// selectable folder of the currently-viewed account, then replaces
@@ -833,6 +852,65 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private Task JunkAsync(MessageViewModel? message)
         => MoveToSpecialAsync(message ?? SelectedMessage, SpecialFolder.Junk, "Marked as junk");
+
+    /// <summary>
+    /// "Mark as spam": adds the sender to the spam filter's blocked list (so
+    /// future mail from them is auto-classified) AND moves this message to
+    /// Junk. Plain Junk only moves the message — the same sender keeps coming
+    /// back. SenderEmail can be empty on a malformed envelope; in that case we
+    /// just move the message and skip the block-list edit.
+    /// </summary>
+    [RelayCommand]
+    private async Task MarkAsSpamAsync(MessageViewModel? message)
+    {
+        var m = message ?? SelectedMessage;
+        if (m is null) return;
+
+        var sender = (m.SenderEmail ?? "").Trim();
+        if (!string.IsNullOrEmpty(sender))
+        {
+            var cfg = App.SpamConfig.Load();
+            if (!cfg.BlockedSenders.Any(s => s.Equals(sender, StringComparison.OrdinalIgnoreCase)))
+            {
+                cfg.BlockedSenders.Add(sender);
+                App.SpamConfig.Save(cfg);
+            }
+        }
+
+        var verb = string.IsNullOrEmpty(sender) ? "Marked as spam." : $"Blocked {sender} and moved to Junk.";
+        await MoveToSpecialAsync(m, SpecialFolder.Junk, verb);
+    }
+
+    /// <summary>
+    /// "Not spam": trusts the sender (and lifts any existing block) so future
+    /// mail lands in the inbox, then moves this message back to the Inbox.
+    /// Inverse of <see cref="MarkAsSpamAsync"/>; intended for use from the Junk
+    /// folder.
+    /// </summary>
+    [RelayCommand]
+    private async Task NotSpamAsync(MessageViewModel? message)
+    {
+        var m = message ?? SelectedMessage;
+        if (m is null) return;
+
+        var sender = (m.SenderEmail ?? "").Trim();
+        if (!string.IsNullOrEmpty(sender))
+        {
+            var cfg = App.SpamConfig.Load();
+            var changed = false;
+            if (!cfg.TrustedSenders.Any(s => s.Equals(sender, StringComparison.OrdinalIgnoreCase)))
+            {
+                cfg.TrustedSenders.Add(sender);
+                changed = true;
+            }
+            if (cfg.BlockedSenders.RemoveAll(s => s.Equals(sender, StringComparison.OrdinalIgnoreCase)) > 0)
+                changed = true;
+            if (changed) App.SpamConfig.Save(cfg);
+        }
+
+        var verb = string.IsNullOrEmpty(sender) ? "Moved to Inbox." : $"Trusted {sender} and moved to Inbox.";
+        await MoveToSpecialAsync(m, SpecialFolder.Inbox, verb);
+    }
 
     private async Task MoveToSpecialAsync(MessageViewModel? m, SpecialFolder dst, string verb)
     {

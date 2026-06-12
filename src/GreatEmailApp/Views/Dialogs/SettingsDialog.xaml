@@ -149,6 +149,9 @@
                     <ToggleButton Style="{StaticResource RailItem}" Content="Rules"
                                   IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Rules, Mode=OneWay}"
                                   Click="Tab_Click" Tag="Rules" />
+                    <ToggleButton Style="{StaticResource RailItem}" Content="Spam"
+                                  IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Spam, Mode=OneWay}"
+                                  Click="Tab_Click" Tag="Spam" />
                     <ToggleButton Style="{StaticResource RailItem}" Content="Appearance"
                                   IsChecked="{Binding ActiveTab, Converter={StaticResource StrEqBool}, ConverterParameter=Appearance, Mode=OneWay}"
                                   Click="Tab_Click" Tag="Appearance" />
@@ -449,6 +452,249 @@
                         <TextBlock Margin="0,16,0,0" FontSize="12"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
                                    x:Name="RulesStatus" />
+                    </StackPanel>
+
+                    <!-- Spam -->
+                    <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Spam}">
+                        <TextBlock Text="Spam filter" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Margin="0,-8,0,16" FontSize="12"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="Incoming mail is scored against the keywords below. Anything at or above the threshold is moved to Junk and marked read before it reaches your inbox. Senders you've emailed are trusted automatically." />
+
+                        <!-- Enable -->
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Enable spam filter" />
+                                    <TextBlock Style="{StaticResource RowDescription}"
+                                               Text="When off, the classifier still loads but nothing is moved." />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0"
+                                          IsChecked="{Binding SpamEnabled}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Threshold -->
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Threshold score" />
+                                    <TextBlock Style="{StaticResource RowDescription}"
+                                               TextWrapping="Wrap"
+                                               Text="0–100. Lower catches more (and risks false positives); higher is stricter. Default is 70." />
+                                </StackPanel>
+                                <TextBox Grid.Column="1" VerticalAlignment="Center" Width="60"
+                                         HorizontalContentAlignment="Center"
+                                         Background="{DynamicResource ElevatedBackgroundBrush}"
+                                         Foreground="{DynamicResource PrimaryTextBrush}"
+                                         BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                         CaretBrush="{DynamicResource PrimaryTextBrush}"
+                                         Text="{Binding SpamThreshold, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Junk badge -->
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Show Junk unread badge" />
+                                    <TextBlock Style="{StaticResource RowDescription}"
+                                               TextWrapping="Wrap"
+                                               Text="Off by default. Turn on to see the unread count on the Junk folder — handy for spot-checking what the filter caught." />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0"
+                                          IsChecked="{Binding ShowJunkUnreadBadge}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Keywords -->
+                        <Border Style="{StaticResource SettingsRow}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Spam keywords" />
+                                <TextBlock Style="{StaticResource RowDescription}"
+                                           Text="Phrases scored in the subject and preview. Case-insensitive partial match." />
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Padding="6,5" Margin="0,0,8,0"
+                                             Background="{DynamicResource ElevatedBackgroundBrush}"
+                                             Foreground="{DynamicResource PrimaryTextBrush}"
+                                             BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                             CaretBrush="{DynamicResource PrimaryTextBrush}"
+                                             Text="{Binding NewSpamKeyword, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="1" Style="{StaticResource AccentButton}" Content="Add"
+                                            Padding="14,5"
+                                            Command="{Binding AddSpamKeywordCommand}"
+                                            CommandParameter="{Binding NewSpamKeyword}" />
+                                </Grid>
+                                <Border Margin="0,8,0,0" MaxHeight="200"
+                                        BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                        CornerRadius="6">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding SpamKeywords}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="8,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding}" FontSize="12"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource PrimaryTextBrush}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <Button Grid.Column="1" Style="{StaticResource SubtleButton}"
+                                                                Content="✕" Padding="8,2" FontSize="11"
+                                                                Command="{Binding DataContext.RemoveSpamKeywordCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                                <Button Style="{StaticResource SubtleButton}" Content="Restore default keywords"
+                                        HorizontalAlignment="Left" Margin="0,8,0,0" Padding="10,5"
+                                        Command="{Binding RestoreDefaultKeywordsCommand}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Blocked + Trusted senders -->
+                        <Border Style="{StaticResource SettingsRow}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Always spam -->
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Always spam (blocked)" />
+                                        <TextBlock Style="{StaticResource RowDescription}"
+                                                   Text="Address (foo@bar.com) or domain (@bar.com)." />
+                                        <Grid Margin="0,8,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" Padding="6,5" Margin="0,0,8,0"
+                                                     Background="{DynamicResource ElevatedBackgroundBrush}"
+                                                     Foreground="{DynamicResource PrimaryTextBrush}"
+                                                     BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                                     CaretBrush="{DynamicResource PrimaryTextBrush}"
+                                                     Text="{Binding NewBlockedSender, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Button Grid.Column="1" Style="{StaticResource AccentButton}" Content="Add"
+                                                    Padding="14,5"
+                                                    Command="{Binding AddBlockedSenderCommand}"
+                                                    CommandParameter="{Binding NewBlockedSender}" />
+                                        </Grid>
+                                        <Border Margin="0,8,0,0" MaxHeight="160"
+                                                BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                                CornerRadius="6">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding BlockedSenders}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="8,4">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="{Binding}" FontSize="12"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource PrimaryTextBrush}"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                                <Button Grid.Column="1" Style="{StaticResource SubtleButton}"
+                                                                        Content="✕" Padding="8,2" FontSize="11"
+                                                                        Command="{Binding DataContext.RemoveBlockedSenderCommand,
+                                                                                  RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <!-- Never spam -->
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Never spam (trusted)" />
+                                        <TextBlock Style="{StaticResource RowDescription}"
+                                                   Text="Address or domain that's always allowed through." />
+                                        <Grid Margin="0,8,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" Padding="6,5" Margin="0,0,8,0"
+                                                     Background="{DynamicResource ElevatedBackgroundBrush}"
+                                                     Foreground="{DynamicResource PrimaryTextBrush}"
+                                                     BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                                     CaretBrush="{DynamicResource PrimaryTextBrush}"
+                                                     Text="{Binding NewTrustedSender, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Button Grid.Column="1" Style="{StaticResource AccentButton}" Content="Add"
+                                                    Padding="14,5"
+                                                    Command="{Binding AddTrustedSenderCommand}"
+                                                    CommandParameter="{Binding NewTrustedSender}" />
+                                        </Grid>
+                                        <Border Margin="0,8,0,0" MaxHeight="160"
+                                                BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                                CornerRadius="6">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding TrustedSenders}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="8,4">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="{Binding}" FontSize="12"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource PrimaryTextBrush}"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                                <Button Grid.Column="1" Style="{StaticResource SubtleButton}"
+                                                                        Content="✕" Padding="8,2" FontSize="11"
+                                                                        Command="{Binding DataContext.RemoveTrustedSenderCommand,
+                                                                                  RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Margin="0,8,0,0" FontSize="12" Foreground="#E5484D"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasSpamSenderError, Converter={StaticResource BoolVis}}"
+                                           Text="{Binding SpamSenderError}" />
+                                <TextBlock Margin="0,8,0,0" FontSize="11"
+                                           Foreground="{DynamicResource TertiaryTextBrush}"
+                                           TextWrapping="Wrap"
+                                           Text="Trusted senders are bootstrapped from your Sent folder on first run. Add more here to whitelist a sender that's getting falsely caught." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <!-- Appearance -->

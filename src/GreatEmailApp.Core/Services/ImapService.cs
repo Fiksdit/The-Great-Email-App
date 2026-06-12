@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Services/ImapService.cs
-// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 3
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 4
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 // MailKit-backed IMAP. Single-shot operations: open → do → close. We do NOT
 // hold a long-lived connection in Phase 2 — IDLE / push lands in Phase 5.
 
@@ -345,6 +345,9 @@ public sealed class ImapService : IImapService
         {
             return s switch
             {
+                // INBOX is always present and addressable directly — no \Special-Use
+                // flag needed. Lets "Not spam" move a message back out of Junk.
+                Models.SpecialFolder.Inbox   => client.Inbox,
                 Models.SpecialFolder.Archive => client.GetFolder(MailKit.SpecialFolder.Archive),
                 Models.SpecialFolder.Drafts  => client.GetFolder(MailKit.SpecialFolder.Drafts),
                 Models.SpecialFolder.Sent    => client.GetFolder(MailKit.SpecialFolder.Sent),

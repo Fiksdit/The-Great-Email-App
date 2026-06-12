@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Controls/MailList.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 7
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 8
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 
 using System.Collections.Generic;
 using System.Linq;
@@ -112,6 +112,14 @@ public partial class MailList : UserControl
         // don't blow the menu past screen height. Skips the synthetic Outbox
         // (no IMAP path).
         if (sender is not ContextMenu cm || DataContext is not MainViewModel vm) return;
+
+        // "Not spam" only makes sense inside the Junk folder — hide it elsewhere.
+        if (cm.Items.OfType<MenuItem>().FirstOrDefault(i => i.Name == "NotSpamMenu") is MenuItem notSpam)
+        {
+            notSpam.Visibility = vm.SelectedFolder?.Model.Special == SpecialFolder.Junk
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         if (cm.Items.OfType<MenuItem>().FirstOrDefault(i => i.Name == "MoveToMenu") is not MenuItem moveTo) return;
 
         moveTo.Items.Clear();
@@ -216,6 +224,18 @@ public partial class MailList : UserControl
     {
         if (DataContext is MainViewModel vm && TargetOf(sender) is MessageViewModel m)
             vm.JunkCommand.Execute(m);
+    }
+
+    private void MarkAsSpam_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && TargetOf(sender) is MessageViewModel m)
+            vm.MarkAsSpamCommand.Execute(m);
+    }
+
+    private void NotSpam_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && TargetOf(sender) is MessageViewModel m)
+            vm.NotSpamCommand.Execute(m);
     }
 
     private void Delete_Click(object sender, RoutedEventArgs e)

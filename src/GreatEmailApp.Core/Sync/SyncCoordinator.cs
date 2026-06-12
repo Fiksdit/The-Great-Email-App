@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncCoordinator.cs
-// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 6
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-06-12 | Rev: 7
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 //
 // Glue between local saves, sign-in events, window focus, and Firestore.
 // Sits above the stores + IFirestoreSyncService and lets the rest of the app
@@ -36,6 +36,7 @@ public sealed class SyncCoordinator : IDisposable
     private readonly IAccountStore _accountStore;
     private readonly IContactsStore _contactsStore;
     private readonly IRulesStore _rulesStore;
+    private readonly ISpamConfigStore _spamStore;
     private readonly IAuthService _auth;
     private readonly IFirestoreSyncService _sync;
 
@@ -64,6 +65,7 @@ public sealed class SyncCoordinator : IDisposable
         IAccountStore accountStore,
         IContactsStore contactsStore,
         IRulesStore rulesStore,
+        ISpamConfigStore spamStore,
         IAuthService auth,
         IFirestoreSyncService sync)
     {
@@ -72,6 +74,7 @@ public sealed class SyncCoordinator : IDisposable
         _accountStore = accountStore;
         _contactsStore = contactsStore;
         _rulesStore = rulesStore;
+        _spamStore = spamStore;
         _auth = auth;
         _sync = sync;
 
@@ -82,6 +85,7 @@ public sealed class SyncCoordinator : IDisposable
         _accountStore.Saved  += OnLocalSaved;
         _contactsStore.Saved += OnLocalSaved;
         _rulesStore.Saved    += OnLocalSaved;
+        _spamStore.Saved     += OnLocalSaved;
         _auth.SessionChanged += OnSessionChanged;
     }
 
@@ -122,6 +126,7 @@ public sealed class SyncCoordinator : IDisposable
         _accountStore.Saved  -= OnLocalSaved;
         _contactsStore.Saved -= OnLocalSaved;
         _rulesStore.Saved    -= OnLocalSaved;
+        _spamStore.Saved     -= OnLocalSaved;
         _auth.SessionChanged -= OnSessionChanged;
         _pushDebounce.Dispose();
         _gate.Dispose();
@@ -171,7 +176,8 @@ public sealed class SyncCoordinator : IDisposable
             _accountStore.LoadAll().ToList(),
             pushedAt,
             _contactsStore.LoadAll().ToList(),
-            _rulesStore.LoadAll().ToList());
+            _rulesStore.LoadAll().ToList(),
+            _spamStore.Load());
 
         var result = await _sync.PushAsync(snapshot).ConfigureAwait(false);
         if (result is Result<bool>.Ok)
@@ -323,8 +329,11 @@ public sealed class SyncCoordinator : IDisposable
             _settings.CopySyncableFrom(remote.Settings);
             _settingsStore.Save(_settings);
             _accountStore.Save(remote.Accounts);
-            if (remote.Contacts is not null) _contactsStore.Save(remote.Contacts);
-            if (remote.Rules    is not null) _rulesStore.Save(remote.Rules);
+            if (remote.Contacts   is not null) _contactsStore.Save(remote.Contacts);
+            if (remote.Rules      is not null) _rulesStore.Save(remote.Rules);
+            // Null only on legacy docs pushed before spam sync existed — skip so
+            // we don't overwrite this PC's local config with a default.
+            if (remote.SpamConfig is not null) _spamStore.Save(remote.SpamConfig);
         }
         finally { _suppressPush = false; }
 

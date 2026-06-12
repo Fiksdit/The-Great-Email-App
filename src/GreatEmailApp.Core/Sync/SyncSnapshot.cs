@@ -1,8 +1,9 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncSnapshot.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-06-12 | Rev: 2
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 
 using GreatEmailApp.Core.Models;
+using GreatEmailApp.Core.Spam;
 
 namespace GreatEmailApp.Core.Sync;
 
@@ -19,4 +20,5 @@ public sealed record SyncSnapshot(
     IReadOnlyList<Account> Accounts,
     DateTimeOffset UpdatedAt,
     IReadOnlyList<Contact>? Contacts = null,
-    IReadOnlyList<MailRule>? Rules = null);
+    IReadOnlyList<MailRule>? Rules = null,
+    SpamFilterConfig? SpamConfig = null);

@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Sync/FirestoreSyncService.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-06-12 | Rev: 2
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 //
 // REST-based Firestore client for the single-document settings sync.
 // We deliberately don't take a dependency on Google.Cloud.Firestore — the
@@ -30,6 +30,7 @@ using GreatEmailApp.Core.Auth;
 using GreatEmailApp.Core.Config;
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Services;
+using GreatEmailApp.Core.Spam;
 
 namespace GreatEmailApp.Core.Sync;
 
@@ -75,12 +76,19 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
             var accountsJson = doc.Fields.GetValueOrDefault("accounts_json")?.StringValue ?? "[]";
             var contactsJson = doc.Fields.GetValueOrDefault("contacts_json")?.StringValue ?? "[]";
             var rulesJson    = doc.Fields.GetValueOrDefault("rules_json")?.StringValue    ?? "[]";
+            var spamJson     = doc.Fields.GetValueOrDefault("spam_json")?.StringValue;
             var updatedAtStr = doc.Fields.GetValueOrDefault("updated_at")?.TimestampValue;
 
             var settings = JsonSerializer.Deserialize<AppSettings>(settingsJson, PayloadOpts) ?? new AppSettings();
             var dtos = JsonSerializer.Deserialize<List<SyncAccountDto>>(accountsJson, PayloadOpts) ?? new();
             var contacts = JsonSerializer.Deserialize<List<Contact>>(contactsJson, PayloadOpts) ?? new();
             var rules = JsonSerializer.Deserialize<List<MailRule>>(rulesJson, PayloadOpts) ?? new();
+            // spam_json is absent on docs pushed by pre-v0.13 clients — leave the
+            // snapshot's SpamConfig null so the coordinator skips applying it
+            // rather than clobbering local config with a default.
+            var spam = string.IsNullOrWhiteSpace(spamJson)
+                ? null
+                : JsonSerializer.Deserialize<SpamFilterConfig>(spamJson, PayloadOpts);
             var updatedAt = DateTimeOffset.TryParse(updatedAtStr, out var dt) ? dt : DateTimeOffset.MinValue;
 
             var snapshot = new SyncSnapshot(
@@ -88,7 +96,8 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
                 dtos.Select(d => d.ToAccount()).ToList(),
                 updatedAt,
                 contacts,
-                rules);
+                rules,
+                spam);
             return Result.Ok<SyncSnapshot?>(snapshot);
         }
         catch (Exception ex)
@@ -110,6 +119,7 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
             PayloadOpts);
         var contactsJson = JsonSerializer.Serialize(snapshot.Contacts ?? new List<Contact>(), PayloadOpts);
         var rulesJson    = JsonSerializer.Serialize(snapshot.Rules    ?? new List<MailRule>(), PayloadOpts);
+        var spamJson     = JsonSerializer.Serialize(snapshot.SpamConfig ?? new SpamFilterConfig(), PayloadOpts);
 
         var body = new FsDocument
         {
@@ -119,6 +129,7 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
                 ["accounts_json"] = new() { StringValue = accountsJson },
                 ["contacts_json"] = new() { StringValue = contactsJson },
                 ["rules_json"]    = new() { StringValue = rulesJson },
+                ["spam_json"]     = new() { StringValue = spamJson },
                 ["updated_at"]    = new() { TimestampValue = snapshot.UpdatedAt.UtcDateTime.ToString("o") },
             },
         };
@@ -130,6 +141,7 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
             + "&updateMask.fieldPaths=accounts_json"
             + "&updateMask.fieldPaths=contacts_json"
             + "&updateMask.fieldPaths=rules_json"
+            + "&updateMask.fieldPaths=spam_json"
             + "&updateMask.fieldPaths=updated_at";
 
         using var req = new HttpRequestMessage(HttpMethod.Patch, patchUrl)
