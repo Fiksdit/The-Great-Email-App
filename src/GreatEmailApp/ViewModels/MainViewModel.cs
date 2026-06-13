@@ -912,6 +912,27 @@ public partial class MainViewModel : ObservableObject
         await MoveToSpecialAsync(m, SpecialFolder.Inbox, verb);
     }
 
+    /// <summary>
+    /// F5 / Send-Receive: force an immediate poll of all accounts instead of
+    /// waiting for the timer. Polling always runs in the background (memory:
+    /// "app open implies polling on"); this just triggers a cycle now.
+    /// </summary>
+    [RelayCommand]
+    private async Task SendReceiveAsync()
+    {
+        if (App.MailPoller is null) return;
+        StatusMessage = "Checking for new mail…";
+        try
+        {
+            await App.MailPoller.PollOnceAsync();
+            StatusMessage = "Send/Receive complete.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Send/Receive failed: {ex.Message}";
+        }
+    }
+
     private async Task MoveToSpecialAsync(MessageViewModel? m, SpecialFolder dst, string verb)
     {
         if (m is null) return;
