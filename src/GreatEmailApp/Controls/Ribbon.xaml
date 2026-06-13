@@ -1,6 +1,6 @@
 <!-- FILE: src/GreatEmailApp/Controls/Ribbon.xaml
-     Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 2
-     Changed by: Claude Opus 4.7 on behalf of James Reed
+     Created: 2026-04-29 | Revised: 2026-06-13 | Rev: 3
+     Changed by: Claude Opus 4.8 on behalf of James Reed
      Outlook-style ribbon. Tabs: File · Home · Send/Receive · View · Help. -->
 <UserControl x:Class="GreatEmailApp.Controls.Ribbon"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -257,7 +257,7 @@
                             <Button x:Name="MoveButton" Style="{StaticResource RibbonItemButton}" Click="MoveButton_Click">
                                 <StackPanel><TextBlock Text="{StaticResource IconMove}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Move" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
-                            <Button Style="{StaticResource RibbonItemButton}">
+                            <Button Style="{StaticResource RibbonItemButton}" Click="OnRules_Click">
                                 <StackPanel><TextBlock Text="{StaticResource IconRules}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Rules" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                             </Button>
                             <Button Style="{StaticResource RibbonItemButton}" Command="{Binding ToggleReadCommand}">
@@ -280,7 +280,7 @@
                 <!-- SEND / RECEIVE -->
                 <Grid Visibility="{Binding ActiveRibbonTab, Converter={StaticResource StrEqVis}, ConverterParameter=SendReceive}">
                     <StackPanel Orientation="Horizontal" Margin="8,0" VerticalAlignment="Center">
-                        <Button Style="{StaticResource RibbonLargeButton}">
+                        <Button Style="{StaticResource RibbonLargeButton}" Command="{Binding SendReceiveCommand}">
                             <StackPanel>
                                 <Border Width="28" Height="28" CornerRadius="6"
                                         Background="{DynamicResource AccentSoftBrush}" Margin="0,0,0,2">
@@ -291,7 +291,8 @@
                             </StackPanel>
                         </Button>
                         <Border Style="{StaticResource GroupSep}" />
-                        <Button Style="{StaticResource RibbonItemButton}">
+                        <Button Style="{StaticResource RibbonItemButton}"
+                                Command="{Binding SelectFolderCommand}" CommandParameter="{Binding SelectedFolder}">
                             <StackPanel><TextBlock Text="{StaticResource IconRefresh}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Update Folder" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                         </Button>
                         <Button Style="{StaticResource RibbonItemButton}">
@@ -345,7 +346,7 @@
                         <Button Style="{StaticResource RibbonItemButton}" Click="OnSettings_Click">
                             <StackPanel><TextBlock Text="{StaticResource IconSettings}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Settings" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                         </Button>
-                        <Button Style="{StaticResource RibbonItemButton}">
+                        <Button Style="{StaticResource RibbonItemButton}" Click="OnAccountSettings_Click">
                             <StackPanel><TextBlock Text="{StaticResource IconContact}" Style="{StaticResource IconGlyph}" FontSize="16" /><TextBlock Text="Account Settings" FontSize="11" HorizontalAlignment="Center" Margin="0,2,0,0" /></StackPanel>
                         </Button>
                         <Button Style="{StaticResource RibbonItemButton}" Click="OnCheckForUpdates_Click">

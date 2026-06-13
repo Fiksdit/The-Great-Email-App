@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/Ribbon.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 3
+// Created: 2026-04-29 | Revised: 2026-06-13 | Rev: 4
 // Changed by: Claude Opus 4.8 on behalf of James Reed
 
 using System.Windows;
@@ -46,6 +46,24 @@ public partial class Ribbon : UserControl
         {
             Owner = Window.GetWindow(this),
         };
+        dlg.ShowDialog();
+        if (dlg.AccountsChanged && DataContext is MainViewModel vm)
+        {
+            vm.ReloadAccounts();
+        }
+    }
+
+    /// <summary>Home → Rules: open Settings on the Rules tab (the rules editor).</summary>
+    private void OnRules_Click(object sender, RoutedEventArgs e) => OpenSettingsOnTab("Rules");
+
+    /// <summary>Help → Account Settings: open Settings on the Accounts tab.</summary>
+    private void OnAccountSettings_Click(object sender, RoutedEventArgs e) => OpenSettingsOnTab("Accounts");
+
+    /// <summary>Open the Settings dialog focused on a given tab; refresh sidebar if accounts changed.</summary>
+    private void OpenSettingsOnTab(string tab)
+    {
+        var dlg = new SettingsDialog { Owner = Window.GetWindow(this) };
+        dlg.OpenOnTab(tab);
         dlg.ShowDialog();
         if (dlg.AccountsChanged && DataContext is MainViewModel vm)
         {
