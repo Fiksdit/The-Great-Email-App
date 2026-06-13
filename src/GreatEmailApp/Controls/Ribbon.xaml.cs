@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Controls/Ribbon.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 3
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 
 using System.Windows;
 using System.Windows.Controls;
@@ -88,6 +88,31 @@ public partial class Ribbon : UserControl
         var win = ComposeWindow.OpenNew(App.Accounts.LoadAll(), DefaultAccount());
         win.Owner = Window.GetWindow(this);
         win.Show();
+    }
+
+    /// <summary>
+    /// Ribbon Move button. Opens the same account-grouped folder picker as the
+    /// mail-list right-click "Move to…" submenu (shared via FolderMoveMenu),
+    /// dropped below the button, targeting the currently-selected message.
+    /// </summary>
+    private void MoveButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement btn || DataContext is not MainViewModel vm) return;
+        var msg = vm.SelectedMessage;
+        if (msg is null)
+        {
+            vm.StatusMessage = "Select a message to move.";
+            return;
+        }
+
+        var menu = new ContextMenu
+        {
+            PlacementTarget = btn,
+            Placement = PlacementMode.Bottom,
+        };
+        foreach (var item in FolderMoveMenu.BuildItems(vm, msg))
+            menu.Items.Add(item);
+        menu.IsOpen = true;
     }
 
     private void OnReply_Click(object sender, RoutedEventArgs e)    => OpenReplyWindow(replyAll: false);
