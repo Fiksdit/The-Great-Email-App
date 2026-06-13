@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Spam/SpamFilterConfig.cs
-// Created: 2026-05-15 | Revised: 2026-05-15 | Rev: 4
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-05-15 | Revised: 2026-06-12 | Rev: 5
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Spam;
 
@@ -84,10 +84,21 @@ public sealed class SpamFilterConfig
     /// Built-in default keyword list. Used by the config store to merge new
     /// shipping defaults into an existing user file so users upgrading don't
     /// miss freshly-added patterns. Kept in sync with the field initializer
-    /// above — if you add a keyword there, add it here too. Phase 2 will
-    /// track user-removed defaults so this merge can be smarter.
+    /// above — if you add a keyword there, add it here too. The load-time merge
+    /// skips any built-in listed in <see cref="RemovedDefaults"/> so an explicit
+    /// removal sticks instead of reappearing on the next launch.
     /// </summary>
     public static IReadOnlyList<string> BuiltInKeywords => new SpamFilterConfig().SubjectKeywords;
+
+    /// <summary>
+    /// Built-in keywords the user has explicitly removed in Settings → Spam.
+    /// The config store's default-merge skips these, so a removed default
+    /// doesn't get re-added on the next load. Re-adding the keyword (or
+    /// "Restore default keywords") clears it from this list. Custom (non-default)
+    /// keywords aren't tracked here — they're simply absent from
+    /// <see cref="SubjectKeywords"/> and never re-merged.
+    /// </summary>
+    public List<string> RemovedDefaults { get; set; } = new();
 
     /// <summary>
     /// Sender email addresses (exact match) or domains (leading "@", e.g.

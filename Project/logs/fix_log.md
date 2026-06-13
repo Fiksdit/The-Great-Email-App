@@ -4,6 +4,45 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-06-12-001 — Removed built-in spam keyword reappeared on next launch
+
+**Area:** Core / JsonSpamConfigStore + SpamFilterConfig · default-keyword merge
+**Status:** ✅ Fixed
+**Priority:** P2 (spam keyword editor couldn't permanently remove a default)
+
+**Symptom**
+- Settings → Spam → remove a built-in keyword (e.g. "ebitda"), click Done. It's gone from the list. Reopen Settings (or wait for the next poll) and the keyword is back.
+
+**Replicate**
+1. Settings → Spam, remove any keyword that ships as a default.
+2. Close and reopen the dialog → the keyword has returned.
+
+**Root cause**
+- `JsonSpamConfigStore.Load` merges every `SpamFilterConfig.BuiltInKeywords` entry missing from the user's file, so a shipped keyword expansion reaches existing installs. But the merge had no notion of an *intentional* removal — a deleted default was simply "missing," so it got re-added on the very next load. This was a documented Phase-1 limitation (the store's own header earmarked a "RemovedDefaults" list for Phase 2); the spam-keyword editor (T3, this sprint) made it user-reachable, so it had to be closed.
+
+**Tried**
+- Nothing — the limitation was already diagnosed and documented in the store's header comment. Implemented the earmarked fix directly.
+
+**Fix**
+- `SpamFilterConfig`: added `RemovedDefaults` (List<string>) — built-ins the user explicitly removed.
+- `JsonSpamConfigStore.Load`: the default-merge now skips any built-in present in `RemovedDefaults`, so removals stick.
+- `SettingsViewModel.SaveSpamConfig`: recomputes `RemovedDefaults` = built-ins not currently in the keyword list on every save, so removing re-adds to the set and re-adding (or "Restore default keywords") clears it.
+- Rides the existing `spam_json` Firestore sync, so removals propagate across PCs.
+
+**Files changed**
+- `src/GreatEmailApp.Core/Spam/SpamFilterConfig.cs` (Rev 4 → 5)
+- `src/GreatEmailApp.Core/Services/JsonSpamConfigStore.cs` (Rev 2 → 3)
+- `src/GreatEmailApp/ViewModels/SettingsViewModel.cs` (Rev 6)
+
+**Rulebook**
+- §2 Surgical Change Rule — merge logic + one VM method; classifier untouched.
+- Completes the Phase-2 follow-up the Phase-1 store header explicitly deferred.
+
+**Session:** 2026-06-12
+**Commit:** _pending_
+
+---
+
 ## FIX-2026-05-15-001 — New-mail notification toggle silently disabled the entire polling subsystem
 
 **Area:** Notifications / NewMailPoller + TrayNotifier · poll cycle gating

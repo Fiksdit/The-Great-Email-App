@@ -1,16 +1,15 @@
 // FILE: src/GreatEmailApp.Core/Services/JsonSpamConfigStore.cs
-// Created: 2026-05-15 | Revised: 2026-05-15 | Rev: 2
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-05-15 | Revised: 2026-06-12 | Rev: 3
+// Changed by: Claude Opus 4.8 on behalf of James Reed
 //
 // Mirrors JsonRulesStore pattern: atomic write via .tmp + Move, .bad rotation
 // on parse failure so the user never gets a hard crash from a corrupted file.
 //
 // On load, merges in any built-in default keywords missing from the user's
 // file so a shipped keyword-list expansion reaches existing installs without
-// requiring them to delete spam-filter.json. The trade-off: in Phase 1 the
-// user can't permanently REMOVE a built-in keyword by editing the file (it
-// would be re-merged on next load). Phase 2 will add a "RemovedDefaults"
-// list so explicit removals stick.
+// requiring them to delete spam-filter.json. The merge skips any built-in the
+// user has explicitly removed (SpamFilterConfig.RemovedDefaults) so a deliberate
+// removal sticks instead of reappearing on the next load.
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -66,9 +65,12 @@ public sealed class JsonSpamConfigStore : ISpamConfigStore
         // Merge in any built-in keywords missing from the loaded file. Lets a
         // shipping default expansion reach existing installs. Comparison is
         // case-insensitive; user-customized variations of casing are preserved.
+        // Skip built-ins the user explicitly removed so the removal sticks.
         var existing = new HashSet<string>(config.SubjectKeywords, StringComparer.OrdinalIgnoreCase);
+        var removed = new HashSet<string>(config.RemovedDefaults, StringComparer.OrdinalIgnoreCase);
         foreach (var builtin in SpamFilterConfig.BuiltInKeywords)
         {
+            if (removed.Contains(builtin)) continue;
             if (existing.Add(builtin))
                 config.SubjectKeywords.Add(builtin);
         }

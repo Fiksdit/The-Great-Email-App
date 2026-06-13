@@ -316,6 +316,13 @@ public partial class SettingsViewModel : ObservableObject
         _spamConfig.SubjectKeywords = SpamKeywords.ToList();
         _spamConfig.BlockedSenders = BlockedSenders.ToList();
         _spamConfig.TrustedSenders = TrustedSenders.ToList();
+        // Any built-in not currently in the list counts as explicitly removed,
+        // so the store's default-merge won't re-add it on the next load.
+        // Re-adding it (or Restore defaults) puts it back and clears the entry.
+        var present = new HashSet<string>(SpamKeywords, StringComparer.OrdinalIgnoreCase);
+        _spamConfig.RemovedDefaults = SpamFilterConfig.BuiltInKeywords
+            .Where(b => !present.Contains(b))
+            .ToList();
         _spamStore.Save(_spamConfig);
     }
 
