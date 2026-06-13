@@ -1,5 +1,5 @@
 # The Great Email App — Master Roadmap
-**Created:** 2026-04-29 | **Updated:** 2026-05-15
+**Created:** 2026-04-29 | **Updated:** 2026-06-13
 **Stack:** WPF + .NET 8 (C#) + MailKit + SQLite + Firebase
 **Owner:** James Reed (coolman0804@outlook.com)
 **Vision:** A clean, fast, native-Windows IMAP email client with Outlook's familiar ribbon UX, dark/light theming, and Firebase-backed settings sync across multiple PCs.
@@ -79,12 +79,12 @@ Core email workflow that makes the app actually usable.
 | P1-8 | New mail notifications (Windows toast) | 📋 PLANNED | |
 | P1-9 | HTML email rendering with remote-image gating | 📋 PLANNED | WebView2 surface; off when Settings.ShowHtml=false |
 | P1-10 | Backstage view (File tab) | 📋 PLANNED | |
-| P1-11 | Keyboard shortcuts (Ctrl+R reply, Ctrl+Enter send, Del delete, F5 send/receive, Ctrl+Shift+M new) | 📋 PLANNED | |
+| P1-11 | Keyboard shortcuts (Ctrl+R reply, Ctrl+Enter send, Del delete, F5 send/receive, Ctrl+Shift+M new) | ⚠️ PARTIAL | All five wired 2026-06-12 (T7–T9): MainWindow.KeyDown for Del (focus-guarded) / F5 / Ctrl+R / Ctrl+Shift+M; ComposeWindow Ctrl+Enter. **Code-complete, not yet runtime-tested** — needs the T12 smoke pass. |
 | P1-12 | Multi-select in mail list (Ctrl+click, Shift+click) + batch archive/delete/move | 📋 PLANNED | |
 | P1-13 | First-run onboarding when launched with zero accounts | 📋 PLANNED | Replaces sample data with a guided Add Account flow |
 | P1-14 | App icon + branded taskbar/installer presence | 📋 PLANNED | .ico + AppxManifest fields |
 | P1-15 | Brand the Google OAuth consent screen | 📋 PLANNED | Currently shows the GCP project ID (`project-6464…`) during sign-in. Set **App name = "The Great Email App"**, support email, logo, privacy/TOS URLs in GCP → APIs & Services → OAuth consent screen. If publishing status is "In production," any change re-triggers Google verification (days). Easier while still in "Testing." No code/rebuild needed. |
-| P1-16 | **Built-in spam filter** (keyword + heuristic) | ⚠️ PARTIAL | v0.12.5 ships Phase 1: classifier service, ~70 default keywords across pharma / phishing / investor cold-outreach / business-acquisition / overseas-manufacturer / mailbox-quota phishing classes; auto-routes scoring ≥ 70 to Junk with \Seen flag set; trusted-sender list bootstraps from each account's Sent folder. **Distinct from P3-AI-7** (which is the ML-based ads/marketing classifier). Phases 2–5 (Settings UI, right-click Mark-as-spam/Not-spam, Firestore sync of config, stats) scheduled for sprint week of 2026-05-18. |
+| P1-16 | **Built-in spam filter** (keyword + heuristic) | ⚠️ PARTIAL | Phase 1 (v0.12.5): classifier, ~70 keywords, auto-route ≥70 to Junk, Sent-folder trusted bootstrap. **Phases 2–4 done 2026-06-12** (T2–T6, T10): Settings → Spam tab (enable/threshold/junk-badge + keyword/blocked/trusted editors with validation + restore-defaults & RemovedDefaults ledger), right-click Mark-as-spam/Not-spam, Firestore sync of `spam-filter.json`. **Distinct from P3-AI-7** (ML ads/marketing classifier). Remaining Phase 5: stats/caught-count surface. Code-complete, pending smoke test. |
 
 ---
 
@@ -327,6 +327,10 @@ Internal milestone log — feature ships rolled into the master roadmap. The cus
 
 | ID | Feature | Shipped | Notes |
 |----|---------|---------|-------|
+| P1-16 (Phases 2–4) | Spam filter UI + mark/not-spam + config sync | 2026-06-12 (pending release) | Settings → Spam tab; right-click Mark-as-spam/Not-spam (MainViewModel commands + ImapService INBOX resolve); `spam_json` Firestore sync; `RemovedDefaults` ledger so deleted built-in keywords stick. |
+| P1-11 (T7–T9) | Keyboard shortcuts — Del / F5 / Ctrl+R / Ctrl+Shift+M / Ctrl+Enter | 2026-06-12 (pending release) | Single MainWindow.KeyDown (bubbling, Delete focus-guarded) + ComposeWindow Ctrl+Enter. Code-complete, untested. |
+| P1-4 (toolbar) | Ribbon Move button → folder picker | 2026-06-12 (pending release) | Extracted shared `Controls/FolderMoveMenu.cs`; right-click + ribbon now share one builder. |
+| — | Ribbon easy-win wiring | 2026-06-12 (pending release) | Send/Receive (big), Update Folder, Rules, Account Settings wired to existing surfaces. Feature-less buttons left inert by design. |
 | P1-16 (Phase 1) | Built-in spam filter — classifier + auto-route to Junk + trusted-sender bootstrap from Sent | 2026-05-15 (v0.12.5) | 9 new files in `Core/Spam/` + `Core/Services/`. ~70 default keywords. JSON-merge-on-load preserves user customizations across keyword expansions. |
 | P1-5c (partial) | Cross-folder server search ("Search server for more results" link) | 2026-05-15 (v0.12.5) | IMAP SEARCH FromContains OR SubjectContains across all selectable folders of the current account. Per-folder cap 50, total cap 200, sorted by SentAt desc. |
 | — | Mail-list auto-refresh on poll | 2026-05-15 (v0.12.5) | MainViewModel subscribes to `MessagesPolled` and refreshes Messages in place when the polled folder matches the visible folder. Preserves SelectedMessage's BodyHtml/BodyPlain across the rebuild. |
