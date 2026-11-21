@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/SettingsViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 7
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 8
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -97,6 +97,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool spamEnabled;
     [ObservableProperty] private int spamThreshold;
     [ObservableProperty] private string spamDestinationFolder = "";
+    [ObservableProperty] private bool spamLearningEnabled;
+    [ObservableProperty] private double spamLearningThreshold;
+    [ObservableProperty] private string learningStatusText = "";
+    public IAsyncRelayCommand RetrainLearningCommand { get; }
     [ObservableProperty] private bool showJunkUnreadBadge;
     [ObservableProperty] private string newSpamKeyword = "";
     [ObservableProperty] private string newBlockedSender = "";
@@ -170,6 +174,8 @@ public partial class SettingsViewModel : ObservableObject
         spamEnabled = _spamConfig.Enabled;
         spamThreshold = _spamConfig.ThresholdScore;
         spamDestinationFolder = _spamConfig.DestinationFolder ?? "";
+        spamLearningEnabled = _spamConfig.LearningEnabled;
+        spamLearningThreshold = _spamConfig.LearningThreshold;
         showJunkUnreadBadge = settings.ShowJunkUnreadBadge;
         foreach (var k in _spamConfig.SubjectKeywords.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
             SpamKeywords.Add(k);
@@ -186,6 +192,13 @@ public partial class SettingsViewModel : ObservableObject
         ResyncPasswordsCommand  = new AsyncRelayCommand(UnlockVaultAsync,    () => !IsVaultBusy && IsSignedIn && (VaultIsLocked || VaultIsUnlocked));
         CheckForUpdatesCommand  = new AsyncRelayCommand(CheckForUpdatesAsync, () => !IsUpdateBusy);
         InstallUpdateCommand    = new AsyncRelayCommand(InstallUpdateAsync,   () => !IsUpdateBusy && AvailableUpdate is not null);
+        RetrainLearningCommand  = new AsyncRelayCommand(RetrainLearningAsync,  () => !(App.SpamFilterEngine?.IsTraining ?? false));
+
+        // Learning-filter status line (training runs in the background at startup).
+        if (App.SpamFilterEngine is not null)
+            App.SpamFilterEngine.LearningStatusChanged += (_, _) =>
+                Application.Current?.Dispatcher.BeginInvoke(new Action(RefreshLearningStatus));
+        RefreshLearningStatus();
 
         _auth.SessionChanged += OnSessionChanged;
         ApplySession(_auth.Current);
@@ -305,6 +318,31 @@ public partial class SettingsViewModel : ObservableObject
         if (match is not null) target.Remove(match);
     }
 
+    // ----- Learning filter ----- //
+
+    private void RefreshLearningStatus()
+    {
+        var eng = App.SpamFilterEngine;
+        if (eng is null) { LearningStatusText = ""; return; }
+        var s = eng.LearningStatus;
+        LearningStatusText = eng.IsTraining
+            ? "Learning from your spam and filed folders… (read-only, takes a minute or two)"
+            : s.TrainedAt is null
+                ? "Not trained yet — it trains automatically once every account's password is on this PC."
+                : $"Trained on {s.SpamExamples:N0} spam and {s.GoodExamples:N0} good emails"
+                  + $" (last full training {s.TrainedAt.Value.ToLocalTime():MMM d, h:mm tt}). "
+                  + "Mark as spam / Not spam keep teaching it.";
+        RetrainLearningCommand?.NotifyCanExecuteChanged();
+    }
+
+    private async Task RetrainLearningAsync()
+    {
+        if (App.SpamFilterEngine is null) return;
+        var r = await App.SpamFilterEngine.RetrainAsync();
+        RefreshLearningStatus();
+        if (r is Result<SpamModelStatus>.Fail f) LearningStatusText = f.Error;
+    }
+
     /// <summary>
     /// Flush the in-memory spam edits back to the config store. Called from the
     /// dialog's Close path (alongside App.PersistSettings). The Saved event the
@@ -315,6 +353,9 @@ public partial class SettingsViewModel : ObservableObject
     {
         _spamConfig.Enabled = SpamEnabled;
         _spamConfig.ThresholdScore = SpamThreshold;
+        _spamConfig.LearningEnabled = SpamLearningEnabled;
+        _spamConfig.LearningThreshold = SpamLearningThreshold is >= 0 and <= 50
+            ? SpamLearningThreshold : SpamFilterConfig.DefaultLearningThreshold;
         // Normalize "All Spam / TGEA" → "All Spam/TGEA"; blank = server Junk.
         _spamConfig.DestinationFolder = string.Join("/", (SpamDestinationFolder ?? "")
             .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));

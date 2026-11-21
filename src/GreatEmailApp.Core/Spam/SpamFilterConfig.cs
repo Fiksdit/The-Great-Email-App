@@ -33,6 +33,23 @@ public sealed class SpamFilterConfig
     public const string DefaultDestinationFolder = "All Spam/TGEA";
 
     /// <summary>
+    /// Use the learning filter (SpamLearningModel) in addition to keywords.
+    /// Defaults true; a missing property (older client saved the file) keeps it on.
+    /// </summary>
+    public bool LearningEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Learning-filter strictness: the log-odds a message must exceed to count
+    /// as spam. Higher = fewer false alarms but misses more. Tested on the
+    /// owner's mail: 8 → 95% caught / 1.5% good flagged; 12 → 92% / 0.8%;
+    /// 16 → 91% / 0.6% (default — at 12 a live preview caught an LCSC "order shipped"
+    /// notice and a Mobile Sentrix support reply, both scoring 12–14).
+    /// </summary>
+    public double LearningThreshold { get; set; } = DefaultLearningThreshold;
+
+    public const double DefaultLearningThreshold = 16;
+
+    /// <summary>
     /// Phrases that, if found in subject or preview, contribute to the score
     /// (subject hit = +40, preview hit = +25). Case-insensitive substring match.
     /// User can edit via Settings → Spam (future Phase 2).

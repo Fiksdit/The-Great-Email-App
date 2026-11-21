@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Spam/ISpamFilterEngine.cs
-// Created: 2026-05-15 | Revised: 2026-05-15 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-05-15 | Revised: 2026-11-21 | Rev: 2
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Services;
@@ -20,4 +20,21 @@ public interface ISpamFilterEngine
     /// by future "Re-filter inbox" Settings action — not wired in Phase 1.</summary>
     Task<Result<SpamFilterResult>> ApplyAsync(Account account, string folderPath,
         IEnumerable<Message> messages, CancellationToken ct = default);
+
+    // ----- Learning filter ----- //
+
+    /// <summary>Current size/readiness of the learning model.</summary>
+    SpamModelStatus LearningStatus { get; }
+
+    /// <summary>True while the learning model is (re)training from folders.</summary>
+    bool IsTraining { get; }
+
+    /// <summary>Raised (any thread) when training starts/finishes or the model changes.</summary>
+    event EventHandler? LearningStatusChanged;
+
+    /// <summary>Teach the model from a user decision (Mark as spam / Not spam).</summary>
+    void Learn(Message message, bool isSpam);
+
+    /// <summary>Discard the model and rebuild it from the accounts' spam and filed folders.</summary>
+    Task<Result<SpamModelStatus>> RetrainAsync(CancellationToken ct = default);
 }

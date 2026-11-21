@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Controls/MailList.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 9
-// Changed by: Claude Opus 4.8 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 10
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Collections.Generic;
 using System.Linq;
@@ -113,11 +113,17 @@ public partial class MailList : UserControl
         // (no IMAP path).
         if (sender is not ContextMenu cm || DataContext is not MainViewModel vm) return;
 
-        // "Not spam" only makes sense inside the Junk folder — hide it elsewhere.
+        // "Not spam" only makes sense inside a spam folder — the server's Junk,
+        // or any folder whose path says spam/junk (All Spam/*, incl. the app's
+        // own All Spam/TGEA, which has no \Junk flag). Hidden elsewhere.
         if (cm.Items.OfType<MenuItem>().FirstOrDefault(i => i.Name == "NotSpamMenu") is MenuItem notSpam)
         {
-            notSpam.Visibility = vm.SelectedFolder?.Model.Special == SpecialFolder.Junk
-                ? Visibility.Visible : Visibility.Collapsed;
+            var f = vm.SelectedFolder?.Model;
+            var isSpamFolder = f is not null
+                && (f.Special == SpecialFolder.Junk
+                    || f.FullPath.Contains("spam", StringComparison.OrdinalIgnoreCase)
+                    || f.FullPath.Contains("junk", StringComparison.OrdinalIgnoreCase));
+            notSpam.Visibility = isSpamFolder ? Visibility.Visible : Visibility.Collapsed;
         }
 
         if (cm.Items.OfType<MenuItem>().FirstOrDefault(i => i.Name == "MoveToMenu") is not MenuItem moveTo) return;

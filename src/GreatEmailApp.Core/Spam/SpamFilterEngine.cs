@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Spam/SpamFilterEngine.cs
-// Created: 2026-05-15 | Revised: 2026-11-21 | Rev: 3
+// Created: 2026-05-15 | Revised: 2026-11-21 | Rev: 4
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Orchestrates the spam filter. Wiring mirrors RulesEngine exactly: subscribe
@@ -38,13 +38,18 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
     private readonly INewMailPoller _poller;
     private bool _running;
 
+    // Learning filter — see SpamLearningModel. Local file, never synced.
+    private readonly string _modelPath;
+    private readonly SpamLearningModel _model;
+
     public SpamFilterEngine(
         ISpamConfigStore configStore,
         ISpamFilter filter,
         IAccountStore accounts,
         ICredentialStore creds,
         IImapService imap,
-        INewMailPoller poller)
+        INewMailPoller poller,
+        string? modelPath = null)
     {
         _configStore = configStore;
         _filter = filter;
@@ -52,6 +57,8 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
         _creds = creds;
         _imap = imap;
         _poller = poller;
+        _modelPath = modelPath ?? Storage.AppPaths.SpamModelJson;
+        _model = SpamLearningModel.Load(_modelPath);
     }
 
     public void Start()
@@ -64,6 +71,9 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
         // the engine works fine without it (just more permissive false-positive
         // risk on senders the user knows but hasn't received from recently).
         _ = Task.Run(BootstrapTrustedSendersAsync);
+
+        // First-time training of the learning filter (no-op once trained).
+        _ = Task.Run(() => EnsureModelTrainedAsync(force: false, CancellationToken.None));
     }
 
     public void Stop()
@@ -78,9 +88,146 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
         // Retry an unfinished trusted-list bootstrap (e.g. it first ran before
         // the passwords were restored on a new PC). Cheap no-op once done.
         _ = Task.Run(BootstrapTrustedSendersAsync);
+        // Same for first-time learning-model training (needs every password).
+        _ = Task.Run(() => EnsureModelTrainedAsync(force: false, CancellationToken.None));
 
         try { await ApplyAsync(ev.Account, ev.FolderPath, ev.Messages); }
         catch (Exception ex) { Console.Error.WriteLine($"[SpamFilterEngine.OnMessagesPolled] {ex.Message}"); }
+    }
+
+    // --------------------------------------------------------------------- //
+    // Learning filter
+    // --------------------------------------------------------------------- //
+
+    public SpamModelStatus LearningStatus => _model.Status;
+    public bool IsTraining => Volatile.Read(ref _trainingRunning) == 1;
+    public event EventHandler? LearningStatusChanged;
+
+    // 0 = idle, 1 = training from folders.
+    private int _trainingRunning;
+
+    private HashSet<string> OwnDomains() =>
+        _accounts.LoadAll()
+            .Select(a => (a.EmailAddress ?? "").Split('@').LastOrDefault() ?? "")
+            .Where(d => d.Length > 0)
+            .Select(d => d.ToLowerInvariant())
+            .ToHashSet();
+
+    /// <summary>
+    /// Learning-filter verdict. Trusted senders are never flagged; the model
+    /// only judges once it has enough examples of both kinds.
+    /// </summary>
+    private bool IsLearnedSpam(Message msg, SpamFilterConfig config, IReadOnlySet<string> own)
+    {
+        if (!config.LearningEnabled) return false;
+        if (SpamFilter.IsTrustedSender(msg.SenderEmail, config)) return false;
+        var score = _model.Score(msg, own);
+        return score is double s && s > config.LearningThreshold;
+    }
+
+    public void Learn(Message message, bool isSpam)
+    {
+        // A user correction counts double — it's the most reliable label we get.
+        _model.Learn(message, isSpam, OwnDomains(), weight: 2);
+        try { _model.Save(_modelPath); }
+        catch (Exception ex) { Console.Error.WriteLine($"[SpamFilterEngine.Learn] {ex.Message}"); }
+        LearningStatusChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task<Result<SpamModelStatus>> RetrainAsync(CancellationToken ct = default)
+    {
+        var r = await EnsureModelTrainedAsync(force: true, ct).ConfigureAwait(false);
+        return r;
+    }
+
+    /// <summary>
+    /// Train from the server folders. Spam examples: every folder whose path
+    /// contains "spam" or "junk" (the user's All Spam/* filters, the server's
+    /// spam folder, TGEA). Good examples: the user's own filed folders (not
+    /// Inbox — it holds unfiltered spam — nor Trash/Sent/Drafts/Archive).
+    /// Read-only. Runs once (needs every account's password, so on a new PC it
+    /// waits for the vault unlock and retries each poll), or on Retrain.
+    /// </summary>
+    private async Task<Result<SpamModelStatus>> EnsureModelTrainedAsync(bool force, CancellationToken ct)
+    {
+        if (!force && _model.Status.TrainedAt is not null)
+            return Result.Ok(_model.Status);
+        if (Interlocked.CompareExchange(ref _trainingRunning, 1, 0) != 0)
+            return Result.Fail<SpamModelStatus>("Training is already running.");
+        LearningStatusChanged?.Invoke(this, EventArgs.Empty);
+        try
+        {
+            var accounts = _accounts.LoadAll();
+            if (accounts.Count == 0) return Result.Fail<SpamModelStatus>("No accounts.");
+            if (accounts.Any(a => _creds.Read(a.Id) is null))
+                return Result.Fail<SpamModelStatus>("Waiting for every account's password before training.");
+
+            var own = OwnDomains();
+            var fresh = new SpamLearningModel();
+            foreach (var account in accounts)
+            {
+                ct.ThrowIfCancellationRequested();
+                var pw = _creds.Read(account.Id)!.Value.Password;
+                var folders = await _imap.ListFoldersAsync(account, pw, ct).ConfigureAwait(false);
+                if (folders is not Result<List<Folder>>.Ok fOk)
+                    return Result.Fail<SpamModelStatus>($"Couldn't list folders for {account.EmailAddress}.");
+
+                foreach (var f in Flatten(fOk.Value))
+                {
+                    var kind = TrainingKind(f);
+                    if (kind is null) continue;
+                    // §14 limits: newest 500 per spam folder, 60 per filed folder.
+                    var list = await _imap.ListMessagesAsync(account, pw, f.FullPath,
+                        kind.Value ? 500 : 60, ct).ConfigureAwait(false);
+                    if (list is not Result<List<Message>>.Ok mOk) continue;
+                    foreach (var m in mOk.Value) fresh.Learn(m, kind.Value, own);
+                }
+            }
+
+            // Swap in the freshly trained counts (locked — the poller may be scoring).
+            _model.ReplaceWith(fresh);
+            _model.Save(_modelPath);
+            Console.Error.WriteLine($"[SpamFilterEngine.Train] spam={fresh.SpamDocs} good={fresh.HamDocs}");
+            return Result.Ok(_model.Status);
+        }
+        catch (OperationCanceledException) { return Result.Fail<SpamModelStatus>("Training cancelled."); }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[SpamFilterEngine.Train] {ex.Message}");
+            return Result.Fail<SpamModelStatus>($"Training failed: {ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _trainingRunning, 0);
+            LearningStatusChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>true = spam example, false = good example, null = skip.</summary>
+    private static bool? TrainingKind(Folder f)
+    {
+        if (string.IsNullOrEmpty(f.FullPath)) return null; // synthetic (Outbox)
+        var path = f.FullPath;
+        if (path.Contains("spam", StringComparison.OrdinalIgnoreCase)
+            || path.Contains("junk", StringComparison.OrdinalIgnoreCase)
+            || f.Special == SpecialFolder.Junk)
+            return true;
+        if (f.Special != SpecialFolder.None) return null; // Inbox, Sent, Drafts, Trash, Archive
+        if (f.Name.Equals("Trash", StringComparison.OrdinalIgnoreCase)
+            || f.Name.StartsWith("Sent", StringComparison.OrdinalIgnoreCase)
+            || f.Name.Equals("Drafts", StringComparison.OrdinalIgnoreCase)
+            || f.Name.Equals("Deleted", StringComparison.OrdinalIgnoreCase))
+            return null;
+        return false;
+    }
+
+    private static IEnumerable<Folder> Flatten(IEnumerable<Folder> folders)
+    {
+        foreach (var f in folders)
+        {
+            yield return f;
+            foreach (var c in Flatten(f.Children)) yield return c;
+        }
     }
 
     // 0 = idle, 1 = a bootstrap scan is running (Start + every poll can trigger it).
@@ -113,6 +260,7 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
 
         int considered = 0, filtered = 0;
         var errors = new List<string>();
+        var own = OwnDomains();
 
         foreach (var msg in messages)
         {
@@ -125,7 +273,7 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
             considered++;
 
             var verdict = _filter.Classify(msg, config);
-            if (verdict.Kind != SpamKind.Spam) continue;
+            if (verdict.Kind != SpamKind.Spam && !IsLearnedSpam(msg, config, own)) continue;
 
             // Mark seen FIRST so the user never sees a Junk unread count tick
             // up. The move below invalidates the UID, so order matters.

@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Views/Dialogs/SettingsDialog.xaml
-     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 3
+     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 4
      Changed by: Claude Opus 5.5 on behalf of James Reed
      Settings modal. Left rail of tabs, content swaps via Visibility binding.
      All edits write through to App.Settings + are persisted on Close. -->
@@ -497,7 +497,7 @@
                         <TextBlock Margin="0,-8,0,16" FontSize="12"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
                                    TextWrapping="Wrap"
-                                   Text="Incoming mail is scored against the keywords below. Anything at or above the threshold is marked read and moved to the folder set below (All Spam/TGEA by default), so you can see exactly what this app filtered. Senders you've emailed are trusted automatically." />
+                                   Text="Incoming mail is scored by the learning filter and the keywords below. Anything at or above the threshold is marked read and moved to the folder set below (All Spam/TGEA by default), so you can see exactly what this app filtered. Senders you've emailed are trusted automatically." />
 
                         <!-- Enable -->
                         <Border Style="{StaticResource SettingsRow}">
@@ -536,6 +536,53 @@
                                          BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
                                          CaretBrush="{DynamicResource PrimaryTextBrush}"
                                          Text="{Binding SpamThreshold, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Learning filter (SpamLearningModel) -->
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Learning filter" />
+                                    <TextBlock Style="{StaticResource RowDescription}" TextWrapping="Wrap"
+                                               Text="Learns what your spam looks like from your spam and All Spam folders, compared with the mail you've filed. Catches reworded campaigns from new domains that keywords miss. Trusted senders are never caught." />
+                                    <TextBlock Margin="0,6,0,0" FontSize="12" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SecondaryTextBrush}"
+                                               Text="{Binding LearningStatusText}" />
+                                    <Button Style="{StaticResource SubtleButton}" HorizontalAlignment="Left"
+                                            Margin="0,8,0,0" Padding="10,5" Content="Retrain from my folders"
+                                            Command="{Binding RetrainLearningCommand}"
+                                            AutomationProperties.Name="Retrain the learning spam filter from my folders" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" VerticalAlignment="Top" Margin="12,2,0,0"
+                                          AutomationProperties.Name="Use the learning filter"
+                                          IsChecked="{Binding SpamLearningEnabled}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingsRow}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Learning filter strictness" />
+                                    <TextBlock Style="{StaticResource RowDescription}" TextWrapping="Wrap"
+                                               Text="Higher = fewer good emails caught by mistake, but more spam gets through. Default 16 (tested on your mail: ~91% of spam caught, under 1% of good mail). 12 catches a little more but started catching order and support emails; 20 is more cautious." />
+                                </StackPanel>
+                                <TextBox Grid.Column="1" VerticalAlignment="Center" Width="60"
+                                         HorizontalContentAlignment="Center"
+                                         Background="{DynamicResource ElevatedBackgroundBrush}"
+                                         Foreground="{DynamicResource PrimaryTextBrush}"
+                                         BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                                         CaretBrush="{DynamicResource PrimaryTextBrush}"
+                                         AutomationProperties.Name="Learning filter strictness"
+                                         Text="{Binding SpamLearningThreshold, UpdateSourceTrigger=PropertyChanged}" />
                             </Grid>
                         </Border>
 

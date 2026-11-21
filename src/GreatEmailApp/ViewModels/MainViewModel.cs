@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 15
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 16
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -919,6 +919,9 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
+        // Teach the learning filter — catches the same campaign from new domains.
+        App.SpamFilterEngine?.Learn(m.Model, isSpam: true);
+
         var verb = string.IsNullOrEmpty(sender) ? "Marked as spam." : $"Blocked {sender} and moved to Junk.";
         await MoveToSpecialAsync(m, SpecialFolder.Junk, verb);
     }
@@ -949,6 +952,9 @@ public partial class MainViewModel : ObservableObject
                 changed = true;
             if (changed) App.SpamConfig.Save(cfg);
         }
+
+        // Teach the learning filter this was a false alarm.
+        App.SpamFilterEngine?.Learn(m.Model, isSpam: false);
 
         var verb = string.IsNullOrEmpty(sender) ? "Moved to Inbox." : $"Trusted {sender} and moved to Inbox.";
         await MoveToSpecialAsync(m, SpecialFolder.Inbox, verb);

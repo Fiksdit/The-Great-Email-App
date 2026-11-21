@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Storage/AppPaths.cs
-// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 5
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 6
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Storage;
 
@@ -60,6 +60,10 @@ public static class AppPaths
     /// Per rulebook §7A: the unwrapped data key never leaves the device.
     /// </summary>
     public static string VaultDat => Path.Combine(Root, "vault.dat");
+
+    /// <summary>Learning spam filter model (token counts). Local-only, never synced —
+    /// each PC trains from the same server folders.</summary>
+    public static string SpamModelJson => Path.Combine(Root, "spam-model.json");
 
     /// <summary>Ensures the root folder exists. Safe to call repeatedly.</summary>
     public static void EnsureRoot()
