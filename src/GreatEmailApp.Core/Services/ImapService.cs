@@ -341,6 +341,46 @@ public sealed class ImapService : IImapService
         catch (Exception ex) { return Result.Fail<bool>(SanitizeError(ex), ex); }
     }
 
+    public async Task<Result<string>> MoveToNamedPathAsync(
+        Account account, string password, string srcFolderFullPath, uint uid,
+        IReadOnlyList<string> pathSegments, bool createIfMissing,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (pathSegments.Count == 0)
+                return Result.Fail<string>("Destination folder path is empty.");
+
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+
+            // Start at the personal namespace root (INBOX on Dovecot/InMotion,
+            // "" elsewhere) and walk/create each segment by display name.
+            IMailFolder current = client.GetFolder(client.PersonalNamespaces[0]);
+            foreach (var seg in pathSegments)
+            {
+                var subs = await current.GetSubfoldersAsync(false, ct);
+                var next = subs.FirstOrDefault(f => string.Equals(f.Name, seg, StringComparison.OrdinalIgnoreCase));
+                if (next is null)
+                {
+                    if (!createIfMissing)
+                        return Result.Fail<string>($"Folder not found: {string.Join("/", pathSegments)}");
+                    next = await current.CreateAsync(seg, isMessageFolder: true, ct);
+                    try { await next.SubscribeAsync(ct); } catch { /* subscription is cosmetic */ }
+                }
+                current = next;
+            }
+
+            var src = await GetFolderByPathAsync(client, srcFolderFullPath, ct);
+            if (src is null) return Result.Fail<string>($"Source folder not found: {srcFolderFullPath}");
+            await src.OpenAsync(FolderAccess.ReadWrite, ct);
+            await src.MoveToAsync(new UniqueId(uid), current, ct);
+            await client.DisconnectAsync(true, ct);
+            return Result.Ok(current.FullName);
+        }
+        catch (Exception ex) { return Result.Fail<string>(SanitizeError(ex), ex); }
+    }
+
     public async Task<Result<string>> MoveToSpecialAsync(
         Account account, string password, string srcFolderFullPath, uint uid,
         Models.SpecialFolder dst, CancellationToken ct = default)

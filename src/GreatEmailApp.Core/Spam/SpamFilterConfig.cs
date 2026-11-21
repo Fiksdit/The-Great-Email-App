@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Spam/SpamFilterConfig.cs
-// Created: 2026-05-15 | Revised: 2026-06-12 | Rev: 5
-// Changed by: Claude Opus 4.8 on behalf of James Reed
+// Created: 2026-05-15 | Revised: 2026-11-21 | Rev: 6
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 namespace GreatEmailApp.Core.Spam;
 
@@ -17,6 +17,20 @@ public sealed class SpamFilterConfig
 
     /// <summary>0–100. Messages scoring at or above this get moved to Junk.</summary>
     public int ThresholdScore { get; set; } = 70;
+
+    /// <summary>
+    /// Where this app's filter moves the spam it catches, as folder names from
+    /// the account root separated by '/' (e.g. "All Spam/TGEA"). Created on any
+    /// account that lacks it. Kept separate from the server's own junk folder so
+    /// the owner can tell this app's catches apart from InMotion's / Outlook's.
+    /// Empty = the server's Junk special-use folder (old behavior).
+    /// Default is the owner's chosen folder rather than "" ON PURPOSE: older
+    /// clients that save spam-filter.json drop unknown properties, and a missing
+    /// property must fall back to TGEA, not silently revert to the shared Junk.
+    /// </summary>
+    public string DestinationFolder { get; set; } = DefaultDestinationFolder;
+
+    public const string DefaultDestinationFolder = "All Spam/TGEA";
 
     /// <summary>
     /// Phrases that, if found in subject or preview, contribute to the score

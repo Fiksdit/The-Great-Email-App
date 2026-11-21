@@ -57,6 +57,17 @@ public interface IImapService
         string folderFullPath, uint uid, CancellationToken ct = default);
 
     /// <summary>
+    /// Move a message to a folder named by its path from the account root
+    /// (e.g. ["All Spam", "TGEA"]) — delimiter- and namespace-agnostic, so the
+    /// same setting works on every account. Missing folders along the path are
+    /// created (and subscribed) when <paramref name="createIfMissing"/> is true.
+    /// Returns the destination's full IMAP path.
+    /// </summary>
+    Task<Result<string>> MoveToNamedPathAsync(Account account, string password,
+        string srcFolderFullPath, uint uid, IReadOnlyList<string> pathSegments,
+        bool createIfMissing, CancellationToken ct = default);
+
+    /// <summary>
     /// Append a sent copy to the account's Sent folder. SMTP doesn't do this for us.
     /// Best-effort — failure here doesn't fail the send (the message already left).
     /// </summary>

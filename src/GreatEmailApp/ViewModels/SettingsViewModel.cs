@@ -96,6 +96,7 @@ public partial class SettingsViewModel : ObservableObject
     // save (SaveSpamConfig, called from the dialog's Close path).
     [ObservableProperty] private bool spamEnabled;
     [ObservableProperty] private int spamThreshold;
+    [ObservableProperty] private string spamDestinationFolder = "";
     [ObservableProperty] private bool showJunkUnreadBadge;
     [ObservableProperty] private string newSpamKeyword = "";
     [ObservableProperty] private string newBlockedSender = "";
@@ -168,6 +169,7 @@ public partial class SettingsViewModel : ObservableObject
         _spamConfig = _spamStore.Load();
         spamEnabled = _spamConfig.Enabled;
         spamThreshold = _spamConfig.ThresholdScore;
+        spamDestinationFolder = _spamConfig.DestinationFolder ?? "";
         showJunkUnreadBadge = settings.ShowJunkUnreadBadge;
         foreach (var k in _spamConfig.SubjectKeywords.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
             SpamKeywords.Add(k);
@@ -313,6 +315,9 @@ public partial class SettingsViewModel : ObservableObject
     {
         _spamConfig.Enabled = SpamEnabled;
         _spamConfig.ThresholdScore = SpamThreshold;
+        // Normalize "All Spam / TGEA" → "All Spam/TGEA"; blank = server Junk.
+        _spamConfig.DestinationFolder = string.Join("/", (SpamDestinationFolder ?? "")
+            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         _spamConfig.SubjectKeywords = SpamKeywords.ToList();
         _spamConfig.BlockedSenders = BlockedSenders.ToList();
         _spamConfig.TrustedSenders = TrustedSenders.ToList();

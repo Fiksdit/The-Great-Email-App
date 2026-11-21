@@ -1,10 +1,11 @@
 // FILE: src/GreatEmailApp.Core/Spam/SpamFilterEngine.cs
-// Created: 2026-05-15 | Revised: 2026-05-15 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-05-15 | Revised: 2026-11-21 | Rev: 2
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Orchestrates the spam filter. Wiring mirrors RulesEngine exactly: subscribe
 // to NewMailPoller.MessagesPolled, classify each message, act on Spam verdicts
-// by setting \Seen then moving to the account's Junk special folder. Both
+// by setting \Seen then moving to SpamFilterConfig.DestinationFolder (default
+// "All Spam/TGEA", created if missing; empty = the server's Junk folder). Both
 // engines coexist; if RulesEngine moves a message before we see it, our move
 // silently fails and the next poll won't see it again — same fail-safe shape.
 //
@@ -116,15 +117,23 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
                 continue;
             }
 
-            var moved = await _imap.MoveToSpecialAsync(account, creds.Value.Password, folderPath, uid,
-                SpecialFolder.Junk, ct).ConfigureAwait(false);
+            // App catches go to their own folder (default "All Spam/TGEA",
+            // created if missing) so they're distinguishable from the server's
+            // and Outlook's spam handling. Empty setting = server Junk folder.
+            var segments = (config.DestinationFolder ?? "")
+                .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var moved = segments.Length == 0
+                ? await _imap.MoveToSpecialAsync(account, creds.Value.Password, folderPath, uid,
+                    SpecialFolder.Junk, ct).ConfigureAwait(false)
+                : await _imap.MoveToNamedPathAsync(account, creds.Value.Password, folderPath, uid,
+                    segments, createIfMissing: true, ct).ConfigureAwait(false);
             if (moved is Result<string>.Ok)
             {
                 filtered++;
             }
             else if (moved is Result<string>.Fail moveFail)
             {
-                errors.Add($"MoveToJunk failed for uid={uid}: {moveFail.Error}");
+                errors.Add($"Move to spam folder failed for uid={uid}: {moveFail.Error}");
             }
         }
 
