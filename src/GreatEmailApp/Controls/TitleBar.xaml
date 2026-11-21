@@ -1,6 +1,6 @@
 <!-- FILE: src/GreatEmailApp/Controls/TitleBar.xaml
-     Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 4
-     Changed by: Claude Opus 4.7 on behalf of James Reed -->
+     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 5
+     Changed by: Claude Opus 5.5 on behalf of James Reed -->
 <UserControl x:Class="GreatEmailApp.Controls.TitleBar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -241,6 +241,53 @@
                     <TextBlock Text="{StaticResource IconClose}" Style="{StaticResource IconGlyph}" FontSize="10" />
                 </Button>
             </StackPanel>
+
+            <!-- First-run sign-in callout. Opened from code-behind only when the
+                 startup silent re-auth finishes and the user is still signed out
+                 (i.e. a new install / new PC). Arrow points up at AvatarButton.
+                 Geometry: AvatarButton is 30px wide (22 + 4px padding each side);
+                 HorizontalOffset = 30 - 280 aligns the callout's right edge with
+                 the avatar's, and the 16px arrow's 7px right margin centers it. -->
+            <Popup x:Name="SignInHintPopup"
+                   PlacementTarget="{Binding ElementName=AvatarButton}"
+                   Placement="Bottom"
+                   HorizontalOffset="-250"
+                   VerticalOffset="2"
+                   AllowsTransparency="True"
+                   PopupAnimation="Fade"
+                   StaysOpen="True">
+                <Grid Width="280">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Path Grid.Row="0" HorizontalAlignment="Right" Margin="0,0,7,-1"
+                          Data="M0,8 L8,0 L16,8"
+                          Fill="{DynamicResource ElevatedBackgroundBrush}"
+                          Stroke="{DynamicResource AccentBrush}" StrokeThickness="1" />
+                    <Border Grid.Row="1"
+                            Background="{DynamicResource ElevatedBackgroundBrush}"
+                            BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"
+                            CornerRadius="8" Padding="14,12">
+                        <StackPanel>
+                            <TextBlock Text="Sign in to sync" FontWeight="SemiBold" FontSize="13"
+                                       Foreground="{DynamicResource PrimaryTextBrush}" />
+                            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" FontSize="12"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       Text="Click this button to sign in with Google. Your accounts and settings from your other PCs download automatically — then re-enter each email password once on this PC." />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                                <Button Style="{StaticResource SubtleButton}" Content="Not now"
+                                        Padding="10,4" Margin="0,0,6,0"
+                                        AutomationProperties.Name="Dismiss sign-in tip"
+                                        Click="SignInHintDismiss_Click" />
+                                <Button Style="{StaticResource AccentButton}" Content="Sign in"
+                                        AutomationProperties.Name="Sign in with Google"
+                                        Click="SignInHintSignIn_Click" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Popup>
         </Grid>
     </Border>
 </UserControl>

@@ -60,6 +60,8 @@ Only build from source when actively developing.
 
 **Output:** ".NET 8 SDK [installed / already present]. Build: [N errors / N warnings]. App launched: [PID]."
 
+**Known launch blocker — Smart App Control (Windows 11):** if the exe exits within seconds and Event Viewer → Application shows `.NET Runtime` `FileLoadException ... An Application Control policy has blocked this file (0x800711C7)` on `GreatEmailApp.dll`, Smart App Control is blocking the unsigned local build (release zips are unsigned too). Check read-only with `(Get-MpComputerStatus).SmartAppControlState`. It's a system security setting — never change it yourself; tell the owner to turn it off at Windows Security → App & browser control → Smart App Control settings. Hit on the jreed PC 2026-11-21; owner turned it off.
+
 **Known launch symptom — pure-white window:** if the launched app shows a pure-white client area with no chrome but the cursor turns to a pointer over interactive zones, this is a WPF hardware-rendering pipeline bug — already mitigated. The `RenderOptions.ProcessRenderMode = SoftwareOnly` line at the top of `App.OnStartup` is the fix; do not remove it. See FIX-2026-04-30-001 in `Project/logs/fix_log.md`.
 
 **Known sync hazard — never push an empty roster to seed:** if the user signs in before adding accounts, the cloud document gets seeded with `accounts: []`. With auto-sync on, every later device launch could overwrite local edits. Mitigated by `SyncCoordinator.ShouldPreferLocalOver` + `sync-meta.json`. See FIX-2026-04-30-002 in `Project/logs/fix_log.md`. Do NOT bypass these guards "just to make sync simpler" — they exist because the simpler version cost the user real data.

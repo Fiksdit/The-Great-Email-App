@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/App.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 13
-// Changed by: Claude Opus 4.8 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 14
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.IO;
 using System.Windows;
@@ -162,9 +162,17 @@ public partial class App : Application
         // SessionChanged fires inside TryRestoreAsync if it succeeds; the
         // coordinator subscribes to that and pulls. StartAsync covers the case
         // where the session is already restored (e.g. fast restart).
-        await Auth.TryRestoreAsync();
+        try { await Auth.TryRestoreAsync(); }
+        finally { _authRestoreCompleted.TrySetResult(); }
         await SyncCoordinator.StartAsync();
     }
+
+    // Completes once the startup silent re-auth attempt has finished (success
+    // or failure). The title-bar sign-in callout awaits this so it never flashes
+    // on a PC that is about to restore a saved session.
+    private static readonly TaskCompletionSource _authRestoreCompleted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public static Task AuthRestoreCompleted => _authRestoreCompleted.Task;
 
     private static void OnRemotePullApplied(object? sender, EventArgs e)
     {

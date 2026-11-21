@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Controls/TitleBar.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-13 | Rev: 5
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 6
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System;
 using System.Linq;
@@ -21,7 +21,71 @@ public partial class TitleBar : UserControl
     {
         InitializeComponent();
         MouseLeftButtonDown += OnDragArea;
+        Loaded += OnLoadedSignInHint;
     }
+
+    // --------------------------------------------------------------------- //
+    // First-run sign-in callout
+    // --------------------------------------------------------------------- //
+
+    // True while the callout should be showing (signed out, not yet dismissed
+    // this run). The popup itself is only open while the main window is active
+    // and not minimized — WPF popups don't follow their owner, so without this
+    // the callout would float over other apps or stay put when the window moves.
+    private bool _signInHintPending;
+
+    private async void OnLoadedSignInHint(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedSignInHint;
+        if (App.Auth is null) return;
+
+        App.Auth.SessionChanged += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (App.Auth.IsSignedIn) HideSignInHint();
+        }));
+
+        // Wait for the startup silent re-auth so the callout never flashes on a
+        // PC that already has a saved session.
+        try { await App.AuthRestoreCompleted; } catch { /* failed restore == signed out */ }
+        if (App.Auth.IsSignedIn) return;
+
+        var w = Window.GetWindow(this);
+        if (w is null) return;
+        w.LocationChanged += (_, _) => RepositionSignInHint();
+        w.SizeChanged     += (_, _) => RepositionSignInHint();
+        w.StateChanged    += (_, _) => UpdateSignInHint();
+        w.Activated       += (_, _) => UpdateSignInHint();
+        w.Deactivated     += (_, _) => UpdateSignInHint();
+
+        _signInHintPending = true;
+        UpdateSignInHint();
+    }
+
+    private void UpdateSignInHint()
+    {
+        var w = Window.GetWindow(this);
+        SignInHintPopup.IsOpen = _signInHintPending
+            && w is not null && w.IsActive && w.WindowState != WindowState.Minimized;
+    }
+
+    private void HideSignInHint()
+    {
+        _signInHintPending = false;
+        SignInHintPopup.IsOpen = false;
+    }
+
+    // Nudging the offset forces WPF to recompute the popup's screen position.
+    private void RepositionSignInHint()
+    {
+        if (!SignInHintPopup.IsOpen) return;
+        var o = SignInHintPopup.HorizontalOffset;
+        SignInHintPopup.HorizontalOffset = o + 1;
+        SignInHintPopup.HorizontalOffset = o;
+    }
+
+    private void SignInHintDismiss_Click(object sender, RoutedEventArgs e) => HideSignInHint();
+
+    private void SignInHintSignIn_Click(object sender, RoutedEventArgs e) => AvatarButton_Click(AvatarButton, e);
 
     public static readonly DependencyProperty AccountInitialProperty =
         DependencyProperty.Register(nameof(AccountInitial), typeof(string), typeof(TitleBar),
@@ -123,6 +187,10 @@ public partial class TitleBar : UserControl
 
     private void AvatarButton_Click(object sender, RoutedEventArgs e)
     {
+        // Clicking the avatar is the action the first-run callout asks for, so
+        // it counts as acknowledging it.
+        HideSignInHint();
+
         // Signed-out: jump straight to Settings → Sync, where the Google sign-in
         // button lives. Avoids the old "fake signed-in" popup that showed a
         // hardcoded email when no account was actually connected.
