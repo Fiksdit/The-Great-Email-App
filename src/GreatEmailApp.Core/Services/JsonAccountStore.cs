@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Services/JsonAccountStore.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 3
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 // Persists Account[] to %LOCALAPPDATA%\GreatEmailApp\accounts.json. No passwords.
 // Folders[] inside Account are NOT persisted (server is the source of truth) — see [JsonIgnore]
 // pattern in Account model. We snapshot only the connection config.
@@ -93,7 +93,9 @@ public sealed class JsonAccountStore : IAccountStore
             Id = Id,
             DisplayName = DisplayName,
             EmailAddress = EmailAddress,
-            Initials = Initials,
+            // Derived, never user-set — recompute so values saved by the old
+            // buggy initials code ("JC" for jreed@fiksdit.com) self-heal.
+            Initials = Monogram.ForAccount(DisplayName, EmailAddress),
             Color = Color,
             IsPrimary = IsPrimary,
             ImapHost = ImapHost,

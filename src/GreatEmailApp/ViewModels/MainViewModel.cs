@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 13
-// Changed by: Claude Opus 4.8 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 14
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -388,7 +388,47 @@ public partial class MainViewModel : ObservableObject
             _ = LoadFoldersAsync(vm, autoSelectInbox: isPrimary);
             isPrimary = false;
         }
-        StatusMessage = $"Loaded {stored.Count} account(s).";
+
+        // LoadFoldersAsync flags missing passwords synchronously (before its
+        // first await), so NeedsPassword is already set here. Don't overwrite
+        // that warning with a cheerful "Loaded N account(s)".
+        var missing = Accounts.Count(a => a.NeedsPassword);
+        StatusMessage = missing == 0
+            ? $"Loaded {stored.Count} account(s)."
+            : $"{missing} account(s) need a password on this PC — unlock password sync in Settings → Sync, or click \"Enter password\" in the sidebar.";
+    }
+
+    /// <summary>
+    /// Called after the user enters a password for an account that had none on
+    /// this PC (sidebar "Enter password"). The credential is already saved;
+    /// clear the flag and load folders.
+    /// </summary>
+    public void OnPasswordEntered(AccountViewModel accountVm)
+    {
+        accountVm.NeedsPassword = false;
+        _ = LoadFoldersAsync(accountVm, autoSelectInbox: SelectedFolder is null);
+    }
+
+    // Status-bar dot: red if any account needs a password or errored, amber
+    // while any is syncing, green when every account is connected, grey otherwise.
+    public System.Windows.Media.Brush ConnectionBrush
+    {
+        get
+        {
+            var key = Accounts.Count == 0 ? "TertiaryTextBrush"
+                : Accounts.Any(a => a.NeedsPassword || a.Status == AccountStatus.Error) ? "RoseBrush"
+                : Accounts.Any(a => a.Status == AccountStatus.Syncing) ? "AmberBrush"
+                : Accounts.All(a => a.Status == AccountStatus.Connected) ? "GreenBrush"
+                : "TertiaryTextBrush";
+            return Application.Current?.TryFindResource(key) as System.Windows.Media.Brush
+                ?? System.Windows.Media.Brushes.Gray;
+        }
+    }
+
+    private void SetAccountStatus(AccountViewModel accountVm, AccountStatus status)
+    {
+        accountVm.SetStatus(status);
+        OnPropertyChanged(nameof(ConnectionBrush));
     }
 
     private async Task LoadFoldersAsync(AccountViewModel accountVm, bool autoSelectInbox = false)
@@ -397,12 +437,15 @@ public partial class MainViewModel : ObservableObject
         var creds = _creds.Read(account.Id);
         if (creds is null)
         {
-            account.Status = AccountStatus.Error;
-            StatusMessage = $"No password stored for {account.EmailAddress}. Re-add the account.";
+            // Normal on a new PC: cloud sync restored the account list, but
+            // passwords live in Windows Credential Manager and don't roam.
+            accountVm.NeedsPassword = true;
+            SetAccountStatus(accountVm, AccountStatus.Error);
+            StatusMessage = $"No password on this PC for {account.EmailAddress} — unlock password sync in Settings → Sync, or click \"Enter password\" in the sidebar.";
             return;
         }
 
-        account.Status = AccountStatus.Syncing;
+        SetAccountStatus(accountVm, AccountStatus.Syncing);
 
         // Paint cached folders immediately so the sidebar isn't blank during the
         // 1–3s IMAP LIST round-trip. The live fetch below will replace them once
@@ -423,7 +466,7 @@ public partial class MainViewModel : ObservableObject
         var result = await _imap.ListFoldersAsync(account, creds.Value.Password);
         if (result is Result<System.Collections.Generic.List<Folder>>.Ok ok)
         {
-            account.Status = AccountStatus.Connected;
+            SetAccountStatus(accountVm, AccountStatus.Connected);
             // Persist for next launch — local-only, never synced.
             App.FolderCache.Save(account.Id, ok.Value);
             // Replace folder collection
@@ -486,7 +529,7 @@ public partial class MainViewModel : ObservableObject
         }
         else if (result is Result<System.Collections.Generic.List<Folder>>.Fail f)
         {
-            account.Status = AccountStatus.Error;
+            SetAccountStatus(accountVm, AccountStatus.Error);
             StatusMessage = $"{account.EmailAddress}: {f.Error}";
         }
     }

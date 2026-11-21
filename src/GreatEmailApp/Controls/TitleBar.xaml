@@ -274,7 +274,7 @@
                                        Foreground="{DynamicResource PrimaryTextBrush}" />
                             <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" FontSize="12"
                                        Foreground="{DynamicResource SecondaryTextBrush}"
-                                       Text="Click this button to sign in with Google. Your accounts and settings from your other PCs download automatically — then re-enter each email password once on this PC." />
+                                       Text="Click this button to sign in with Google. Your accounts, settings and saved passwords sync from your other PCs. To restore the passwords, unlock password sync with your passphrase in Settings → Sync." />
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                                 <Button Style="{StaticResource SubtleButton}" Content="Not now"
                                         Padding="10,4" Margin="0,0,6,0"

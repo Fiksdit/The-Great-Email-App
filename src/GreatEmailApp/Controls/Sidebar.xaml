@@ -1,6 +1,6 @@
 <!-- FILE: src/GreatEmailApp/Controls/Sidebar.xaml
-     Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 5
-     Changed by: Claude Opus 4.7 on behalf of James Reed
+     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 6
+     Changed by: Claude Opus 5.5 on behalf of James Reed
      Account/folder tree. Accounts collapse/expand at top level. Folders nest
      recursively via a self-referential DataTemplate (FolderItemTemplate) — each
      folder VM has its own Children collection and IsExpanded flag, so any depth
@@ -164,6 +164,26 @@
                                                  Fill="{Binding StatusBrush}" Margin="6,0,4,0" />
                                     </Grid>
                                 </Border>
+
+                                <!-- Missing password on this PC (new PC after cloud sync).
+                                     Sits OUTSIDE the header Border on purpose: the header
+                                     uses PreviewMouseLeftButtonDown, which would swallow
+                                     a click on a button nested inside it. -->
+                                <Button Style="{StaticResource SubtleButton}"
+                                        Margin="42,0,8,4" Padding="8,4"
+                                        HorizontalAlignment="Left"
+                                        Visibility="{Binding NeedsPassword, Converter={StaticResource BoolVis}}"
+                                        Click="EnterPassword_Click" Tag="{Binding}"
+                                        AutomationProperties.Name="Enter password for this account">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="6" Height="6" Margin="0,0,6,0"
+                                                 Fill="{DynamicResource RoseBrush}" VerticalAlignment="Center" />
+                                        <TextBlock FontSize="11" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource RoseBrush}">
+                                            <Run Text="Password needed · " /><Run Text="Enter password" TextDecorations="Underline" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Button>
 
                                 <!-- Folders (recursive) -->
                                 <ItemsControl ItemsSource="{Binding Folders}"

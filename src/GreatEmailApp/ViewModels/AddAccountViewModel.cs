@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/ViewModels/AddAccountViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 3
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Threading;
 using System.Threading.Tasks;
@@ -148,11 +148,5 @@ public partial class AddAccountViewModel : ObservableObject
         };
     }
 
-    private static string MakeInitials(string s)
-    {
-        if (string.IsNullOrWhiteSpace(s)) return "?";
-        var parts = s.Split(new[] { ' ', '.', '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1) return parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant();
-        return (parts[0][0].ToString() + parts[1][0]).ToUpperInvariant();
-    }
+    private static string MakeInitials(string s) => Monogram.From(s);
 }

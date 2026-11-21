@@ -4,6 +4,93 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-11-21-002 — New PC: accounts showed no folders/mail with no hint that passwords were missing
+
+**Area:** Sidebar / MainViewModel.LoadFoldersAsync · AccountViewModel status · StatusBar
+**Status:** ✅ Fixed
+**Priority:** P1 (fresh PC looked broken — empty sidebar, grey dots, status bar claiming "Connected")
+
+**Symptom**
+- New PC, signed in to sync: all accounts appear in the sidebar but no folders or mail ever load. Account dots stay grey. Status bar says "Connected · All folders are up to date · Last sync 2 min ago".
+
+**Replicate**
+1. Fresh PC (no `GreatEmailApp:{accountId}` entries in Credential Manager), sign in → cloud pull restores accounts.json.
+2. Sidebar shows the accounts; nothing loads; nothing says why.
+
+**Root cause**
+- Expected on a new PC until the password vault is unlocked (rulebook §7C: Settings → Sync → Unlock with passphrase restores all passwords). But three UI bugs hid the state, and the app never pointed at the vault:
+  1. `LoadFoldersAsync` set `StatusMessage = "No password stored… Re-add the account."` — then `LoadAccounts` immediately overwrote it with "Loaded N account(s)". And `StatusMessage` wasn't bound anywhere in the main window anyway.
+  2. `AccountViewModel.StatusBrush` was computed once in the ctor, so `Model.Status = Error` never repainted the dot (stayed grey).
+  3. `StatusBar.xaml` status text + green dot were a hardcoded literal — same anti-pattern as FIX-2026-05-13-001 / FIX-2026-05-07-001.
+- There was also no way to enter a password for an existing account short of removing and re-adding it.
+
+**Tried**
+- Nothing — diagnosed by reading Credential Manager (`cmdkey /list`: no `GreatEmailApp:` targets) and the load path; fixed on first attempt.
+
+**Fix**
+- `AccountViewModel`: `NeedsPassword` flag; `StatusBrush` computed on read; `SetStatus()` raises change notifications.
+- `MainViewModel`: missing creds → `NeedsPassword = true` + Error status; "Loaded N" no longer overwrites the warning; `OnPasswordEntered()` reloads folders; `ConnectionBrush` (rose/amber/green/grey) for the status bar; all status writes go through `SetAccountStatus`.
+- New `EnterPasswordDialog`: tests the login with `TestConnectionAsync`, then saves to Credential Manager (§7).
+- `Sidebar.xaml`: "Password needed · Enter password" button under the account header — placed outside the header Border because the header's `PreviewMouseLeftButtonDown` would swallow the click.
+- `StatusBar.xaml`: bound to `StatusMessage` + `ConnectionBrush` instead of the literal.
+- Settings → Sync → Unlock with passphrase (vault) still works and already calls `ReloadAccounts`, which clears the flag.
+
+**Files changed**
+- `src/GreatEmailApp/ViewModels/AccountViewModel.cs` (Rev 1 → 2)
+- `src/GreatEmailApp/ViewModels/MainViewModel.cs` (Rev 13 → 14)
+- `src/GreatEmailApp/Views/Dialogs/EnterPasswordDialog.xaml(.cs)` (new, Rev 1)
+- `src/GreatEmailApp/Controls/Sidebar.xaml` (Rev 5 → 6), `Sidebar.xaml.cs` (Rev 3 → 4)
+- `src/GreatEmailApp/Controls/StatusBar.xaml` (Rev 1 → 2)
+
+**Rulebook**
+- §10 — never let visible literals advertise state not bound to a real source (third instance of this anti-pattern).
+- §7 — passwords only ever go to Credential Manager.
+
+**Session:** 2026-11-21
+**Commit:** _pending_
+
+---
+
+## FIX-2026-11-21-001 — Account monograms showed "JC" for every account
+
+**Area:** Core / account + sender initials
+**Status:** ✅ Fixed
+**Priority:** P3 (cosmetic, but wrong on every account)
+
+**Symptom**
+- Sidebar and Settings → Accounts showed "JC" for jreed@fiksdit.com, james@fiksdit.com and james@fixlogic.co.
+
+**Replicate**
+1. Add an account with no display name (display name defaults to the email address).
+2. Avatar shows first letter of the local part + first letter of the TLD ("com" / "co").
+
+**Root cause**
+- `AddAccountViewModel.MakeInitials` (and an identical copy in `ImapService` for senders) split on `' ', '.', '-', '_'` but not `'@'`: "jreed@fiksdit.com" → ["jreed@fiksdit", "com"] → "JC". The bad value was then persisted in accounts.json and synced to Firestore, so it followed the user to every PC.
+
+**Tried**
+- Nothing — fixed on first attempt.
+
+**Fix**
+- New `Core/Models/Monogram.cs`: single initials helper; uses only the part before '@' for email addresses ("jreed@…" → "JR", "james@…" → "JA").
+- `AddAccountViewModel` and `ImapService` delegate to it.
+- `JsonAccountStore` + `FirestoreSyncService` DTO → Account mappings recompute `Initials` (derived, never user-set), so existing bad values self-heal on load and are corrected in the cloud on the next push.
+
+**Files changed**
+- `src/GreatEmailApp.Core/Models/Monogram.cs` (new, Rev 1)
+- `src/GreatEmailApp.Core/Services/JsonAccountStore.cs` (Rev 2 → 3)
+- `src/GreatEmailApp.Core/Sync/FirestoreSyncService.cs` (Rev 2 → 3)
+- `src/GreatEmailApp.Core/Services/ImapService.cs` (Rev 4 → 5)
+- `src/GreatEmailApp/ViewModels/AddAccountViewModel.cs` (Rev 2 → 3)
+
+**Rulebook**
+- §2 Surgical Change Rule — one helper, call sites delegate.
+
+**Session:** 2026-11-21
+**Commit:** _pending_
+
+---
+
+
 ## FIX-2026-06-12-001 — Removed built-in spam keyword reappeared on next launch
 
 **Area:** Core / JsonSpamConfigStore + SpamFilterConfig · default-keyword merge

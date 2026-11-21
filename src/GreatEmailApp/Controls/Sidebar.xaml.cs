@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Controls/Sidebar.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-05-12 | Rev: 3
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 4
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Windows;
 using System.Windows.Controls;
@@ -52,6 +52,19 @@ public partial class Sidebar : UserControl
             folder.IsExpanded = !folder.IsExpanded;
             e.Handled = true;
         }
+    }
+
+    private void EnterPassword_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: AccountViewModel acc }
+            || DataContext is not MainViewModel vm) return;
+
+        var dlg = new GreatEmailApp.Views.Dialogs.EnterPasswordDialog(acc.Model, App.Imap, App.Credentials)
+        {
+            Owner = Window.GetWindow(this),
+        };
+        if (dlg.ShowDialog() == true)
+            vm.OnPasswordEntered(acc);
     }
 
     private void AddAccount_Click(object sender, RoutedEventArgs e)

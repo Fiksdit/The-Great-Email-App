@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Services/ImapService.cs
-// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 4
-// Changed by: Claude Opus 4.8 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 5
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 // MailKit-backed IMAP. Single-shot operations: open → do → close. We do NOT
 // hold a long-lived connection in Phase 2 — IDLE / push lands in Phase 5.
 
@@ -709,14 +709,7 @@ public sealed class ImapService : IImapService
         return $"{bytes / (1024.0 * 1024.0):0.#} MB";
     }
 
-    private static string MakeInitials(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return "?";
-        var parts = name.Split(new[] { ' ', '.', '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0) return name[..Math.Min(2, name.Length)].ToUpperInvariant();
-        if (parts.Length == 1) return parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant();
-        return (parts[0][0].ToString() + parts[1][0]).ToUpperInvariant();
-    }
+    private static string MakeInitials(string name) => Monogram.From(name);
 
     // Stable hash → palette. Keeps the same sender always the same color.
     private static readonly string[] Palette = new[]

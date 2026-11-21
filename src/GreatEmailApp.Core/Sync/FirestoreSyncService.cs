@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Sync/FirestoreSyncService.cs
-// Created: 2026-04-30 | Revised: 2026-06-12 | Rev: 2
-// Changed by: Claude Opus 4.8 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-11-21 | Rev: 3
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // REST-based Firestore client for the single-document settings sync.
 // We deliberately don't take a dependency on Google.Cloud.Firestore — the
@@ -246,7 +246,8 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
             Id = Id,
             DisplayName = DisplayName,
             EmailAddress = EmailAddress,
-            Initials = Initials,
+            // Derived — recompute so bad cloud values from the old initials bug self-heal.
+            Initials = Monogram.ForAccount(DisplayName, EmailAddress),
             Color = Color,
             IsPrimary = IsPrimary,
             ImapHost = ImapHost,

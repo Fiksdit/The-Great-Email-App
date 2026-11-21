@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/ViewModels/AccountViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 2
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Collections.ObjectModel;
 using System.Windows.Media;
@@ -13,6 +13,11 @@ public partial class AccountViewModel : ObservableObject
 {
     [ObservableProperty] private bool isExpanded = true;
 
+    // True when this PC has no IMAP password stored for the account (e.g. a new
+    // PC that pulled the account list from cloud sync — Credential Manager
+    // doesn't roam). The sidebar shows an "Enter password" prompt under the row.
+    [ObservableProperty] private bool needsPassword;
+
     public Account Model { get; }
     public ObservableCollection<FolderViewModel> Folders { get; }
 
@@ -22,7 +27,21 @@ public partial class AccountViewModel : ObservableObject
     public AccountStatus Status => Model.Status;
 
     public Brush ColorBrush { get; }
-    public Brush StatusBrush { get; }
+
+    // Computed on read (was computed once in the ctor, so the dot stayed grey
+    // forever — Model.Status changes never reached the UI).
+    public Brush StatusBrush => Model.Status switch
+    {
+        AccountStatus.Connected => ConnectedBrush,
+        AccountStatus.Syncing   => SyncingBrush,
+        AccountStatus.Error     => ErrorBrush,
+        _                       => OfflineBrush,
+    };
+
+    private static readonly SolidColorBrush ConnectedBrush = HexBrush("#14A37F");
+    private static readonly SolidColorBrush SyncingBrush   = HexBrush("#D29014");
+    private static readonly SolidColorBrush ErrorBrush     = HexBrush("#D4406B");
+    private static readonly SolidColorBrush OfflineBrush   = HexBrush("#888888");
 
     public AccountViewModel(Account model)
     {
@@ -32,13 +51,14 @@ public partial class AccountViewModel : ObservableObject
             Folders.Add(new FolderViewModel(f));
 
         ColorBrush = HexBrush(model.Color);
-        StatusBrush = model.Status switch
-        {
-            AccountStatus.Connected => HexBrush("#14A37F"),
-            AccountStatus.Syncing => HexBrush("#D29014"),
-            AccountStatus.Error => HexBrush("#D4406B"),
-            _ => HexBrush("#888888"),
-        };
+    }
+
+    /// <summary>Set the account's connection status and repaint the status dot.</summary>
+    public void SetStatus(AccountStatus status)
+    {
+        Model.Status = status;
+        OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(StatusBrush));
     }
 
     private static SolidColorBrush HexBrush(string hex)

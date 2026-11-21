@@ -53,7 +53,7 @@ dotnet build   GreatEmailApp.sln -c Debug
 1. Download the latest release zip from https://github.com/Fiksdit/The-Great-Email-App/releases (look for `GreatEmailApp-vX.Y.Z.zip`).
 2. Extract anywhere; run `GreatEmailApp.exe`. Requires the .NET 8 Desktop Runtime (winget: `Microsoft.DotNet.DesktopRuntime.8`).
 3. Settings → Sync → Sign in with Google. The SyncCoordinator pulls the user's accounts/settings from Firestore automatically (`users/{uid}/settings/profile`).
-4. Re-enter the IMAP password once per account (Credential Manager doesn't roam).
+4. Settings → Sync → **Unlock with passphrase** (password vault, rulebook §7C) — restores every IMAP password to Credential Manager. Only if the vault was never set up (or the passphrase is lost) re-enter each password via the sidebar "Enter password" link.
 5. Future code updates land via Settings → About → Check for updates → Download & install.
 
 Only build from source when actively developing.
