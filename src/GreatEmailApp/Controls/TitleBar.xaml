@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Controls/TitleBar.xaml
-     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 5
+     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 6
      Changed by: Claude Opus 5.5 on behalf of James Reed -->
 <UserControl x:Class="GreatEmailApp.Controls.TitleBar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -242,9 +242,10 @@
                 </Button>
             </StackPanel>
 
-            <!-- First-run sign-in callout. Opened from code-behind only when the
-                 startup silent re-auth finishes and the user is still signed out
-                 (i.e. a new install / new PC). Arrow points up at AvatarButton.
+            <!-- New-PC setup callout (two steps). Opened from code-behind: step 1
+                 when the startup silent re-auth finishes and the user is signed
+                 out; step 2 when signed in but the password vault is locked on
+                 this PC. Arrow points up at AvatarButton.
                  Geometry: AvatarButton is 30px wide (22 + 4px padding each side);
                  HorizontalOffset = 30 - 280 aligns the callout's right edge with
                  the avatar's, and the 16px arrow's 7px right margin centers it. -->
@@ -270,19 +271,22 @@
                             BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"
                             CornerRadius="8" Padding="14,12">
                         <StackPanel>
-                            <TextBlock Text="Sign in to sync" FontWeight="SemiBold" FontSize="13"
+                            <!-- Step label / title / body / action text are set from
+                                 code-behind per step (SetHintStep): 1 = Google sign-in,
+                                 2 = unlock the password vault (rulebook §7C). -->
+                            <TextBlock x:Name="HintStepText" FontSize="11"
+                                       Foreground="{DynamicResource AccentBrush}" />
+                            <TextBlock x:Name="HintTitleText" FontWeight="SemiBold" FontSize="13" Margin="0,2,0,0"
                                        Foreground="{DynamicResource PrimaryTextBrush}" />
-                            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" FontSize="12"
-                                       Foreground="{DynamicResource SecondaryTextBrush}"
-                                       Text="Click this button to sign in with Google. Your accounts, settings and saved passwords sync from your other PCs. To restore the passwords, unlock password sync with your passphrase in Settings → Sync." />
+                            <TextBlock x:Name="HintBodyText" Margin="0,6,0,0" TextWrapping="Wrap" FontSize="12"
+                                       Foreground="{DynamicResource SecondaryTextBrush}" />
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                                 <Button Style="{StaticResource SubtleButton}" Content="Not now"
                                         Padding="10,4" Margin="0,0,6,0"
-                                        AutomationProperties.Name="Dismiss sign-in tip"
+                                        AutomationProperties.Name="Dismiss setup tip"
                                         Click="SignInHintDismiss_Click" />
-                                <Button Style="{StaticResource AccentButton}" Content="Sign in"
-                                        AutomationProperties.Name="Sign in with Google"
-                                        Click="SignInHintSignIn_Click" />
+                                <Button x:Name="HintActionButton" Style="{StaticResource AccentButton}"
+                                        Click="SignInHintAction_Click" />
                             </StackPanel>
                         </StackPanel>
                     </Border>

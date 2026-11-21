@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/TitleBar.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 6
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 7
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System;
@@ -25,54 +25,153 @@ public partial class TitleBar : UserControl
     }
 
     // --------------------------------------------------------------------- //
-    // First-run sign-in callout
+    // New-PC setup callout (two steps)
+    //   Step 1 — signed out after startup re-auth: sign in with Google.
+    //   Step 2 — signed in, but the password vault (rulebook §7C) exists and is
+    //            still locked on this PC: unlock it with the master passphrase
+    //            so IMAP passwords restore. Easy to forget — it's a separate
+    //            action after sign-in, in Settings → Sync.
     // --------------------------------------------------------------------- //
 
-    // True while the callout should be showing (signed out, not yet dismissed
-    // this run). The popup itself is only open while the main window is active
-    // and not minimized — WPF popups don't follow their owner, so without this
-    // the callout would float over other apps or stay put when the window moves.
-    private bool _signInHintPending;
+    private enum HintStep { None, SignIn, UnlockPasswords }
+
+    // The step that should be showing. The popup itself is only open while the
+    // main window is active and not minimized — WPF popups don't follow their
+    // owner, so without this the callout would float over other apps or stay
+    // put when the window moves.
+    private HintStep _hintStep = HintStep.None;
+    private bool _signInHintDismissed;
+    private bool _unlockHintDismissed;
 
     private async void OnLoadedSignInHint(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoadedSignInHint;
         if (App.Auth is null) return;
 
-        App.Auth.SessionChanged += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
+        var w = Window.GetWindow(this);
+        if (w is not null)
         {
-            if (App.Auth.IsSignedIn) HideSignInHint();
+            w.LocationChanged += (_, _) => RepositionSignInHint();
+            w.SizeChanged     += (_, _) => RepositionSignInHint();
+            w.StateChanged    += (_, _) => UpdateSignInHint();
+            w.Activated       += (_, _) => UpdateSignInHint();
+            w.Deactivated     += (_, _) => UpdateSignInHint();
+        }
+
+        // Signing in moves on to step 2 (if the vault is locked); signing out
+        // mid-session just hides the callout — step 1 is a startup-only nudge.
+        App.Auth.SessionChanged += (_, _) => Dispatcher.BeginInvoke(new Action(async () =>
+        {
+            if (App.Auth.IsSignedIn) await EvaluateSetupHintAsync();
+            else SetHintStep(HintStep.None);
         }));
 
-        // Wait for the startup silent re-auth so the callout never flashes on a
-        // PC that already has a saved session.
+        // Wait for the startup silent re-auth so step 1 never flashes on a PC
+        // that already has a saved session.
         try { await App.AuthRestoreCompleted; } catch { /* failed restore == signed out */ }
-        if (App.Auth.IsSignedIn) return;
+        await EvaluateSetupHintAsync();
+    }
 
-        var w = Window.GetWindow(this);
-        if (w is null) return;
-        w.LocationChanged += (_, _) => RepositionSignInHint();
-        w.SizeChanged     += (_, _) => RepositionSignInHint();
-        w.StateChanged    += (_, _) => UpdateSignInHint();
-        w.Activated       += (_, _) => UpdateSignInHint();
-        w.Deactivated     += (_, _) => UpdateSignInHint();
+    private async Task EvaluateSetupHintAsync()
+    {
+        if (App.Auth is null) return;
+        if (!App.Auth.IsSignedIn)
+        {
+            SetHintStep(_signInHintDismissed ? HintStep.None : HintStep.SignIn);
+            return;
+        }
 
-        _signInHintPending = true;
+        SetHintStep(HintStep.None);
+        if (App.Vault is null || App.Vault.IsUnlocked || _unlockHintDismissed) return;
+
+        // One Firestore GET: does a vault exist for this user? (NotSetUp → no
+        // step 2; there's nothing to restore.) Off the UI thread per ProbeAsync.
+        Result<GreatEmailApp.Core.Crypto.VaultStatus> probe;
+        try { probe = await Task.Run(() => App.Vault.ProbeAsync()); }
+        catch { return; }
+
+        // State may have moved on while the probe was in flight.
+        if (!App.Auth.IsSignedIn || App.Vault.IsUnlocked || _unlockHintDismissed) return;
+        if (probe is Result<GreatEmailApp.Core.Crypto.VaultStatus>.Ok { Value: GreatEmailApp.Core.Crypto.VaultStatus.Locked })
+            SetHintStep(HintStep.UnlockPasswords);
+    }
+
+    private void SetHintStep(HintStep step)
+    {
+        _hintStep = step;
+        switch (step)
+        {
+            case HintStep.SignIn:
+                HintStepText.Text = "Step 1 of 2";
+                HintTitleText.Text = "Sign in to sync";
+                HintBodyText.Text = "Click this button to sign in with Google. Your accounts, settings and " +
+                                    "saved passwords will download from your other PCs.";
+                HintActionButton.Content = "Sign in";
+                System.Windows.Automation.AutomationProperties.SetName(HintActionButton, "Sign in with Google");
+                break;
+            case HintStep.UnlockPasswords:
+                HintStepText.Text = "Step 2 of 2";
+                HintTitleText.Text = "Restore your passwords";
+                HintBodyText.Text = "Your accounts synced. To restore their saved passwords on this PC, unlock " +
+                                    "password sync with the master passphrase you set on your other PC.";
+                HintActionButton.Content = "Unlock";
+                System.Windows.Automation.AutomationProperties.SetName(HintActionButton, "Unlock password sync");
+                break;
+        }
         UpdateSignInHint();
     }
 
     private void UpdateSignInHint()
     {
+        // Unlocked elsewhere (e.g. directly in Settings → Sync) → step 2 is done.
+        if (_hintStep == HintStep.UnlockPasswords && (App.Vault?.IsUnlocked ?? false))
+            _hintStep = HintStep.None;
+
         var w = Window.GetWindow(this);
-        SignInHintPopup.IsOpen = _signInHintPending
-            && w is not null && w.IsActive && w.WindowState != WindowState.Minimized;
+        SignInHintPopup.IsOpen = _hintStep != HintStep.None
+            && w is not null && w.IsActive && w.WindowState != WindowState.Minimized
+            && (IsForeground(w) || PopupIsForeground());
+
+        // WPF can report IsActive=true for a window Windows kept behind another
+        // app (launched while the user was typing elsewhere — foreground lock),
+        // and no Activated event fires when it later comes to the front. Poll
+        // the real foreground window while a step is pending to cover that.
+        if (_hintStep != HintStep.None)
+        {
+            if (_hintForegroundTimer is null)
+            {
+                _hintForegroundTimer = new System.Windows.Threading.DispatcherTimer
+                    { Interval = TimeSpan.FromSeconds(1) };
+                _hintForegroundTimer.Tick += (_, _) => UpdateSignInHint();
+            }
+            _hintForegroundTimer.Start();
+        }
+        else
+        {
+            _hintForegroundTimer?.Stop();
+        }
     }
 
-    private void HideSignInHint()
+    private System.Windows.Threading.DispatcherTimer? _hintForegroundTimer;
+
+    private static bool IsForeground(Window w)
     {
-        _signInHintPending = false;
-        SignInHintPopup.IsOpen = false;
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+        return hwnd != IntPtr.Zero && GetForegroundWindow() == hwnd;
     }
+
+    // Clicking a button inside the callout can hand foreground to the popup's
+    // own HWND — that must not count as "app is in the background".
+    private bool PopupIsForeground()
+    {
+        if (!SignInHintPopup.IsOpen || SignInHintPopup.Child is null) return false;
+        return System.Windows.PresentationSource.FromVisual(SignInHintPopup.Child)
+                   is System.Windows.Interop.HwndSource src
+               && src.Handle == GetForegroundWindow();
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
 
     // Nudging the offset forces WPF to recompute the popup's screen position.
     private void RepositionSignInHint()
@@ -83,9 +182,30 @@ public partial class TitleBar : UserControl
         SignInHintPopup.HorizontalOffset = o;
     }
 
-    private void SignInHintDismiss_Click(object sender, RoutedEventArgs e) => HideSignInHint();
+    private void SignInHintDismiss_Click(object sender, RoutedEventArgs e)
+    {
+        if (_hintStep == HintStep.SignIn) _signInHintDismissed = true;
+        if (_hintStep == HintStep.UnlockPasswords) _unlockHintDismissed = true;
+        SetHintStep(HintStep.None);
+    }
 
-    private void SignInHintSignIn_Click(object sender, RoutedEventArgs e) => AvatarButton_Click(AvatarButton, e);
+    private void SignInHintAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (_hintStep == HintStep.SignIn)
+        {
+            AvatarButton_Click(AvatarButton, e);
+            return;
+        }
+
+        // Step 2: Settings → Sync holds the "Unlock with passphrase" button
+        // (SettingsViewModel owns the unlock + ReloadAccounts flow — reuse it).
+        SetHintStep(HintStep.None);
+        var dlg = new Views.Dialogs.SettingsDialog { Owner = Window.GetWindow(this) };
+        dlg.OpenOnTab("Sync");
+        dlg.ShowDialog();
+        if (!(App.Vault?.IsUnlocked ?? false) && !_unlockHintDismissed)
+            SetHintStep(HintStep.UnlockPasswords);
+    }
 
     public static readonly DependencyProperty AccountInitialProperty =
         DependencyProperty.Register(nameof(AccountInitial), typeof(string), typeof(TitleBar),
@@ -187,9 +307,14 @@ public partial class TitleBar : UserControl
 
     private void AvatarButton_Click(object sender, RoutedEventArgs e)
     {
-        // Clicking the avatar is the action the first-run callout asks for, so
-        // it counts as acknowledging it.
-        HideSignInHint();
+        // Clicking the avatar is the action step 1 of the setup callout asks
+        // for, so it counts as acknowledging it. (Step 2 stays — signing in
+        // here moves the callout on to "Restore your passwords".)
+        if (_hintStep == HintStep.SignIn)
+        {
+            _signInHintDismissed = true;
+            SetHintStep(HintStep.None);
+        }
 
         // Signed-out: jump straight to Settings → Sync, where the Google sign-in
         // button lives. Avoids the old "fake signed-in" popup that showed a
