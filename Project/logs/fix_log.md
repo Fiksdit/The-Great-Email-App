@@ -4,6 +4,48 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-11-21-003 — Spam filter's trusted-senders list stayed empty forever
+
+**Area:** Core / SpamFilterEngine · trusted-from-Sent bootstrap
+**Status:** ✅ Fixed
+**Priority:** P1 (no protection against false positives for anyone the owner has emailed)
+
+**Symptom**
+- Settings → Spam → trusted senders: 0 entries, yet `spam-filter.json` had `TrustedBootstrapDone: true`. The owner has 4,000+ sent messages.
+
+**Replicate**
+1. New PC: sign in, accounts sync down, passwords not yet restored (vault still locked).
+2. App starts → bootstrap runs → every account has no credentials → nothing scanned.
+3. List saved empty, `TrustedBootstrapDone = true`; never runs again. The empty list then syncs to every PC.
+
+**Root cause**
+- `BootstrapTrustedSendersAsync` `continue`d past accounts with no password / failed IMAP calls, then unconditionally set `TrustedBootstrapDone = true` ("save even if added=0"). It only ran once, at `Start()`, which on a new PC is always before the vault unlock.
+- Secondary: it saved the config object it loaded at the start of a multi-second scan (would clobber concurrent edits), and it trusted the user's own addresses (spoofed self-sent phishing would bypass the filter).
+
+**Tried**
+- Nothing — diagnosed from the config file + code; fixed on first attempt.
+
+**Fix**
+- Done is set only when every account was actually scanned; partial results are still merged and saved.
+- Retries on every poll until complete (Interlocked guard; accounts already scanned this session are skipped).
+- `NeedsBootstrap`: "done but empty" counts as not done → existing broken installs self-heal.
+- Re-loads config right before save and unions into it.
+- Excludes the user's own account addresses.
+- Verified: list went 0 → 139 within 10s of launch; own addresses absent; synced.
+
+**Files changed**
+- `src/GreatEmailApp.Core/Spam/SpamFilterEngine.cs` (Rev 2 → 3)
+
+**Rulebook**
+- §2 Surgical Change Rule — bootstrap method + trigger only; classifier untouched.
+- Same family as FIX-2026-04-30-002: first-run code on a new PC must not treat "nothing available yet" as a final answer.
+
+**Session:** 2026-11-21
+**Commit:** _pending_
+
+---
+
+
 ## FIX-2026-11-21-002 — New PC: accounts showed no folders/mail with no hint that passwords were missing
 
 **Area:** Sidebar / MainViewModel.LoadFoldersAsync · AccountViewModel status · StatusBar

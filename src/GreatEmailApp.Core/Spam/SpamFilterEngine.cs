@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Spam/SpamFilterEngine.cs
-// Created: 2026-05-15 | Revised: 2026-11-21 | Rev: 2
+// Created: 2026-05-15 | Revised: 2026-11-21 | Rev: 3
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Orchestrates the spam filter. Wiring mirrors RulesEngine exactly: subscribe
@@ -75,9 +75,29 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
 
     private async void OnMessagesPolled(object? sender, MessagesPolledEvent ev)
     {
+        // Retry an unfinished trusted-list bootstrap (e.g. it first ran before
+        // the passwords were restored on a new PC). Cheap no-op once done.
+        _ = Task.Run(BootstrapTrustedSendersAsync);
+
         try { await ApplyAsync(ev.Account, ev.FolderPath, ev.Messages); }
         catch (Exception ex) { Console.Error.WriteLine($"[SpamFilterEngine.OnMessagesPolled] {ex.Message}"); }
     }
+
+    // 0 = idle, 1 = a bootstrap scan is running (Start + every poll can trigger it).
+    private int _bootstrapRunning;
+
+    // Accounts already scanned successfully this session — a retry (after a
+    // password is restored on one account) only re-scans the ones still missing.
+    private readonly HashSet<string> _bootstrapScanned = new();
+
+    /// <summary>
+    /// Bootstrap still needed? Not done yet — or "done" with an EMPTY list,
+    /// which is what the pre-fix bootstrap left behind when it ran before any
+    /// account had a password (FIX-2026-11-21-003). Anyone with a Sent folder
+    /// has recipients, so an empty completed list is never a real result.
+    /// </summary>
+    private static bool NeedsBootstrap(SpamFilterConfig c) =>
+        !c.TrustedBootstrapDone || c.TrustedSenders.Count == 0;
 
     public async Task<Result<SpamFilterResult>> ApplyAsync(
         Account account, string folderPath, IEnumerable<Message> messages,
@@ -146,61 +166,79 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
 
     private async Task BootstrapTrustedSendersAsync()
     {
+        if (Interlocked.CompareExchange(ref _bootstrapRunning, 1, 0) != 0) return;
         try
         {
-            var config = _configStore.Load();
-            if (config.TrustedBootstrapDone) return;
+            if (!NeedsBootstrap(_configStore.Load())) return;
 
-            var seeded = new HashSet<string>(config.TrustedSenders, StringComparer.OrdinalIgnoreCase);
-            int added = 0;
+            var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var accounts = _accounts.LoadAll();
 
-            foreach (var account in _accounts.LoadAll())
+            // Never trust the user's own addresses: spoofed "from yourself"
+            // mailbox-quota phishing is a known pattern, and a self-addressed
+            // message in Sent would otherwise whitelist it.
+            var own = new HashSet<string>(accounts.Select(a => a.EmailAddress), StringComparer.OrdinalIgnoreCase);
+
+            // FIX-2026-11-21-003: only a scan that actually reached every
+            // account counts as done. The old code `continue`d past accounts
+            // with no password yet (new PC, before vault unlock), then marked
+            // the bootstrap done with an empty list — permanently.
+            bool complete = true;
+
+            foreach (var account in accounts)
             {
+                if (_bootstrapScanned.Contains(account.Id)) continue;
                 var creds = _creds.Read(account.Id);
-                if (creds is null) continue;
+                if (creds is null) { complete = false; continue; }
 
                 // Find the Sent folder for this account. ListFoldersAsync's
                 // Folder.Special is populated from the server's \Sent flag.
                 var folders = await _imap.ListFoldersAsync(account, creds.Value.Password).ConfigureAwait(false);
-                if (folders is not Result<List<Folder>>.Ok foldersOk) continue;
+                if (folders is not Result<List<Folder>>.Ok foldersOk) { complete = false; continue; }
 
                 var sent = FindSent(foldersOk.Value);
-                if (sent is null) continue;
+                if (sent is null) { _bootstrapScanned.Add(account.Id); continue; } // nothing to learn from — still counts as scanned
 
                 // Pull a generous slice — first 500 Sent envelopes is plenty
                 // to seed a useful trust list without dragging on for minutes.
                 var msgs = await _imap.ListMessagesAsync(account, creds.Value.Password,
                     sent.FullPath, 500).ConfigureAwait(false);
-                if (msgs is not Result<List<Message>>.Ok msgsOk) continue;
+                if (msgs is not Result<List<Message>>.Ok msgsOk) { complete = false; continue; }
+                _bootstrapScanned.Add(account.Id);
 
                 foreach (var m in msgsOk.Value)
                 {
                     // Outgoing message: To/Cc fields hold recipients we trust.
-                    foreach (Match match in EmailRegex.Matches(m.To ?? ""))
+                    foreach (Match match in EmailRegex.Matches($"{m.To} {m.Cc}"))
                     {
-                        if (seeded.Add(match.Value.ToLowerInvariant())) added++;
-                    }
-                    foreach (Match match in EmailRegex.Matches(m.Cc ?? ""))
-                    {
-                        if (seeded.Add(match.Value.ToLowerInvariant())) added++;
+                        var addr = match.Value.ToLowerInvariant();
+                        if (!own.Contains(addr)) found.Add(addr);
                     }
                 }
             }
 
-            // Save even if added=0 — we still want TrustedBootstrapDone set so
-            // we don't rescan every launch.
-            config.TrustedSenders = seeded.ToList();
-            config.TrustedBootstrapDone = true;
+            // Re-load right before saving and MERGE, so edits made in Settings
+            // (or pulled by sync) during the scan aren't overwritten.
+            var config = _configStore.Load();
+            var merged = new HashSet<string>(config.TrustedSenders, StringComparer.OrdinalIgnoreCase);
+            int added = found.Count(a => merged.Add(a));
+            if (added == 0 && !complete) return; // nothing new; retry next poll
+
+            config.TrustedSenders = merged.OrderBy(a => a, StringComparer.OrdinalIgnoreCase).ToList();
+            config.TrustedBootstrapDone = complete;
             _configStore.Save(config);
 
-            Console.Error.WriteLine($"[SpamFilterEngine.Bootstrap] Seeded TrustedSenders with {added} new entries (total {seeded.Count}).");
+            Console.Error.WriteLine($"[SpamFilterEngine.Bootstrap] Added {added} trusted sender(s) (total {merged.Count}); complete={complete}.");
         }
         catch (Exception ex)
         {
             // Failure here is non-fatal — the filter just runs with whatever
-            // trust list is present. Don't flip TrustedBootstrapDone so we
-            // retry on the next launch.
+            // trust list is present. Done stays false, so the next poll retries.
             Console.Error.WriteLine($"[SpamFilterEngine.Bootstrap] {ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _bootstrapRunning, 0);
         }
     }
 
