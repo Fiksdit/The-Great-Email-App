@@ -1,12 +1,12 @@
 <!-- FILE: src/GreatEmailApp/Views/Dialogs/RuleEditorDialog.xaml
-     Created: 2026-05-01 | Revised: 2026-05-01 | Rev: 1
-     Changed by: Claude Opus 4.7 on behalf of James Reed
+     Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 2
+     Changed by: Claude Opus 5.5 on behalf of James Reed
      Single-rule editor. Modal over the Settings dialog. -->
 <Window x:Class="GreatEmailApp.Views.Dialogs.RuleEditorDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Rule"
-        Height="540" Width="640"
+        Height="570" Width="640"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
         Background="{DynamicResource AppBackgroundBrush}"
@@ -18,6 +18,7 @@
             <RowDefinition Height="Auto" />  <!-- Name + enabled -->
             <RowDefinition Height="Auto" />  <!-- Account scope -->
             <RowDefinition Height="Auto" />  <!-- Match radio -->
+            <RowDefinition Height="Auto" />  <!-- Incoming-only -->
             <RowDefinition Height="*"    />  <!-- Conditions + actions -->
             <RowDefinition Height="Auto" />  <!-- Footer buttons -->
         </Grid.RowDefinitions>
@@ -64,8 +65,14 @@
                       Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" />
         </StackPanel>
 
+        <!-- When it runs (row 3) -->
+        <CheckBox Grid.Row="3" x:Name="IncomingOnlyCheck" Margin="0,10,0,0"
+                  Foreground="{DynamicResource SecondaryTextBrush}"
+                  Content="Only run on new incoming mail (skip mail already in the inbox and &quot;Run rules now&quot;)"
+                  AutomationProperties.Name="Only run on new incoming mail" />
+
         <!-- Conditions + actions -->
-        <ScrollViewer Grid.Row="3" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="4" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 <DockPanel LastChildFill="True" Margin="0,0,0,4">
                     <Button DockPanel.Dock="Right" Style="{StaticResource SubtleButton}"
@@ -86,7 +93,7 @@
         </ScrollViewer>
 
         <!-- Footer buttons -->
-        <StackPanel Grid.Row="4" Orientation="Horizontal"
+        <StackPanel Grid.Row="5" Orientation="Horizontal"
                     HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Style="{StaticResource SubtleButton}" Content="Cancel"
                     Padding="14,7" IsCancel="True" />

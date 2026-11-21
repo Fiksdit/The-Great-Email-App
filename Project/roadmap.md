@@ -1,5 +1,5 @@
 # The Great Email App — Master Roadmap
-**Created:** 2026-04-29 | **Updated:** 2026-06-13
+**Created:** 2026-04-29 | **Updated:** 2026-11-21
 **Stack:** WPF + .NET 8 (C#) + MailKit + SQLite + Firebase
 **Owner:** James Reed (coolman0804@outlook.com)
 **Vision:** A clean, fast, native-Windows IMAP email client with Outlook's familiar ribbon UX, dark/light theming, and Firebase-backed settings sync across multiple PCs.
@@ -92,7 +92,13 @@ Core email workflow that makes the app actually usable.
 
 | ID | Feature | Status | Notes |
 |----|---------|--------|-------|
-| P2-1 | Rules / filters | 📋 PLANNED | |
+| P2-1 | Rules / filters | ⚠️ PARTIAL | Core engine (RulesEngine): From/To/Subject/Body conditions, Move/Mark read/Flag/Move to Trash actions, per-rule account scope, suggestions banner. Runs on every poll against the latest 50 inbox messages + "Run rules now" (all inboxes). **2026-11-21:** Delete permanently (skip Trash) action; "From ends with" takes a comma list (block whole domain extensions); per-rule "new incoming mail only"; Pause/Resume, Edit, Delete per rule; suggestions labeled as suggestions. Sync-compat rule: never add `MailRule` enum values (see MailRule.cs header). Owner's roadmap for the rest: P2-1a–f. |
+| P2-1a | **Run rules now — choose scope** | 📋 PLANNED | Pick where a manual run applies: current folder, chosen folders, all folders, one account or all accounts. Today it is fixed to every account's INBOX. |
+| P2-1b | **Rule categories** (Spam / Organizing / custom) | 📋 PLANNED | Group rules in Settings → Rules by category so they're easy to find and edit — something Outlook and Gmail don't offer. Spam rules default to **all accounts**; Organizing rules default to **one account**. Stored as a new property (NOT an enum value — sync compat). |
+| P2-1c | **Folder-centric rules ("folder rules")** | 📋 PLANNED | Right-click a folder (e.g. Ads) → see and edit every sender address and domain routed into it (@walmart, @bambu…), add or remove with one click. Replaces one-rule-per-sender for organizing. Backed by one rule per folder whose condition is a list ("From ends with" list already supports this). |
+| P2-1d | Rules on folders other than INBOX | 📋 PLANNED | Spam that the host's server filter already put in its own spam folder (e.g. InMotion "spam" / "All Spam") is never seen by rules today. Let spam rules sweep those folders too. |
+| P2-1e | Coordinate RulesEngine + SpamFilterEngine | 📋 PLANNED | Both subscribe to the same poll and race on separate IMAP connections — the spam filter can move a message to Junk before a Delete-permanently rule removes it. Run rules first, then the spam filter on what's left. |
+| P2-1f | Single-instance app guard | 📋 PLANNED | A second launch (e.g. clicking the taskbar icon while open) starts a second process sharing the same state dir; it came up signed out with no accounts on 2026-11-21. Second launch should focus the existing window instead. |
 | P2-2 | Signatures (per account, per reply-vs-new) | 📋 PLANNED | |
 | P2-3 | Conversation view (threading) | 📋 PLANNED | |
 | P2-4 | Drafts auto-save | 📋 PLANNED | |

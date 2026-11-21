@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 14
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 15
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -136,7 +136,6 @@ public partial class MainViewModel : ObservableObject
         {
             "Unread"   => m.Unread,
             "Flagged"  => m.Flagged,
-            "Mentions" => true, // No data backing this yet — pass-through until the feature lands.
             _          => true,  // "All" or anything unrecognized.
         };
         if (!passesPill) return false;
@@ -161,7 +160,7 @@ public partial class MainViewModel : ObservableObject
         _accountStore = accountStore;
         LoadAccounts();
 
-        // Wire the All/Unread/Flagged/Mentions pills to actually filter the list.
+        // Wire the All/Unread/Flagged pills to actually filter the list.
         // The pills set MainViewModel.Filter; OnFilterChanged below refreshes the
         // collection view so the predicate runs again. Without this hook the pills
         // toggled state but never hid anything.

@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Converters/Converters.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 2
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System;
 using System.Collections;
@@ -120,4 +120,37 @@ public sealed class CollectionNotEmptyToVisibilityConverter : IValueConverter
     }
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotImplementedException();
+}
+
+/// <summary>
+/// One-line description of a mail rule for the Settings → Rules list, e.g.
+/// "1 condition · Delete permanently · New incoming mail only · Paused".
+/// </summary>
+public sealed class RuleSummaryConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is not GreatEmailApp.Core.Models.MailRule r) return "";
+        var parts = new System.Collections.Generic.List<string>
+        {
+            r.Conditions.Count == 1 ? "1 condition" : $"{r.Conditions.Count} conditions",
+        };
+        foreach (var a in r.Actions)
+        {
+            parts.Add(a.Type switch
+            {
+                GreatEmailApp.Core.Models.RuleAction.MoveToFolder => $"Move to {a.Value}",
+                GreatEmailApp.Core.Models.RuleAction.MarkRead => "Mark as read",
+                GreatEmailApp.Core.Models.RuleAction.Flag => "Flag",
+                GreatEmailApp.Core.Models.RuleAction.Delete when a.IsPermanentDelete => "Delete permanently",
+                GreatEmailApp.Core.Models.RuleAction.Delete => "Move to Trash",
+                _ => a.Type.ToString(),
+            });
+        }
+        if (r.IncomingOnly) parts.Add("New incoming mail only");
+        if (!r.IsEnabled) parts.Add("Paused");
+        return string.Join(" · ", parts);
+    }
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
 }

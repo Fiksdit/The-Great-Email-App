@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Rules/RulesEngine.cs
-// Created: 2026-05-01 | Revised: 2026-05-01 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 2
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Manual mail-rules engine. v1 — conditions on From/To/Subject/Body, actions
 // MoveToFolder/MarkRead/Flag/Delete. Plays the rules in declaration order;
@@ -56,7 +56,7 @@ public sealed class RulesEngine : IRulesEngine
 
     private async void OnMessagesPolled(object? sender, MessagesPolledEvent ev)
     {
-        try { await ApplyAsync(ev.Account, ev.FolderPath, ev.Messages); }
+        try { await ApplyAsync(ev.Account, ev.FolderPath, ev.Messages, newUids: ev.NewUids); }
         catch { /* best-effort; the next poll will try again */ }
     }
 
@@ -66,7 +66,7 @@ public sealed class RulesEngine : IRulesEngine
 
     public async Task<Result<RuleApplyResult>> ApplyAsync(
         Account account, string folderPath, IEnumerable<Message> messages,
-        CancellationToken ct = default)
+        CancellationToken ct = default, IReadOnlySet<uint>? newUids = null)
     {
         var creds = _creds.Read(account.Id);
         if (creds is null)
@@ -92,6 +92,9 @@ public sealed class RulesEngine : IRulesEngine
             // every action in its list; StopOnMatch only halts the OUTER loop.
             foreach (var rule in rules)
             {
+                // Incoming-only rules touch just-arrived mail, never the
+                // re-scanned backlog or a manual "Run rules now".
+                if (rule.IncomingOnly && (newUids is null || !newUids.Contains(uid))) continue;
                 if (!Evaluate(rule, msg)) continue;
                 matched++;
                 foreach (var action in rule.Actions)
@@ -139,6 +142,21 @@ public sealed class RulesEngine : IRulesEngine
         var needle = (c.Value ?? "").Trim();
         if (string.IsNullOrEmpty(needle)) return false;
         var cmp = StringComparison.OrdinalIgnoreCase;
+
+        // "From ends with" takes a comma/semicolon/newline-separated list and
+        // matches if the sender's address ends with ANY entry — e.g.
+        // ".pro, .xyz, .top" blocks whole domain extensions in one condition.
+        // The old whole-string check is kept so existing single-value rules
+        // behave exactly as before. (Older clients see the list as one string,
+        // match nothing, and skip the rule — safe degrade over sync.)
+        if (c.Field == RuleField.From && c.Op == RuleOp.EndsWith)
+        {
+            if (hay.EndsWith(needle, cmp)) return true;
+            var addr = (m.SenderEmail ?? "").Trim().TrimEnd('>');
+            if (addr.Length == 0) return false;
+            return SplitList(needle).Any(entry => addr.EndsWith(entry, cmp));
+        }
+
         return c.Op switch
         {
             // Contains is smart: tokenize on whitespace (respecting "quoted phrases")
@@ -153,6 +171,10 @@ public sealed class RulesEngine : IRulesEngine
             _ => false,
         };
     }
+
+    private static IEnumerable<string> SplitList(string s) =>
+        s.Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+         .Where(e => e.Length > 0);
 
     private static IEnumerable<string> Tokenize(string s)
     {
@@ -188,6 +210,10 @@ public sealed class RulesEngine : IRulesEngine
 
             case RuleAction.Flag:
                 return await _imap.SetFlaggedAsync(account, password, folderPath, uid, true, ct).ConfigureAwait(false);
+
+            case RuleAction.Delete when action.IsPermanentDelete:
+                // Expunged in place — never appears in Trash. Irreversible.
+                return await _imap.DeletePermanentlyAsync(account, password, folderPath, uid, ct).ConfigureAwait(false);
 
             case RuleAction.Delete:
                 var del = await _imap.MoveToSpecialAsync(account, password, folderPath, uid,

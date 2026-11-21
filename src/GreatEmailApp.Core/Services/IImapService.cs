@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Services/IImapService.cs
-// Created: 2026-04-29 | Revised: 2026-05-15 | Rev: 3
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 4
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using GreatEmailApp.Core.Models;
 
@@ -46,6 +46,15 @@ public interface IImapService
     Task<Result<string>> MoveToSpecialAsync(Account account, string password,
         string srcFolderFullPath, uint uid, SpecialFolder dst,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Permanently delete one message: mark it \Deleted and expunge it in place.
+    /// It never goes to Trash and cannot be recovered. Expunges only this UID
+    /// (UID EXPUNGE / UIDPLUS) so other messages already flagged \Deleted by
+    /// another client are left alone.
+    /// </summary>
+    Task<Result<bool>> DeletePermanentlyAsync(Account account, string password,
+        string folderFullPath, uint uid, CancellationToken ct = default);
 
     /// <summary>
     /// Append a sent copy to the account's Sent folder. SMTP doesn't do this for us.

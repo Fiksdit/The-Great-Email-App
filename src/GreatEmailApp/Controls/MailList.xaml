@@ -1,6 +1,6 @@
 <!-- FILE: src/GreatEmailApp/Controls/MailList.xaml
-     Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 6
-     Changed by: Claude Opus 4.8 on behalf of James Reed
+     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 7
+     Changed by: Claude Opus 5.5 on behalf of James Reed
      Middle pane — message list with grouping, filter pills, search. -->
 <UserControl x:Class="GreatEmailApp.Controls.MailList"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -112,9 +112,9 @@
                         <ToggleButton Style="{StaticResource FilterPill}" Content="Flagged" Margin="4,0,0,0"
                                       IsChecked="{Binding Filter, Converter={StaticResource StrEqBool}, ConverterParameter=Flagged, Mode=OneWay}"
                                       Click="Pill_Click" Tag="Flagged" />
-                        <ToggleButton Style="{StaticResource FilterPill}" Content="Mentions" Margin="4,0,0,0"
-                                      IsChecked="{Binding Filter, Converter={StaticResource StrEqBool}, ConverterParameter=Mentions, Mode=OneWay}"
-                                      Click="Pill_Click" Tag="Mentions" />
+                        <!-- "Mentions" pill removed 2026-11-21: it was an unbacked
+                             pass-through (showed everything). Re-add with a real
+                             @-mention predicate if that feature is ever built. -->
                     </StackPanel>
                 </StackPanel>
             </Border>

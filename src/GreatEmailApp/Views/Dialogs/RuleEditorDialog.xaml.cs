@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Views/Dialogs/RuleEditorDialog.xaml.cs
-// Created: 2026-05-01 | Revised: 2026-05-01 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 2
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Single-rule editor — name + match radio + dynamic conditions/actions rows.
 // Each row is built in code (no DataTemplates yet) so we can keep adding/
@@ -52,6 +52,7 @@ public partial class RuleEditorDialog : Window
         NameBox.Text = existing.Name;
         EnabledCheck.IsChecked = existing.IsEnabled;
         StopOnMatchCheck.IsChecked = existing.StopOnMatch;
+        IncomingOnlyCheck.IsChecked = existing.IncomingOnly;
         MatchAll.IsChecked = existing.Match == RuleMatch.All;
         MatchAny.IsChecked = existing.Match == RuleMatch.Any;
 
@@ -114,6 +115,7 @@ public partial class RuleEditorDialog : Window
         Result.Name = string.IsNullOrWhiteSpace(NameBox.Text) ? "(unnamed rule)" : NameBox.Text.Trim();
         Result.IsEnabled = EnabledCheck.IsChecked == true;
         Result.StopOnMatch = StopOnMatchCheck.IsChecked == true;
+        Result.IncomingOnly = IncomingOnlyCheck.IsChecked == true;
         Result.Match = MatchAny.IsChecked == true ? RuleMatch.Any : RuleMatch.All;
         var pickedId = AccountCombo.SelectedValue as string;
         Result.AccountId = string.IsNullOrEmpty(pickedId) ? null : pickedId;
@@ -133,6 +135,14 @@ public partial class RuleEditorDialog : Window
             return;
         }
 
+        // Permanent delete is irreversible — confirm once when the rule uses it.
+        if (Result.Actions.Any(a => a.IsPermanentDelete)
+            && MessageBox.Show(this,
+                   "This rule permanently deletes matching mail. It won't go to Trash and can't be recovered.\n\n" +
+                   "It also applies when you click \"Run rules now\". Save it?",
+                   "Delete permanently", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
         DialogResult = true;
         Close();
     }
@@ -151,11 +161,13 @@ public partial class RuleEditorDialog : Window
 
         public ConditionRow(RuleCondition seed)
         {
-            FieldCb = ComboFor<RuleField>(seed.Field);
-            OpCb    = ComboFor<RuleOp>(seed.Op);
+            FieldCb = LabeledCombo(FieldChoices, seed.Field);
+            OpCb    = LabeledCombo(OpChoices, seed.Op);
             ValueBox = new TextBox
             {
                 Text = seed.Value,
+                ToolTip = "For \"From ends with\", list several endings separated by commas to match any of them " +
+                          "(e.g. .pro, .xyz, .top). Pasted lines are joined with commas automatically.",
                 Background = (Brush)Application.Current.Resources["ElevatedBackgroundBrush"],
                 Foreground = (Brush)Application.Current.Resources["PrimaryTextBrush"],
                 BorderBrush = (Brush)Application.Current.Resources["DividerBrush"],
@@ -172,6 +184,20 @@ public partial class RuleEditorDialog : Window
             };
             remove.Click += (_, _) => Removed?.Invoke();
 
+            // Single-line box: turn a pasted one-per-line list into "a, b, c"
+            // instead of silently keeping only the first line.
+            DataObject.AddPastingHandler(ValueBox, (_, e) =>
+            {
+                if (e.DataObject.GetData(DataFormats.UnicodeText) is not string text
+                    || !text.Contains('\n')) return;
+                var joined = string.Join(", ", text
+                    .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Where(s => s.Length > 0));
+                var d = new DataObject();
+                d.SetData(DataFormats.UnicodeText, joined);
+                e.DataObject = d;
+            });
+
             var grid = new Grid();
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
@@ -187,8 +213,8 @@ public partial class RuleEditorDialog : Window
 
         public RuleCondition ToCondition() => new()
         {
-            Field = (RuleField)FieldCb.SelectedItem,
-            Op = (RuleOp)OpCb.SelectedItem,
+            Field = ((Choice<RuleField>)FieldCb.SelectedItem).Value,
+            Op = ((Choice<RuleOp>)OpCb.SelectedItem).Value,
             Value = ValueBox.Text ?? "",
         };
     }
@@ -202,7 +228,12 @@ public partial class RuleEditorDialog : Window
 
         public ActionRow(RuleActionItem seed, IReadOnlyList<string> folderChoices)
         {
-            TypeCb = ComboFor<RuleAction>(seed.Type);
+            TypeCb = new ComboBox
+            {
+                ItemsSource = ActionChoices,
+                DisplayMemberPath = nameof(ActionChoice.Label),
+                SelectedItem = ActionChoices.First(c => c.Type == seed.Type && c.Permanent == seed.IsPermanentDelete),
+            };
             // Editable ComboBox: dropdown shows known folder paths for the rule's
             // account scope, but the user can also type a custom path (lets you
             // pre-create rules for folders that don't exist yet).
@@ -215,14 +246,14 @@ public partial class RuleEditorDialog : Window
                 BorderBrush = (Brush)Application.Current.Resources["DividerBrush"],
                 BorderThickness = new Thickness(1),
                 Padding = new Thickness(6, 5, 6, 5),
-                Text = seed.Value ?? "",
+                Text = seed.Type == RuleAction.MoveToFolder ? seed.Value ?? "" : "",
                 ToolTip = "Pick or type a folder full path (e.g. \"Receipts\" or \"Vendors/Mobile Sentrix\"). Subfolders are nested with '/'.",
             };
             SetFolderChoicesInternal(folderChoices);
 
-            FolderCb.IsEnabled = (RuleAction)TypeCb.SelectedItem == RuleAction.MoveToFolder;
+            FolderCb.IsEnabled = SelectedChoice.Type == RuleAction.MoveToFolder;
             TypeCb.SelectionChanged += (_, _) =>
-                FolderCb.IsEnabled = (RuleAction)TypeCb.SelectedItem == RuleAction.MoveToFolder;
+                FolderCb.IsEnabled = SelectedChoice.Type == RuleAction.MoveToFolder;
 
             var remove = new Button
             {
@@ -254,20 +285,59 @@ public partial class RuleEditorDialog : Window
             FolderCb.Text = current;
         }
 
-        public RuleActionItem ToAction() => new()
+        private ActionChoice SelectedChoice => (ActionChoice)TypeCb.SelectedItem;
+
+        public RuleActionItem ToAction()
         {
-            Type = (RuleAction)TypeCb.SelectedItem,
-            Value = FolderCb.Text ?? "",
-        };
+            var c = SelectedChoice;
+            return new RuleActionItem
+            {
+                Type = c.Type,
+                Value = c.Permanent ? RuleActionItem.PermanentDeleteValue
+                      : c.Type == RuleAction.MoveToFolder ? FolderCb.Text ?? ""
+                      : "",
+            };
+        }
     }
 
-    private static ComboBox ComboFor<T>(T initial) where T : struct, Enum
+    // --------------------------------------------------------------------- //
+    // Dropdown choices — human labels over the stored enums. Labels are
+    // display-only; rules.json still stores the enum names (sync-compatible).
+    // --------------------------------------------------------------------- //
+
+    private sealed record Choice<T>(T Value, string Label) where T : struct, Enum;
+
+    private sealed record ActionChoice(RuleAction Type, bool Permanent, string Label);
+
+    private static readonly Choice<RuleField>[] FieldChoices =
     {
-        var cb = new ComboBox
-        {
-            ItemsSource = Enum.GetValues<T>(),
-            SelectedItem = initial,
-        };
-        return cb;
-    }
+        new(RuleField.From, "From"),
+        new(RuleField.To, "To"),
+        new(RuleField.Subject, "Subject"),
+        new(RuleField.Body, "Body"),
+    };
+
+    private static readonly Choice<RuleOp>[] OpChoices =
+    {
+        new(RuleOp.Contains, "contains"),
+        new(RuleOp.Equals, "is exactly"),
+        new(RuleOp.StartsWith, "starts with"),
+        new(RuleOp.EndsWith, "ends with"),
+    };
+
+    private static readonly ActionChoice[] ActionChoices =
+    {
+        new(RuleAction.MoveToFolder, false, "Move to folder"),
+        new(RuleAction.MarkRead, false, "Mark as read"),
+        new(RuleAction.Flag, false, "Flag"),
+        new(RuleAction.Delete, false, "Move to Trash"),
+        new(RuleAction.Delete, true, "Delete permanently (skip Trash)"),
+    };
+
+    private static ComboBox LabeledCombo<T>(Choice<T>[] choices, T initial) where T : struct, Enum => new()
+    {
+        ItemsSource = choices,
+        DisplayMemberPath = nameof(Choice<T>.Label),
+        SelectedItem = choices.FirstOrDefault(c => EqualityComparer<T>.Default.Equals(c.Value, initial)) ?? choices[0],
+    };
 }

@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/ViewModels/SettingsViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 6
-// Changed by: Claude Opus 4.8 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 7
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -423,6 +423,15 @@ public partial class SettingsViewModel : ObservableObject
         r.IsEnabled = !r.IsEnabled;
         r.UpdatedAt = DateTimeOffset.UtcNow;
         _rulesStore.Save(ManagedRules);
+
+        // MailRule isn't observable — re-insert the item so its row re-renders
+        // (Pause ↔ Resume label, dimming, "Paused" in the summary).
+        var idx = ManagedRules.IndexOf(r);
+        if (idx >= 0)
+        {
+            ManagedRules.RemoveAt(idx);
+            ManagedRules.Insert(idx, r);
+        }
     }
 
     // --------------------------------------------------------------------- //

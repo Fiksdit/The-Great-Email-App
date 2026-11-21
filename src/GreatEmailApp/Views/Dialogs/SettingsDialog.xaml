@@ -1,6 +1,6 @@
 <!-- FILE: src/GreatEmailApp/Views/Dialogs/SettingsDialog.xaml
-     Created: 2026-04-29 | Revised: 2026-04-30 | Rev: 2
-     Changed by: Claude Opus 4.7 on behalf of James Reed
+     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 3
+     Changed by: Claude Opus 5.5 on behalf of James Reed
      Settings modal. Left rail of tabs, content swaps via Visibility binding.
      All edits write through to App.Settings + are persisted on Close. -->
 <Window x:Class="GreatEmailApp.Views.Dialogs.SettingsDialog"
@@ -23,6 +23,7 @@
         <conv:HexToBrushConverter x:Key="HexBrush" />
         <conv:BoolToVisibilityConverter x:Key="BoolVis" />
         <conv:InverseBoolToVisibilityConverter x:Key="InvBoolVis" />
+        <conv:RuleSummaryConverter x:Key="RuleSummary" />
 
         <Style x:Key="RailItem" TargetType="ToggleButton">
             <Setter Property="Background" Value="Transparent" />
@@ -389,7 +390,7 @@
                         <TextBlock Margin="0,4,0,16" FontSize="12"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
                                    TextWrapping="Wrap"
-                                   Text="Rules run automatically on every Send/Receive cycle. They evaluate in order — toggle, edit, or remove any rule below. Use Run rules now to apply across the current inbox." />
+                                   Text="Rules run automatically on every Send/Receive cycle against your latest inbox mail, in order. Pause, edit, or delete any rule below. Use Run rules now to apply them across your inboxes (rules set to new incoming mail only are skipped)." />
 
                         <!-- Suggestions -->
                         <Border x:Name="SuggestionsBanner"
@@ -411,6 +412,25 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Your rules. Pause/Resume flips IsEnabled (the existing synced
+                             field — older clients understand it). Rows are re-rendered by
+                             replacing the item in ManagedRules (MailRule isn't observable). -->
+                        <TextBlock Text="Your rules" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,4"
+                                   Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <TextBlock FontSize="12" Margin="0,4,0,8"
+                                   Foreground="{DynamicResource TertiaryTextBrush}"
+                                   Text="No rules yet — click + New rule, or create one from a suggestion above.">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ManagedRules.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                         <ItemsControl ItemsSource="{Binding ManagedRules}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -418,15 +438,19 @@
                                             Padding="0,10">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <CheckBox Grid.Column="0" VerticalAlignment="Center"
-                                                      Margin="0,0,12,0"
-                                                      IsChecked="{Binding IsEnabled, Mode=OneWay}"
-                                                      Tag="{Binding}" Click="RuleToggle_Click" />
-                                            <StackPanel Grid.Column="1">
+                                            <StackPanel Grid.Column="0">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                                <Setter Property="Opacity" Value="0.55" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
                                                 <TextBlock Text="{Binding Name}"
                                                            FontWeight="SemiBold" FontSize="13"
                                                            Foreground="{DynamicResource PrimaryTextBrush}"
@@ -434,12 +458,25 @@
                                                 <TextBlock FontSize="11"
                                                            Foreground="{DynamicResource TertiaryTextBrush}"
                                                            TextTrimming="CharacterEllipsis"
-                                                           Text="{Binding Conditions.Count, StringFormat='{}{0} condition(s)'}" />
+                                                           Text="{Binding Converter={StaticResource RuleSummary}}" />
                                             </StackPanel>
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                <Button Padding="10,5" Tag="{Binding}" Click="PauseRule_Click"
+                                                        AutomationProperties.Name="Pause or resume this rule">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource SubtleButton}">
+                                                            <Setter Property="Content" Value="Pause" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                                    <Setter Property="Content" Value="Resume" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
                                                 <Button Style="{StaticResource SubtleButton}" Content="Edit"
-                                                        Padding="10,5" Tag="{Binding}" Click="EditRule_Click" />
-                                                <Button Style="{StaticResource SubtleButton}" Content="Remove"
+                                                        Margin="6,0,0,0" Padding="10,5" Tag="{Binding}" Click="EditRule_Click" />
+                                                <Button Style="{StaticResource SubtleButton}" Content="Delete"
                                                         Margin="6,0,0,0" Padding="10,5"
                                                         Tag="{Binding}" Click="RemoveRule_Click" />
                                             </StackPanel>

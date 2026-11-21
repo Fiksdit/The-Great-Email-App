@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Views/Dialogs/SettingsDialog.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-06-12 | Rev: 3
-// Changed by: Claude Opus 4.8 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 4
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Diagnostics;
 using System.Windows;
@@ -105,15 +105,16 @@ public partial class SettingsDialog : Window
     {
         if (sender is Button b && b.Tag is GreatEmailApp.Core.Models.MailRule r)
         {
-            var ok = MessageBox.Show(this, $"Remove rule '{r.Name}'?", "Remove rule",
+            var ok = MessageBox.Show(this,
+                $"Delete rule '{r.Name}'? To stop it temporarily instead, use Pause.", "Delete rule",
                 MessageBoxButton.OKCancel, MessageBoxImage.Warning);
             if (ok == MessageBoxResult.OK) _vm.RemoveRule(r);
         }
     }
 
-    private void RuleToggle_Click(object sender, RoutedEventArgs e)
+    private void PauseRule_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is CheckBox cb && cb.Tag is GreatEmailApp.Core.Models.MailRule r) _vm.ToggleRule(r);
+        if (sender is Button b && b.Tag is GreatEmailApp.Core.Models.MailRule r) _vm.ToggleRule(r);
     }
 
     private async void RunRulesNow_Click(object sender, RoutedEventArgs e)
@@ -159,7 +160,12 @@ public partial class SettingsDialog : Window
         }
 
         SuggestionsBanner.Visibility = Visibility.Visible;
-        SuggestionsHeader.Text = $"💡 {ok.Value.Count} frequent sender(s) without a rule";
+        // These are SUGGESTIONS (senders with no rule yet), not existing rules —
+        // say so plainly; "Create rule" next to a rule-looking row read as if
+        // the rule already existed.
+        SuggestionsHeader.Text = ok.Value.Count == 1
+            ? "💡 Suggested rule — 1 frequent sender doesn't have a rule yet"
+            : $"💡 Suggested rules — {ok.Value.Count} frequent senders don't have a rule yet";
         foreach (var s in ok.Value.Take(5)) // top 5 — keep the banner from getting absurd
             SuggestionsList.Items.Add(BuildSuggestionRow(s));
     }

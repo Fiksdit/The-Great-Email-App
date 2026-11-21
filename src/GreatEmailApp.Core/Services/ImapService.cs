@@ -312,6 +312,35 @@ public sealed class ImapService : IImapService
         catch (Exception ex) { return Result.Fail<int>(SanitizeError(ex), ex); }
     }
 
+    public async Task<Result<bool>> DeletePermanentlyAsync(
+        Account account, string password, string folderFullPath, uint uid,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+
+            var folder = await client.GetFolderAsync(folderFullPath, ct);
+            await folder.OpenAsync(FolderAccess.ReadWrite, ct);
+
+            var ids = new[] { new UniqueId(uid) };
+            await folder.AddFlagsAsync(ids, MessageFlags.Deleted, silent: true, ct);
+
+            // UID EXPUNGE removes only this message. Without UIDPLUS, a plain
+            // EXPUNGE would also purge anything another client had flagged
+            // \Deleted but not yet expunged — so in that case we leave the flag
+            // set and close with expunge:false; the server/next client purges it.
+            if (client.Capabilities.HasFlag(ImapCapabilities.UidPlus))
+                await folder.ExpungeAsync(ids, ct);
+
+            await folder.CloseAsync(expunge: false, ct);
+            await client.DisconnectAsync(true, ct);
+            return Result.Ok(true);
+        }
+        catch (Exception ex) { return Result.Fail<bool>(SanitizeError(ex), ex); }
+    }
+
     public async Task<Result<string>> MoveToSpecialAsync(
         Account account, string password, string srcFolderFullPath, uint uid,
         Models.SpecialFolder dst, CancellationToken ct = default)

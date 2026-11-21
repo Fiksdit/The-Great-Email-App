@@ -1,6 +1,12 @@
 // FILE: src/GreatEmailApp.Core/Models/MailRule.cs
-// Created: 2026-05-01 | Revised: 2026-05-01 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 2
+// Changed by: Claude Opus 5.5 on behalf of James Reed
+//
+// SYNC COMPAT: rules travel to other PCs via Firestore (rules_json) and are
+// read with JsonStringEnumConverter. An older client that sees an enum NAME it
+// doesn't know fails the whole settings pull. So never add enum values here
+// for new behavior — encode it in existing values + Value (see
+// PermanentDeleteValue) so old clients degrade safely instead of breaking.
 
 namespace GreatEmailApp.Core.Models;
 
@@ -22,9 +28,23 @@ public sealed class RuleActionItem
 
     /// <summary>
     /// For MoveToFolder: the destination folder's full path (e.g. "Receipts" or
-    /// "Vendors/Mobile Sentrix"). Ignored for other actions.
+    /// "Vendors/Mobile Sentrix"). For Delete: <see cref="PermanentDeleteValue"/>
+    /// means "delete permanently, skip Trash"; anything else moves to Trash.
+    /// Ignored for other actions.
     /// </summary>
     public string Value { get; set; } = "";
+
+    /// <summary>
+    /// Delete + this Value = mark \Deleted and expunge in place — never lands in
+    /// Trash. Older clients that don't know the marker fall back to plain Delete
+    /// (move to Trash), which is the safe degrade.
+    /// </summary>
+    public const string PermanentDeleteValue = "permanent";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsPermanentDelete =>
+        Type == RuleAction.Delete
+        && string.Equals(Value?.Trim(), PermanentDeleteValue, StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed class MailRule
@@ -47,6 +67,14 @@ public sealed class MailRule
 
     /// <summary>Stop processing further rules once this one matches a message.</summary>
     public bool StopOnMatch { get; set; } = false;
+
+    /// <summary>
+    /// Only act on newly arrived inbox mail (UIDs the poller hasn't seen
+    /// before). Skipped by "Run rules now" and by the regular re-scan of the
+    /// latest inbox messages. Older clients ignore this unknown property and
+    /// treat the rule as a normal one.
+    /// </summary>
+    public bool IncomingOnly { get; set; } = false;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Notifications/NewMailPoller.cs
-// Created: 2026-04-30 | Revised: 2026-05-15 | Rev: 2
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-11-21 | Rev: 3
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Background poller: every Settings.SyncIntervalMinutes, walks each account's
 // inbox and diffs the recent UID list against the per-account "last seen"
@@ -136,13 +136,23 @@ public sealed class NewMailPoller : INewMailPoller, IDisposable
             inboxPath, RecentMessageLimit, ct).ConfigureAwait(false);
         if (result is not Result<List<Message>>.Ok ok) return;
 
-        // Hand the full envelope set to anyone listening (search indexer, etc.)
-        // before we start filtering for notifications.
-        try { MessagesPolled?.Invoke(this, new MessagesPolledEvent(account, inboxPath, ok.Value)); }
-        catch { /* listener errors must not break polling */ }
-
         var seenSet = _seen.GetOrAdd(account.Id, _ => new HashSet<uint>());
         var firstSeed = seenSet.Count == 0;
+
+        // UIDs not seen on any previous poll = genuinely new arrivals. Computed
+        // BEFORE the seen-set is updated below. Null on the first-ever poll for
+        // an account (no baseline), so "incoming only" rules don't treat the
+        // whole existing inbox as new.
+        IReadOnlySet<uint>? newUids = firstSeed ? null : ok.Value
+            .Select(m => uint.TryParse(m.Id, out var u) ? u : (uint?)null)
+            .Where(u => u.HasValue && !seenSet.Contains(u.Value))
+            .Select(u => u!.Value)
+            .ToHashSet();
+
+        // Hand the full envelope set to anyone listening (search indexer, etc.)
+        // before we start filtering for notifications.
+        try { MessagesPolled?.Invoke(this, new MessagesPolledEvent(account, inboxPath, ok.Value, newUids)); }
+        catch { /* listener errors must not break polling */ }
 
         foreach (var msg in ok.Value)
         {
