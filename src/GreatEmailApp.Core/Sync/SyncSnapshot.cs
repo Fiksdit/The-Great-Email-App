@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncSnapshot.cs
-// Created: 2026-04-30 | Revised: 2026-06-12 | Rev: 2
-// Changed by: Claude Opus 4.8 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-11-21 | Rev: 3
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using GreatEmailApp.Core.Models;
 using GreatEmailApp.Core.Spam;
@@ -21,4 +21,7 @@ public sealed record SyncSnapshot(
     DateTimeOffset UpdatedAt,
     IReadOnlyList<Contact>? Contacts = null,
     IReadOnlyList<MailRule>? Rules = null,
-    SpamFilterConfig? SpamConfig = null);
+    SpamFilterConfig? SpamConfig = null,
+    // Rule id → deletion time (rules_deleted_json). Null on docs from clients
+    // that predate rule merging (FIX-2026-11-21-004).
+    IReadOnlyDictionary<string, DateTimeOffset>? DeletedRules = null);

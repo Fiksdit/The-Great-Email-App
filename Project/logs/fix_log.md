@@ -4,6 +4,81 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-11-21-005 — Pasting into a rule condition could crash the app
+
+**Area:** UI / RuleEditorDialog · condition value paste handler
+**Status:** ✅ Fixed
+**Priority:** P1 (crash, unsaved rule lost)
+
+**Symptom**
+- The app closed while text was being pasted into a rule's condition box.
+
+**Replicate**
+1. Open a rule, click the condition value box.
+2. Paste at a moment another program holds the clipboard open (clipboard managers, remote-desktop tools and automation do this briefly).
+
+**Root cause**
+- The paste handler added on 2026-11-21 (joins pasted lines with commas) called `DataObject.GetData` with no error handling. It threw `COMException 0x800401D0 CLIPBRD_E_CANT_OPEN`, which was unhandled on the UI thread and ended the process (Event Viewer: .NET Runtime, 6:00 PM).
+
+**Tried**
+- Nothing — stack trace pointed at the line; fixed on first attempt.
+
+**Fix**
+- Wrap the read in try/catch for `COMException`; on failure the normal paste runs unchanged.
+
+**Files changed**
+- `src/GreatEmailApp/Views/Dialogs/RuleEditorDialog.xaml.cs` (Rev 3)
+
+**Rulebook**
+- Any clipboard read must tolerate the clipboard being locked.
+
+**Session:** 2026-11-21
+**Commit:** _pending_
+
+---
+
+## FIX-2026-11-21-004 — A PC running an older version wiped every rule on the other PCs
+
+**Area:** Core / SyncCoordinator · rules sync
+**Status:** ✅ Fixed (for PCs on this version or later)
+**Priority:** P0 (silent data loss — a permanent-delete spam rule vanished)
+
+**Symptom**
+- Settings → Rules showed "No rules yet". `rules.json` was `[]`, rewritten at 17:47 together with accounts.json and contacts.json (a sync pull), right after the owner opened the app on another PC.
+
+**Replicate**
+1. PC A creates a rule; it syncs to the cloud.
+2. PC B (v0.12.5, never had the rule) saves any setting, or launches with local files newer than its last sync → it pushes its whole snapshot, including its empty rule list.
+3. PC A pulls → rule list replaced with `[]`.
+
+**Root cause**
+- Sync is last-write-wins for the whole document, and the rules list was replaced wholesale on pull. A PC that simply hadn't received a rule yet was indistinguishable from one that deleted it.
+
+**Tried**
+- Nothing — diagnosed from file mtimes + v0.12.5's FirestoreSyncService (it does push `rules_json`); fixed on first attempt.
+
+**Fix**
+- Rules now MERGE by rule id on both pull and push (`SyncCoordinator.MergeRules`): union of both sides, newer `UpdatedAt` wins, a rule missing on one side is kept.
+- Deletions are recorded (`rules-deleted.json`, synced as a new `rules_deleted_json` field that older clients don't touch) so a deleted rule stays deleted.
+- Push pulls and merges first; a pull that finds local rules the cloud lacks pushes the merged list back, so the cloud self-heals after an old client overwrites it.
+- Rule restored by re-creating it in the rule editor (same 36 extensions, delete permanently, all accounts).
+
+**Known limit**
+- Until every PC runs this version, a v0.12.5 PC can still upload an empty list. Newer PCs restore it on their next pull. A rule deleted ON a v0.12.5 PC won't stay deleted. Fix: update the other PCs (cut a release).
+
+**Files changed**
+- `src/GreatEmailApp.Core/Sync/SyncCoordinator.cs` (Rev 8), `SyncSnapshot.cs` (Rev 3), `FirestoreSyncService.cs` (Rev 4)
+- `src/GreatEmailApp.Core/Services/IRulesStore.cs`, `JsonRulesStore.cs` (Rev 2)
+- `src/GreatEmailApp.Core/Storage/AppPaths.cs` (Rev 7)
+
+**Rulebook**
+- Same family as FIX-2026-04-30-002: "absent on the other side" must never be read as "deleted". Lists of user-created items need per-item merge, not whole-list replacement.
+
+**Session:** 2026-11-21
+**Commit:** _pending_
+
+---
+
 ## FIX-2026-11-21-003 — Spam filter's trusted-senders list stayed empty forever
 
 **Area:** Core / SpamFilterEngine · trusted-from-Sent bootstrap

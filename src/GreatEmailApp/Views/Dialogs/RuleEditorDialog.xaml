@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Views/Dialogs/RuleEditorDialog.xaml
-     Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 2
+     Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 3
      Changed by: Claude Opus 5.5 on behalf of James Reed
      Single-rule editor. Modal over the Settings dialog. -->
 <Window x:Class="GreatEmailApp.Views.Dialogs.RuleEditorDialog"
@@ -44,13 +44,35 @@
                       Foreground="{DynamicResource SecondaryTextBrush}" />
         </Grid>
 
-        <!-- Account scope -->
-        <StackPanel Grid.Row="1" Margin="0,12,0,0">
-            <TextBlock Text="Apply to" FontSize="12" FontWeight="SemiBold"
-                       Foreground="{DynamicResource SecondaryTextBrush}" />
-            <ComboBox x:Name="AccountCombo" Margin="0,4,0,0"
-                      DisplayMemberPath="DisplayName" SelectedValuePath="Id" />
-        </StackPanel>
+        <!-- Category + account scope -->
+        <Grid Grid.Row="1" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                <TextBlock Text="Category" FontSize="12" FontWeight="SemiBold"
+                           Foreground="{DynamicResource SecondaryTextBrush}" />
+                <!-- Not IsEditable: the app's ComboBox template doesn't show typed
+                     text. "Other…" reveals CustomCategoryBox for a new name. -->
+                <ComboBox x:Name="CategoryCombo" Margin="0,4,0,0"
+                          ToolTip="Spam rules normally apply to all accounts; Organizing rules to one. Pick Other… to name your own category."
+                          AutomationProperties.Name="Rule category" />
+                <TextBox x:Name="CustomCategoryBox" Margin="0,4,0,0" Padding="6,5" Visibility="Collapsed"
+                         Background="{DynamicResource ElevatedBackgroundBrush}"
+                         Foreground="{DynamicResource PrimaryTextBrush}"
+                         BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                         CaretBrush="{DynamicResource PrimaryTextBrush}"
+                         ToolTip="Name for the new category"
+                         AutomationProperties.Name="New category name" />
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+                <TextBlock Text="Apply to" FontSize="12" FontWeight="SemiBold"
+                           Foreground="{DynamicResource SecondaryTextBrush}" />
+                <ComboBox x:Name="AccountCombo" Margin="0,4,0,0"
+                          DisplayMemberPath="DisplayName" SelectedValuePath="Id" />
+            </StackPanel>
+        </Grid>
 
         <!-- Match radio -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,12,0,0">

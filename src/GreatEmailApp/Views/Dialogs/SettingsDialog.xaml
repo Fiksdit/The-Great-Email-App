@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Views/Dialogs/SettingsDialog.xaml
-     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 4
+     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 5
      Changed by: Claude Opus 5.5 on behalf of James Reed
      Settings modal. Left rail of tabs, content swaps via Visibility binding.
      All edits write through to App.Settings + are persisted on Close. -->
@@ -379,7 +379,7 @@
                     <StackPanel Visibility="{Binding ActiveTab, Converter={StaticResource StrEqVis}, ConverterParameter=Rules}">
                         <DockPanel LastChildFill="True">
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                <Button Style="{StaticResource SubtleButton}" Content="Run rules now"
+                                <Button Style="{StaticResource SubtleButton}" Content="Run rules now…"
                                         Padding="12,6" Click="RunRulesNow_Click" />
                                 <Button Style="{StaticResource AccentButton}" Content="+ New rule"
                                         Margin="8,0,0,0" Padding="12,6" Click="NewRule_Click" />
@@ -390,27 +390,7 @@
                         <TextBlock Margin="0,4,0,16" FontSize="12"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
                                    TextWrapping="Wrap"
-                                   Text="Rules run automatically on every Send/Receive cycle against your latest inbox mail, in order. Pause, edit, or delete any rule below. Use Run rules now to apply them across your inboxes (rules set to new incoming mail only are skipped)." />
-
-                        <!-- Suggestions -->
-                        <Border x:Name="SuggestionsBanner"
-                                Visibility="Collapsed"
-                                Background="#332E5085"
-                                BorderBrush="{DynamicResource AccentBrush}" BorderThickness="0,0,0,2"
-                                CornerRadius="4" Padding="12,10" Margin="0,0,0,16">
-                            <StackPanel>
-                                <DockPanel LastChildFill="True">
-                                    <Button DockPanel.Dock="Right" Style="{StaticResource SubtleButton}"
-                                            Content="Refresh" Padding="10,4"
-                                            Click="RefreshSuggestions_Click" />
-                                    <TextBlock x:Name="SuggestionsHeader"
-                                               FontWeight="SemiBold" FontSize="12"
-                                               Foreground="{DynamicResource PrimaryTextBrush}"
-                                               VerticalAlignment="Center" />
-                                </DockPanel>
-                                <ItemsControl x:Name="SuggestionsList" Margin="0,8,0,0" />
-                            </StackPanel>
-                        </Border>
+                                   Text="Rules run automatically on every Send/Receive cycle against your latest inbox mail, in order. Pause, edit, or delete any rule below. Rules are grouped by category: Spam rules usually cover all accounts, Organizing rules one. Use Run rules now to apply them to any folders or accounts you choose, or right-click a folder in the sidebar to see and edit the senders filed into it." />
 
                         <!-- Your rules. Pause/Resume flips IsEnabled (the existing synced
                              field — older clients understand it). Rows are re-rendered by
@@ -419,7 +399,7 @@
                                    Foreground="{DynamicResource PrimaryTextBrush}" />
                         <TextBlock FontSize="12" Margin="0,4,0,8"
                                    Foreground="{DynamicResource TertiaryTextBrush}"
-                                   Text="No rules yet — click + New rule, or create one from a suggestion above.">
+                                   Text="No rules yet — click + New rule, or create one from a suggestion below.">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -431,7 +411,28 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                        <!-- Grouped by MailRule.EffectiveCategory (group description is
+                             added to ManagedRules' default view in SettingsDialog.xaml.cs).
+                             Order inside a group is still run order. -->
                         <ItemsControl ItemsSource="{Binding ManagedRules}">
+                            <ItemsControl.GroupStyle>
+                                <GroupStyle>
+                                    <GroupStyle.HeaderTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource AccentBrush}" BorderThickness="0,0,0,1"
+                                                    Margin="0,14,0,0" Padding="0,0,0,4">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="Bold"
+                                                               Foreground="{DynamicResource AccentBrush}" />
+                                                    <TextBlock FontSize="12" Margin="6,0,0,0"
+                                                               Foreground="{DynamicResource TertiaryTextBrush}"
+                                                               Text="{Binding ItemCount, StringFormat=({0})}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </GroupStyle.HeaderTemplate>
+                                </GroupStyle>
+                            </ItemsControl.GroupStyle>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1"
@@ -485,6 +486,26 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <!-- Suggestions — below "Your rules" so existing rules are what you see first. -->
+                        <Border x:Name="SuggestionsBanner"
+                                Visibility="Collapsed"
+                                Background="#332E5085"
+                                BorderBrush="{DynamicResource AccentBrush}" BorderThickness="0,0,0,2"
+                                CornerRadius="4" Padding="12,10" Margin="0,20,0,0">
+                            <StackPanel>
+                                <DockPanel LastChildFill="True">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource SubtleButton}"
+                                            Content="Refresh" Padding="10,4"
+                                            Click="RefreshSuggestions_Click" />
+                                    <TextBlock x:Name="SuggestionsHeader"
+                                               FontWeight="SemiBold" FontSize="12"
+                                               Foreground="{DynamicResource PrimaryTextBrush}"
+                                               VerticalAlignment="Center" />
+                                </DockPanel>
+                                <ItemsControl x:Name="SuggestionsList" Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Border>
+
 
                         <TextBlock Margin="0,16,0,0" FontSize="12"
                                    Foreground="{DynamicResource TertiaryTextBrush}"

@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Sync/FirestoreSyncService.cs
-// Created: 2026-04-30 | Revised: 2026-11-21 | Rev: 3
+// Created: 2026-04-30 | Revised: 2026-11-21 | Rev: 4
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // REST-based Firestore client for the single-document settings sync.
@@ -77,6 +77,7 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
             var contactsJson = doc.Fields.GetValueOrDefault("contacts_json")?.StringValue ?? "[]";
             var rulesJson    = doc.Fields.GetValueOrDefault("rules_json")?.StringValue    ?? "[]";
             var spamJson     = doc.Fields.GetValueOrDefault("spam_json")?.StringValue;
+            var deletedJson  = doc.Fields.GetValueOrDefault("rules_deleted_json")?.StringValue;
             var updatedAtStr = doc.Fields.GetValueOrDefault("updated_at")?.TimestampValue;
 
             var settings = JsonSerializer.Deserialize<AppSettings>(settingsJson, PayloadOpts) ?? new AppSettings();
@@ -89,6 +90,9 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
             var spam = string.IsNullOrWhiteSpace(spamJson)
                 ? null
                 : JsonSerializer.Deserialize<SpamFilterConfig>(spamJson, PayloadOpts);
+            var deletedRules = string.IsNullOrWhiteSpace(deletedJson)
+                ? null
+                : JsonSerializer.Deserialize<Dictionary<string, DateTimeOffset>>(deletedJson, PayloadOpts);
             var updatedAt = DateTimeOffset.TryParse(updatedAtStr, out var dt) ? dt : DateTimeOffset.MinValue;
 
             var snapshot = new SyncSnapshot(
@@ -97,7 +101,8 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
                 updatedAt,
                 contacts,
                 rules,
-                spam);
+                spam,
+                deletedRules);
             return Result.Ok<SyncSnapshot?>(snapshot);
         }
         catch (Exception ex)
@@ -120,6 +125,7 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
         var contactsJson = JsonSerializer.Serialize(snapshot.Contacts ?? new List<Contact>(), PayloadOpts);
         var rulesJson    = JsonSerializer.Serialize(snapshot.Rules    ?? new List<MailRule>(), PayloadOpts);
         var spamJson     = JsonSerializer.Serialize(snapshot.SpamConfig ?? new SpamFilterConfig(), PayloadOpts);
+        var deletedJson  = JsonSerializer.Serialize(snapshot.DeletedRules ?? new Dictionary<string, DateTimeOffset>(), PayloadOpts);
 
         var body = new FsDocument
         {
@@ -130,6 +136,7 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
                 ["contacts_json"] = new() { StringValue = contactsJson },
                 ["rules_json"]    = new() { StringValue = rulesJson },
                 ["spam_json"]     = new() { StringValue = spamJson },
+                ["rules_deleted_json"] = new() { StringValue = deletedJson },
                 ["updated_at"]    = new() { TimestampValue = snapshot.UpdatedAt.UtcDateTime.ToString("o") },
             },
         };
@@ -142,6 +149,7 @@ public sealed class FirestoreSyncService : IFirestoreSyncService
             + "&updateMask.fieldPaths=contacts_json"
             + "&updateMask.fieldPaths=rules_json"
             + "&updateMask.fieldPaths=spam_json"
+            + "&updateMask.fieldPaths=rules_deleted_json"
             + "&updateMask.fieldPaths=updated_at";
 
         using var req = new HttpRequestMessage(HttpMethod.Patch, patchUrl)

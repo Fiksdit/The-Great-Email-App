@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Views/Dialogs/RuleEditorDialog.xaml.cs
-// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 2
+// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 3
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Single-rule editor — name + match radio + dynamic conditions/actions rows.
@@ -19,6 +19,8 @@ namespace GreatEmailApp.Views.Dialogs;
 public partial class RuleEditorDialog : Window
 {
     public MailRule Result { get; private set; }
+
+    private const string OtherCategory = "Other…";
 
     private readonly List<ConditionRow> _conditionRows = new();
     private readonly List<ActionRow> _actionRows = new();
@@ -47,6 +49,35 @@ public partial class RuleEditorDialog : Window
         {
             var folders = FoldersForCurrentAccount();
             foreach (var r in _actionRows) r.SetFolderChoices(folders);
+        };
+
+        // Category: the two built-ins plus any custom names already in use.
+        var categories = new List<string> { MailRule.SpamCategory, MailRule.OrganizingCategory };
+        foreach (var c in App.Rules.LoadAll().Select(r => r.EffectiveCategory))
+            if (!categories.Contains(c, StringComparer.OrdinalIgnoreCase)) categories.Add(c);
+        categories.Add(OtherCategory);
+        CategoryCombo.ItemsSource = categories;
+        CategoryCombo.SelectedItem = categories.FirstOrDefault(c =>
+            string.Equals(c, existing.EffectiveCategory, StringComparison.OrdinalIgnoreCase));
+        CategoryCombo.SelectionChanged += (_, _) =>
+        {
+            var other = Equals(CategoryCombo.SelectedItem, OtherCategory);
+            CustomCategoryBox.Visibility = other ? Visibility.Visible : Visibility.Collapsed;
+            if (other) CustomCategoryBox.Focus();
+        };
+
+        // Picking a category from the list sets the usual scope for it:
+        // spam rules cover every account, organizing rules just one (folders
+        // differ per account). The user can still change "Apply to" after.
+        CategoryCombo.SelectionChanged += (_, _) =>
+        {
+            var picked = CategoryCombo.SelectedItem as string;
+            if (string.Equals(picked, MailRule.SpamCategory, StringComparison.OrdinalIgnoreCase))
+                AccountCombo.SelectedValue = "";
+            else if (string.Equals(picked, MailRule.OrganizingCategory, StringComparison.OrdinalIgnoreCase)
+                     && string.IsNullOrEmpty(AccountCombo.SelectedValue as string)
+                     && accounts.Count > 0)
+                AccountCombo.SelectedValue = (accounts.FirstOrDefault(a => a.IsPrimary) ?? accounts[0]).Id;
         };
 
         NameBox.Text = existing.Name;
@@ -117,6 +148,9 @@ public partial class RuleEditorDialog : Window
         Result.StopOnMatch = StopOnMatchCheck.IsChecked == true;
         Result.IncomingOnly = IncomingOnlyCheck.IsChecked == true;
         Result.Match = MatchAny.IsChecked == true ? RuleMatch.Any : RuleMatch.All;
+        Result.Category = Equals(CategoryCombo.SelectedItem, OtherCategory)
+            ? (CustomCategoryBox.Text ?? "").Trim()
+            : (CategoryCombo.SelectedItem as string ?? "").Trim();
         var pickedId = AccountCombo.SelectedValue as string;
         Result.AccountId = string.IsNullOrEmpty(pickedId) ? null : pickedId;
         Result.Conditions = _conditionRows.Select(r => r.ToCondition()).Where(c => !string.IsNullOrWhiteSpace(c.Value)).ToList();
@@ -188,8 +222,13 @@ public partial class RuleEditorDialog : Window
             // instead of silently keeping only the first line.
             DataObject.AddPastingHandler(ValueBox, (_, e) =>
             {
-                if (e.DataObject.GetData(DataFormats.UnicodeText) is not string text
-                    || !text.Contains('\n')) return;
+                // Reading the clipboard throws CLIPBRD_E_CANT_OPEN when another
+                // program has it open at that instant — that crashed the app
+                // (FIX-2026-11-21-005). On failure, let the normal paste run.
+                string? text;
+                try { text = e.DataObject.GetData(DataFormats.UnicodeText) as string; }
+                catch (System.Runtime.InteropServices.COMException) { return; }
+                if (text is null || !text.Contains('\n')) return;
                 var joined = string.Join(", ", text
                     .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .Where(s => s.Length > 0));

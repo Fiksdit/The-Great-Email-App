@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Views/Dialogs/SettingsDialog.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 4
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 5
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Diagnostics;
@@ -24,6 +24,10 @@ public partial class SettingsDialog : Window
         InitializeComponent();
         _vm = new SettingsViewModel(App.Settings, App.Accounts, App.Contacts, App.Rules, App.SpamConfig, App.Credentials, App.SettingsStore, App.Auth, App.Sync, App.SyncCoordinator, App.Updates, App.UpdateInstaller, App.Vault);
         DataContext = _vm;
+        // Settings → Rules lists rules grouped by category (Spam, Organizing, custom).
+        var rulesView = System.Windows.Data.CollectionViewSource.GetDefaultView(_vm.ManagedRules);
+        rulesView.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(
+            nameof(GreatEmailApp.Core.Models.MailRule.EffectiveCategory)));
         Loaded += async (_, _) => await LoadSuggestionsAsync();
     }
 
@@ -117,34 +121,10 @@ public partial class SettingsDialog : Window
         if (sender is Button b && b.Tag is GreatEmailApp.Core.Models.MailRule r) _vm.ToggleRule(r);
     }
 
-    private async void RunRulesNow_Click(object sender, RoutedEventArgs e)
+    private void RunRulesNow_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button btn) return;
-        btn.IsEnabled = false;
-        RulesStatus.Text = "Running rules across all inboxes…";
-        try
-        {
-            int considered = 0, matched = 0, actions = 0;
-            var errors = new System.Collections.Generic.List<string>();
-            foreach (var account in App.Accounts.LoadAll())
-            {
-                var creds = App.Credentials.Read(account.Id);
-                if (creds is null) continue;
-                var listing = await App.Imap.ListMessagesAsync(account, creds.Value.Password, "INBOX", 200);
-                if (listing is not GreatEmailApp.Core.Services.Result<System.Collections.Generic.List<GreatEmailApp.Core.Models.Message>>.Ok ok) continue;
-                var res = await App.RulesEngine.ApplyAsync(account, "INBOX", ok.Value);
-                if (res is GreatEmailApp.Core.Services.Result<GreatEmailApp.Core.Rules.RuleApplyResult>.Ok ro)
-                {
-                    considered += ro.Value.Considered;
-                    matched    += ro.Value.Matched;
-                    actions    += ro.Value.ActionsRun;
-                    errors.AddRange(ro.Value.Errors);
-                }
-            }
-            RulesStatus.Text = $"Considered {considered} message(s), matched {matched}, ran {actions} action(s)."
-                             + (errors.Count == 0 ? "" : $" {errors.Count} error(s).");
-        }
-        finally { btn.IsEnabled = true; }
+        // Scope picker: accounts, folders, rule category (roadmap P2-1a).
+        new RunRulesDialog { Owner = this }.ShowDialog();
     }
 
     private async void RefreshSuggestions_Click(object sender, RoutedEventArgs e) => await LoadSuggestionsAsync();

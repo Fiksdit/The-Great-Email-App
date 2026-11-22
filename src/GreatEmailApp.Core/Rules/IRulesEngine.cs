@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Rules/IRulesEngine.cs
-// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 2
+// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 3
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using GreatEmailApp.Core.Models;
@@ -20,8 +20,10 @@ public interface IRulesEngine
     /// a summary. Used by the "Run rules now" button + the auto-run on poll.
     /// <paramref name="newUids"/>: UIDs that just arrived (from the poller) —
     /// rules marked IncomingOnly act only on these. Null (manual run, or a
-    /// first poll with no baseline) means IncomingOnly rules are skipped.</summary>
+    /// first poll with no baseline) means IncomingOnly rules are skipped.
+    /// <paramref name="ruleFilter"/>: optional extra filter (e.g. "Spam rules
+    /// only" from the Run rules now dialog).</summary>
     Task<Result<RuleApplyResult>> ApplyAsync(Account account, string folderPath,
         IEnumerable<Message> messages, CancellationToken ct = default,
-        IReadOnlySet<uint>? newUids = null);
+        IReadOnlySet<uint>? newUids = null, Func<MailRule, bool>? ruleFilter = null);
 }

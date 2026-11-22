@@ -1,0 +1,84 @@
+<!-- FILE: src/GreatEmailApp/Views/Dialogs/RunRulesDialog.xaml
+     Created: 2026-11-21 | Revised: 2026-11-21 | Rev: 1
+     Changed by: Claude Opus 5.5 on behalf of James Reed
+     "Run rules now" with a chosen scope: which accounts, which folders, which
+     rule categories (roadmap P2-1a). Opened from Settings → Rules and from a
+     folder's right-click menu (preselects that folder). -->
+<Window x:Class="GreatEmailApp.Views.Dialogs.RunRulesDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Run rules now"
+        Height="560" Width="520"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Background="{DynamicResource AppBackgroundBrush}"
+        ShowInTaskbar="False"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />  <!-- Accounts -->
+            <RowDefinition Height="Auto" />  <!-- Rules -->
+            <RowDefinition Height="Auto" />  <!-- Folder mode -->
+            <RowDefinition Height="*" />     <!-- Folder list -->
+            <RowDefinition Height="Auto" />  <!-- How many -->
+            <RowDefinition Height="Auto" />  <!-- Status -->
+            <RowDefinition Height="Auto" />  <!-- Buttons -->
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Accounts" FontSize="12" FontWeight="SemiBold"
+                       Foreground="{DynamicResource SecondaryTextBrush}" />
+            <ComboBox x:Name="AccountCombo" Margin="0,4,0,0"
+                      DisplayMemberPath="DisplayName" SelectedValuePath="Id"
+                      AutomationProperties.Name="Accounts to run rules on" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,12,0,0">
+            <TextBlock Text="Rules" FontSize="12" FontWeight="SemiBold"
+                       Foreground="{DynamicResource SecondaryTextBrush}" />
+            <ComboBox x:Name="CategoryCombo" Margin="0,4,0,0"
+                      AutomationProperties.Name="Which rules to run" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Margin="0,12,0,0">
+            <TextBlock Text="Folders" FontSize="12" FontWeight="SemiBold"
+                       Foreground="{DynamicResource SecondaryTextBrush}" />
+            <RadioButton x:Name="InboxOnlyRadio" GroupName="Scope" Margin="0,6,0,0" IsChecked="True"
+                         Foreground="{DynamicResource PrimaryTextBrush}" Content="Inbox only" />
+            <RadioButton x:Name="AllFoldersRadio" GroupName="Scope" Margin="0,4,0,0"
+                         Foreground="{DynamicResource PrimaryTextBrush}"
+                         Content="All folders (except Sent, Drafts and Trash)" />
+            <RadioButton x:Name="ChosenFoldersRadio" GroupName="Scope" Margin="0,4,0,0"
+                         Foreground="{DynamicResource PrimaryTextBrush}"
+                         Content="Folders I pick below" />
+        </StackPanel>
+
+        <Border Grid.Row="3" Margin="20,6,0,0"
+                BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="3">
+            <ListBox x:Name="FolderList" Background="Transparent" BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     AutomationProperties.Name="Folders to run rules on" />
+        </Border>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,12,0,0">
+            <TextBlock Text="Check the newest" VerticalAlignment="Center"
+                       Foreground="{DynamicResource SecondaryTextBrush}" />
+            <ComboBox x:Name="CountCombo" Width="80" Margin="8,0,8,0"
+                      AutomationProperties.Name="Messages per folder" />
+            <TextBlock Text="messages in each folder" VerticalAlignment="Center"
+                       Foreground="{DynamicResource SecondaryTextBrush}" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="5" x:Name="StatusText" Margin="0,12,0,0" FontSize="12" TextWrapping="Wrap"
+                   Foreground="{DynamicResource TertiaryTextBrush}"
+                   Text="Rules set to “new incoming mail only” are skipped." />
+
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="CloseButton" Style="{StaticResource SubtleButton}" Content="Close"
+                    Padding="14,7" IsCancel="True" />
+            <Button x:Name="RunButton" Style="{StaticResource AccentButton}" Content="Run rules"
+                    Margin="8,0,0,0" Padding="14,7" Click="Run_Click" IsDefault="True" />
+        </StackPanel>
+    </Grid>
+</Window>

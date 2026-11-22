@@ -1,10 +1,11 @@
 // FILE: src/GreatEmailApp/Converters/Converters.cs
-// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 2
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 3
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System;
 using System.Collections;
 using System.Globalization;
+using System.Linq;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -147,6 +148,9 @@ public sealed class RuleSummaryConverter : IValueConverter
                 _ => a.Type.ToString(),
             });
         }
+        parts.Add(string.IsNullOrEmpty(r.AccountId)
+            ? "All accounts"
+            : App.Accounts.LoadAll().FirstOrDefault(a => a.Id == r.AccountId)?.EmailAddress ?? "One account");
         if (r.IncomingOnly) parts.Add("New incoming mail only");
         if (!r.IsEnabled) parts.Add("Paused");
         return string.Join(" · ", parts);

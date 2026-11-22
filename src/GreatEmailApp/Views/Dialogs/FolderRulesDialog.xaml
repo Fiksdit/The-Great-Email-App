@@ -1,0 +1,78 @@
+<!-- FILE: src/GreatEmailApp/Views/Dialogs/FolderRulesDialog.xaml
+     Created: 2026-11-21 | Revised: 2026-11-21 | Rev: 1
+     Changed by: Claude Opus 5.5 on behalf of James Reed
+     Folder rules (roadmap P2-1c): right-click a folder → every sender address
+     or domain that rules file into it, editable in one place. -->
+<Window x:Class="GreatEmailApp.Views.Dialogs.FolderRulesDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Folder rules"
+        Height="620" Width="560"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Background="{DynamicResource AppBackgroundBrush}"
+        ShowInTaskbar="False"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />  <!-- Title -->
+            <RowDefinition Height="Auto" />  <!-- Add box -->
+            <RowDefinition Height="*" />     <!-- Lists -->
+            <RowDefinition Height="Auto" />  <!-- Footer -->
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock x:Name="TitleText" FontSize="16" FontWeight="SemiBold"
+                       Foreground="{DynamicResource PrimaryTextBrush}" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="SubtitleText" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TertiaryTextBrush}" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="AddBox" Padding="6,5"
+                     Background="{DynamicResource ElevatedBackgroundBrush}"
+                     Foreground="{DynamicResource PrimaryTextBrush}"
+                     BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1"
+                     CaretBrush="{DynamicResource PrimaryTextBrush}"
+                     ToolTip="An address (deals@walmart.com), a domain (@walmart.com) or part of one (@walmart). Separate several with commas."
+                     AutomationProperties.Name="Sender or domain to file here"
+                     KeyDown="AddBox_KeyDown" />
+            <Button Grid.Column="1" Style="{StaticResource AccentButton}" Content="Add"
+                    Margin="8,0,0,0" Padding="14,5" Click="Add_Click" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="2" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Filed here" FontSize="13" FontWeight="SemiBold"
+                           Foreground="{DynamicResource PrimaryTextBrush}" />
+                <ItemsControl x:Name="EntriesList" Margin="0,4,0,0" />
+
+                <TextBlock x:Name="OtherRulesHeader" Text="Other rules that file mail here" Margin="0,16,0,0"
+                           FontSize="13" FontWeight="SemiBold" Visibility="Collapsed"
+                           Foreground="{DynamicResource PrimaryTextBrush}" />
+                <ItemsControl x:Name="OtherRulesList" Margin="0,4,0,0" />
+
+                <TextBlock Text="Senders already in this folder" Margin="0,16,0,0"
+                           FontSize="13" FontWeight="SemiBold"
+                           Foreground="{DynamicResource PrimaryTextBrush}" />
+                <TextBlock FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TertiaryTextBrush}"
+                           Text="From the newest 200 messages, not yet covered by a rule. Add one to file its future mail here automatically." />
+                <ItemsControl x:Name="SuggestionsList" Margin="0,4,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <DockPanel Grid.Row="3" Margin="0,12,0,0" LastChildFill="False">
+            <Button DockPanel.Dock="Left" Style="{StaticResource SubtleButton}" Content="Run rules on the inbox now…"
+                    ToolTip="Opens Run rules now for this account’s inbox, so mail already there from these senders gets moved too."
+                    Padding="12,7" Click="RunNow_Click" />
+            <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="Done"
+                    Padding="14,7" IsCancel="True" IsDefault="True" />
+        </DockPanel>
+    </Grid>
+</Window>

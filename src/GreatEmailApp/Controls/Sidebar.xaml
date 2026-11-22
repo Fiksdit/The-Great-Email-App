@@ -1,5 +1,5 @@
 <!-- FILE: src/GreatEmailApp/Controls/Sidebar.xaml
-     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 6
+     Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 7
      Changed by: Claude Opus 5.5 on behalf of James Reed
      Account/folder tree. Accounts collapse/expand at top level. Folders nest
      recursively via a self-referential DataTemplate (FolderItemTemplate) — each
@@ -29,6 +29,9 @@
                         <ContextMenu>
                             <MenuItem Header="Open" Click="OpenFolder_Click" />
                             <MenuItem Header="Mark all as read" Click="MarkFolderRead_Click" />
+                            <Separator Style="{StaticResource MenuSeparatorStyle}" />
+                            <MenuItem Header="Senders filed here (folder rules)…" Click="FolderRules_Click" />
+                            <MenuItem Header="Run rules on this folder…" Click="RunRulesOnFolder_Click" />
                             <Separator Style="{StaticResource MenuSeparatorStyle}" />
                             <MenuItem Header="New subfolder…" Click="NewSubfolder_Click" />
                             <MenuItem Header="Rename folder…" Click="RenameFolder_Click" />

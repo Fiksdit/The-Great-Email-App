@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Rules/RulesEngine.cs
-// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 2
+// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 3
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Manual mail-rules engine. v1 — conditions on From/To/Subject/Body, actions
@@ -66,7 +66,8 @@ public sealed class RulesEngine : IRulesEngine
 
     public async Task<Result<RuleApplyResult>> ApplyAsync(
         Account account, string folderPath, IEnumerable<Message> messages,
-        CancellationToken ct = default, IReadOnlySet<uint>? newUids = null)
+        CancellationToken ct = default, IReadOnlySet<uint>? newUids = null,
+        Func<MailRule, bool>? ruleFilter = null)
     {
         var creds = _creds.Read(account.Id);
         if (creds is null)
@@ -75,6 +76,7 @@ public sealed class RulesEngine : IRulesEngine
         var rules = _rules.LoadAll()
             .Where(r => r.IsEnabled)
             .Where(r => string.IsNullOrEmpty(r.AccountId) || r.AccountId == account.Id)
+            .Where(r => ruleFilter is null || ruleFilter(r))
             .ToList();
         if (rules.Count == 0)
             return Result.Ok(new RuleApplyResult(0, 0, 0, new List<string>()));
@@ -96,6 +98,16 @@ public sealed class RulesEngine : IRulesEngine
                 // re-scanned backlog or a manual "Run rules now".
                 if (rule.IncomingOnly && (newUids is null || !newUids.Contains(uid))) continue;
                 if (!Evaluate(rule, msg)) continue;
+                // Running rules over a folder that a rule files INTO (e.g. "Run
+                // rules now" on Ads, with a rule "@walmart → Ads"): the mail is
+                // already where it belongs — leave it alone rather than moving
+                // it onto itself.
+                if (rule.Actions.Any(a => a.Type == RuleAction.MoveToFolder
+                        && string.Equals(a.Value?.Trim(), folderPath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (rule.StopOnMatch) break;
+                    continue;
+                }
                 matched++;
                 foreach (var action in rule.Actions)
                 {

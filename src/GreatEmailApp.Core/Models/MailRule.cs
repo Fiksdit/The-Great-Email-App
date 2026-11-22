@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Models/MailRule.cs
-// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 2
+// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 3
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // SYNC COMPAT: rules travel to other PCs via Firestore (rules_json) and are
@@ -75,6 +75,28 @@ public sealed class MailRule
     /// treat the rule as a normal one.
     /// </summary>
     public bool IncomingOnly { get; set; } = false;
+
+    /// <summary>
+    /// Which group the rule is listed under in Settings → Rules ("Spam",
+    /// "Organizing", or any custom name the owner types). A plain string, NOT
+    /// an enum — see the SYNC COMPAT note at the top. Empty (rules made before
+    /// categories existed, or saved by an older client, which drops unknown
+    /// properties) is shown under <see cref="EffectiveCategory"/>.
+    /// </summary>
+    public string Category { get; set; } = "";
+
+    public const string SpamCategory = "Spam";
+    public const string OrganizingCategory = "Organizing";
+
+    /// <summary>
+    /// <see cref="Category"/> if set; otherwise a guess: rules that delete
+    /// mail are Spam rules, everything else is Organizing.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string EffectiveCategory =>
+        !string.IsNullOrWhiteSpace(Category) ? Category.Trim()
+        : Actions.Any(a => a.Type == RuleAction.Delete) ? SpamCategory
+        : OrganizingCategory;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

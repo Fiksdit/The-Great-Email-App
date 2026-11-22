@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncCoordinator.cs
-// Created: 2026-04-30 | Revised: 2026-06-12 | Rev: 7
-// Changed by: Claude Opus 4.8 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-11-21 | Rev: 8
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Glue between local saves, sign-in events, window focus, and Firestore.
 // Sits above the stores + IFirestoreSyncService and lets the rest of the app
@@ -17,7 +17,9 @@
 // What this class is NOT:
 //   - A real-time listener. Firestore REST has no streaming; that needs gRPC,
 //     deferred indefinitely. Pull-on-focus is the practical equivalent.
-//   - A conflict resolver. Last-write-wins per the roadmap decision log.
+//   - A conflict resolver — EXCEPT for rules, which merge per rule id
+//     (MergeRules, FIX-2026-11-21-004). Everything else is last-write-wins
+//     per the roadmap decision log.
 
 using GreatEmailApp.Core.Auth;
 using GreatEmailApp.Core.Models;
@@ -170,6 +172,12 @@ public sealed class SyncCoordinator : IDisposable
         if (!_auth.IsSignedIn) return;
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Pushing));
 
+        // Rules merge, never overwrite (FIX-2026-11-21-004): fold the cloud's
+        // rules into ours before uploading, so a rule created on another PC
+        // since our last pull isn't erased by this push.
+        if (await _sync.PullAsync().ConfigureAwait(false) is Result<SyncSnapshot?>.Ok { Value: { } current })
+            MergeRemoteRulesIntoLocal(current);
+
         var pushedAt = DateTimeOffset.UtcNow;
         var snapshot = new SyncSnapshot(
             _settings,
@@ -177,7 +185,8 @@ public sealed class SyncCoordinator : IDisposable
             pushedAt,
             _contactsStore.LoadAll().ToList(),
             _rulesStore.LoadAll().ToList(),
-            _spamStore.Load());
+            _spamStore.Load(),
+            _rulesStore.LoadDeleted());
 
         var result = await _sync.PushAsync(snapshot).ConfigureAwait(false);
         if (result is Result<bool>.Ok)
@@ -231,8 +240,11 @@ public sealed class SyncCoordinator : IDisposable
             return;
         }
 
-        ApplyRemote(remote);
+        var rulesNeedPush = ApplyRemote(remote);
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Applied, RemoteUpdatedAt: remote.UpdatedAt));
+        // This PC had rules the cloud copy lacked (e.g. an older client pushed
+        // an empty list) — upload the merged list so the cloud recovers.
+        if (rulesNeedPush) await PushCoreAsync().ConfigureAwait(false);
     }
 
     private async Task PullOrSeedAsync()
@@ -276,8 +288,11 @@ public sealed class SyncCoordinator : IDisposable
             return;
         }
 
-        ApplyRemote(remote);
+        var rulesNeedPush = ApplyRemote(remote);
         StateChanged?.Invoke(this, new SyncEvent(SyncEventKind.Applied, RemoteUpdatedAt: remote.UpdatedAt));
+        // This PC had rules the cloud copy lacked (e.g. an older client pushed
+        // an empty list) — upload the merged list so the cloud recovers.
+        if (rulesNeedPush) await PushCoreAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -314,8 +329,11 @@ public sealed class SyncCoordinator : IDisposable
         return false;
     }
 
-    private void ApplyRemote(SyncSnapshot remote)
+    /// <returns>True when the merged rules differ from the cloud copy, so the
+    /// caller should push them back up.</returns>
+    private bool ApplyRemote(SyncSnapshot remote)
     {
+        var rulesNeedPush = false;
         // Suppress the push that would otherwise fire from our own Save() calls
         // below — we just *received* this state, pushing it back is a thrash loop.
         _suppressPush = true;
@@ -330,7 +348,9 @@ public sealed class SyncCoordinator : IDisposable
             _settingsStore.Save(_settings);
             _accountStore.Save(remote.Accounts);
             if (remote.Contacts   is not null) _contactsStore.Save(remote.Contacts);
-            if (remote.Rules      is not null) _rulesStore.Save(remote.Rules);
+            // Rules MERGE instead of being replaced (FIX-2026-11-21-004): an older
+            // client (v0.12.5) uploading its empty rule list wiped every rule here.
+            rulesNeedPush = MergeRemoteRulesIntoLocalCore(remote);
             // Null only on legacy docs pushed before spam sync existed — skip so
             // we don't overwrite this PC's local config with a default.
             if (remote.SpamConfig is not null) _spamStore.Save(remote.SpamConfig);
@@ -346,5 +366,66 @@ public sealed class SyncCoordinator : IDisposable
         _meta.Save();
 
         RemotePullApplied?.Invoke(this, EventArgs.Empty);
+        return rulesNeedPush;
     }
+
+    // --------------------------------------------------------------------- //
+    // Rule merging (FIX-2026-11-21-004)
+    // --------------------------------------------------------------------- //
+
+    /// <summary>Merge the cloud's rules into the local store without
+    /// triggering a push of its own.</summary>
+    private void MergeRemoteRulesIntoLocal(SyncSnapshot remote)
+    {
+        _suppressPush = true;
+        try { MergeRemoteRulesIntoLocalCore(remote); }
+        finally { _suppressPush = false; }
+    }
+
+    /// <returns>True when the merged result differs from the cloud copy.</returns>
+    private bool MergeRemoteRulesIntoLocalCore(SyncSnapshot remote)
+    {
+        var local = _rulesStore.LoadAll();
+        var localDeleted = _rulesStore.LoadDeleted();
+        var (merged, deleted) = MergeRules(local, remote.Rules ?? Array.Empty<MailRule>(),
+            localDeleted, remote.DeletedRules);
+
+        if (!SameRules(merged, local)) _rulesStore.Save(merged);
+        if (deleted.Count != localDeleted.Count) _rulesStore.SaveDeleted(deleted);
+
+        return !SameRules(merged, remote.Rules ?? Array.Empty<MailRule>())
+               || deleted.Count != (remote.DeletedRules?.Count ?? 0);
+    }
+
+    /// <summary>
+    /// Union of both rule lists by id. Same id on both sides → the newer
+    /// <see cref="MailRule.UpdatedAt"/> wins. A rule deleted on either side
+    /// stays deleted unless it was edited after the deletion. A rule simply
+    /// missing from one side is KEPT — "missing" usually means that PC never
+    /// had it (an older client, or one that hasn't pulled yet), not a delete.
+    /// Local order is kept; rules only the cloud has are appended.
+    /// </summary>
+    public static (List<MailRule> Rules, Dictionary<string, DateTimeOffset> Deleted) MergeRules(
+        IReadOnlyList<MailRule> local, IReadOnlyList<MailRule> remote,
+        IReadOnlyDictionary<string, DateTimeOffset> localDeleted,
+        IReadOnlyDictionary<string, DateTimeOffset>? remoteDeleted)
+    {
+        var deleted = localDeleted.ToDictionary(kv => kv.Key, kv => kv.Value);
+        foreach (var (id, at) in remoteDeleted ?? new Dictionary<string, DateTimeOffset>())
+            if (!deleted.TryGetValue(id, out var mine) || at > mine) deleted[id] = at;
+
+        var merged = local.ToList();
+        foreach (var r in remote)
+        {
+            var i = merged.FindIndex(m => m.Id == r.Id);
+            if (i < 0) merged.Add(r);
+            else if (r.UpdatedAt > merged[i].UpdatedAt) merged[i] = r;
+        }
+        merged.RemoveAll(r => deleted.TryGetValue(r.Id, out var at) && at >= r.UpdatedAt);
+        return (merged, deleted);
+    }
+
+    private static bool SameRules(IReadOnlyList<MailRule> a, IReadOnlyList<MailRule> b) =>
+        a.Count == b.Count
+        && a.Select(r => (r.Id, r.UpdatedAt)).ToHashSet().SetEquals(b.Select(r => (r.Id, r.UpdatedAt)));
 }

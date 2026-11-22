@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/Sidebar.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 4
+// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 5
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Windows;
@@ -111,6 +111,21 @@ public partial class Sidebar : UserControl
     {
         if (DataContext is MainViewModel vm && TargetOf(sender) is FolderViewModel f)
             vm.MarkFolderReadCommand.Execute(f);
+    }
+
+    // Folder rules (roadmap P2-1c) — the senders/domains filed into this folder.
+    private void FolderRules_Click(object sender, RoutedEventArgs e)
+    {
+        if (TargetOf(sender) is FolderViewModel f && !string.IsNullOrEmpty(f.Model.FullPath))
+            new GreatEmailApp.Views.Dialogs.FolderRulesDialog(f.Model) { Owner = Window.GetWindow(this) }.ShowDialog();
+    }
+
+    // Run rules now, preset to just this folder (roadmap P2-1a).
+    private void RunRulesOnFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (TargetOf(sender) is FolderViewModel f && !string.IsNullOrEmpty(f.Model.FullPath))
+            new GreatEmailApp.Views.Dialogs.RunRulesDialog(f.Model.AccountId, f.Model.FullPath)
+                { Owner = Window.GetWindow(this) }.ShowDialog();
     }
 
     private void NewSubfolder_Click(object sender, RoutedEventArgs e)
