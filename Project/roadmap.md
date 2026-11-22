@@ -256,6 +256,20 @@ Customer-readable release notes. Newest first. Surfaced in **Settings → About 
 
 > **Maintenance rule:** every release that ships a user-visible change adds a row here **before** the build is published. Pure internal refactors with no user impact may be omitted. Keep entries short, plain-English, and free of file paths or class names.
 
+### v0.13.0 — 2026-11-21
+**What's new**
+- **Learning spam filter** trained on your own spam and filed mail; catches go to their own folder (All Spam › TGEA). Settings → Spam tab; right-click Mark as spam / Not spam (both teach the filter).
+- **Rules:** categories (Spam / Organizing / your own); Run rules now with a chosen scope (accounts, folders, category); folder rules (right-click a folder → *Senders filed here*); Delete permanently; "From ends with" lists; new-incoming-only; Pause / Edit / Delete.
+- **New-PC setup callout** (sign in, then unlock passwords) and an *Enter password* prompt on accounts missing one.
+- Keyboard shortcuts and more working ribbon buttons (including Move).
+
+**Bug fixes**
+- Fixed: a PC that didn't have a rule yet could erase every other PC's rules when it synced. Rules now merge per rule (older versions can still overwrite — update every PC).
+- Fixed: trusted-senders list could stay empty forever on a new PC.
+- Fixed: account icons showed the wrong initials.
+- Fixed: pasting into a rule condition could crash the app.
+- Removed the unused *Mentions* filter.
+
 ### v0.12.5 — 2026-05-15
 **What's new**
 - **Built-in spam filter.** Auto-classifies incoming mail and quietly routes spam to the Junk folder, marking it read so the unread badge stays clean. Ships with ~70 default keyword patterns across pharma / lottery / phishing / investor cold-outreach / business-acquisition / overseas-manufacturer pitches / mailbox-quota fraud. Per-account trusted-sender list bootstraps from everyone you've ever emailed (your Sent folder) so legitimate correspondents are never caught. Config lives at `%LOCALAPPDATA%\GreatEmailApp\spam-filter.json` — Settings UI coming in a later release.
