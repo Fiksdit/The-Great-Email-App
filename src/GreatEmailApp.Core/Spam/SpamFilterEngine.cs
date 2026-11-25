@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Spam/SpamFilterEngine.cs
-// Created: 2026-05-15 | Revised: 2026-11-21 | Rev: 4
+// Created: 2026-05-15 | Revised: 2026-11-25 | Rev: 5
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Orchestrates the spam filter. Wiring mirrors RulesEngine exactly: subscribe
@@ -121,8 +121,53 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
     {
         if (!config.LearningEnabled) return false;
         if (SpamFilter.IsTrustedSender(msg.SenderEmail, config)) return false;
+        if (IsKnownCorrespondentDomain(msg.SenderEmail, config, own, _model)) return false;
         var score = _model.Score(msg, own);
         return score is double s && s > config.LearningThreshold;
+    }
+
+    // Shared mailbox providers: one trusted gmail.com friend says nothing about
+    // the next gmail.com sender, so these never count as a known company domain.
+    private static readonly HashSet<string> SharedMailDomains = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "rocketmail.com",
+        "outlook.com", "hotmail.com", "live.com", "msn.com", "passport.com",
+        "aol.com", "icloud.com", "me.com", "mac.com", "protonmail.com", "proton.me",
+        "pm.me", "gmx.com", "gmx.net", "mail.com", "zoho.com", "yandex.com",
+        "comcast.net", "att.net", "sbcglobal.net", "verizon.net", "bellsouth.net",
+        "cox.net", "charter.net", "earthlink.net", "fastmail.com", "hey.com",
+    };
+
+    /// <summary>
+    /// FIX-2026-11-25-001: the learning filter judged a reply from a new
+    /// Federated Service address as spam on its wording alone ("told", "going",
+    /// "just" are common in the owner's spam), although 104 filed messages come
+    /// from that company. A sender's domain counts as known — and the learning
+    /// layer stays out of it — when someone at that domain is trusted, or the
+    /// user has filed plenty of its mail and almost none of it was spam.
+    /// Never for the user's own domains (spoofed in phishing) or shared mailbox
+    /// providers. The keyword filter and blocked list still apply.
+    /// </summary>
+    public static bool IsKnownCorrespondentDomain(string? email, SpamFilterConfig config,
+        IReadOnlySet<string> ownDomains, SpamLearningModel model)
+    {
+        var e = (email ?? "").Trim().ToLowerInvariant();
+        var at = e.LastIndexOf('@');
+        if (at <= 0 || at == e.Length - 1) return false;
+        var domain = e[(at + 1)..];
+        if (ownDomains.Contains(domain) || SharedMailDomains.Contains(domain)) return false;
+
+        // Someone at this domain is trusted (an address, or the domain itself).
+        foreach (var entry in config.TrustedSenders)
+        {
+            var t = (entry ?? "").Trim();
+            var tAt = t.LastIndexOf('@');
+            if (tAt >= 0 && t[(tAt + 1)..].Equals(domain, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+
+        // Filed history: at least 10 kept messages, and good outnumbers spam 10 to 1.
+        var (spam, good) = model.DomainCounts(domain);
+        return good >= 10 && good >= spam * 10;
     }
 
     public void Learn(Message message, bool isSpam)
@@ -211,7 +256,15 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
         if (path.Contains("spam", StringComparison.OrdinalIgnoreCase)
             || path.Contains("junk", StringComparison.OrdinalIgnoreCase)
             || f.Special == SpecialFolder.Junk)
+        {
+            // FIX-2026-11-25-001: a spam folder that holds other spam folders
+            // (the owner's "All Spam") is a container, not a filter's target —
+            // mail sitting directly in it isn't reliably spam (another mail
+            // program moved ~100 order/work emails there in Nov 2026). Learning
+            // from it would teach the filter that Amazon and clients are spam.
+            if (f.Children.Count > 0 && f.Special != SpecialFolder.Junk) return null;
             return true;
+        }
         if (f.Special != SpecialFolder.None) return null; // Inbox, Sent, Drafts, Trash, Archive
         if (f.Name.Equals("Trash", StringComparison.OrdinalIgnoreCase)
             || f.Name.StartsWith("Sent", StringComparison.OrdinalIgnoreCase)

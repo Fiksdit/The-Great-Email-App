@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Spam/SpamLearningModel.cs
-// Created: 2026-11-21 | Revised: 2026-11-21 | Rev: 1
+// Created: 2026-11-21 | Revised: 2026-11-25 | Rev: 2
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Learning spam filter (naive Bayes over message tokens). Learns which words,
@@ -101,6 +101,18 @@ public sealed class SpamLearningModel
             }
             return lp;
         }
+    }
+
+    /// <summary>
+    /// How many training examples came from this sender domain, as spam and as
+    /// good (filed) mail. Lets the engine recognise a domain the user clearly
+    /// keeps mail from, whatever the wording of one message looks like.
+    /// </summary>
+    public (int Spam, int Good) DomainCounts(string domain)
+    {
+        var key = "dom:" + domain.Trim().ToLowerInvariant();
+        lock (_lock)
+            return (SpamCounts.GetValueOrDefault(key), HamCounts.GetValueOrDefault(key));
     }
 
     public void Reset()

@@ -4,6 +4,45 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-11-25-001 — Learning spam filter flagged a client's reply; would learn good mail from "All Spam" as spam
+
+**Area:** Core / SpamFilterEngine · learning layer and training folder selection
+**Status:** ✅ Fixed
+**Priority:** P1 (good work mail sent to spam)
+
+**Symptom**
+- Owner saw ~100 good emails (Amazon orders, Federated Service work orders and ACH notice, FedEx) in `INBOX.All Spam` and suspected our filter.
+- Separately, the learning filter scored a reply from cwalentowski@federatedservice.com ("Re: Urgent WO226682 petfolk") at 27.3, over the 16 cutoff.
+
+**Replicate**
+1. A message from a not-yet-trusted address at a company the owner corresponds with, with conversational wording ("told", "going", "just", "they").
+2. Learning score > 16 → moved to All Spam/TGEA.
+
+**Root cause**
+- All Spam mail itself was NOT ours: our catches go to TGEA, marked read, within seconds. The All Spam mail was 95/108 unread, and its IMAP SAVEDATE was minutes to an hour after arrival, in batches. Another mail program's rule moved it there. The owner fixed that rule on 2026-11-25.
+- Learning layer: everyday words lean spam in the owner's mail, and the sender-domain token (104 good / 1 spam) adds only about −3, so wording outweighed a well-known domain.
+- Training took spam examples from every folder whose path contains "spam", including the container `All Spam`. That folder now held ~100 good messages, so a Retrain would have taught the model that Amazon and clients are spam.
+
+**Tried**
+- Read-only scoring of every All Spam message with the current filter: only 3 of 108 flagged, which proved the bulk came from elsewhere. Header check showed no server X-Spam headers; SAVEDATE vs INTERNALDATE identified client-side moves.
+
+**Fix**
+- `SpamFilterEngine.IsKnownCorrespondentDomain`: the learning layer skips senders whose domain has a trusted address, or ≥10 filed messages with good ≥ 10× spam. Never applies to own domains or shared providers (gmail, outlook, etc.). Keyword filter and blocked list still apply.
+- `TrainingKind`: a spam-named folder that has subfolders (and isn't the server's \Junk) is skipped as a training source.
+- Checked read-only on the live mailbox: All Spam learned flags 2 → 1 (Federated reply cleared); TGEA, Mixed, Specific Domain, Subject, Body Filter and server spam folders unchanged (0 real spam lost).
+
+**Files changed**
+- `src/GreatEmailApp.Core/Spam/SpamFilterEngine.cs` (Rev 5)
+- `src/GreatEmailApp.Core/Spam/SpamLearningModel.cs` (Rev 2): `DomainCounts`
+
+**Rulebook**
+- To tell who moved mail on Dovecot, compare SAVEDATE with INTERNALDATE. Delivery-time filters save at arrival; client moves save later.
+
+**Session:** 2026-11-25
+**Commit:** _pending_
+
+---
+
 ## FIX-2026-11-21-005 — Pasting into a rule condition could crash the app
 
 **Area:** UI / RuleEditorDialog · condition value paste handler
