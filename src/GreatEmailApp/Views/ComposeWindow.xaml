@@ -157,7 +157,7 @@
 
         <!-- Attachments -->
         <Border Grid.Row="2"
-                Visibility="{Binding Attachments, Converter={StaticResource CollNotEmpty}}"
+                Visibility="{Binding HasAttachments, Converter={StaticResource BoolVis}}"
                 BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1"
                 Padding="14,8">
             <ItemsControl ItemsSource="{Binding Attachments}">

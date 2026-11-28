@@ -36,6 +36,27 @@ public interface IImapService
     Task<Result<bool>> SetFlaggedAsync(Account account, string password,
         string folderFullPath, uint uid, bool flagged, CancellationToken ct = default);
 
+    /// <summary>
+    /// Download a message's attachments into <paramref name="destDir"/> (created
+    /// if missing) and return the saved file paths. Used by Forward so the
+    /// original attachments go along with the forwarded message.
+    /// </summary>
+    Task<Result<List<string>>> SaveAttachmentsAsync(Account account, string password,
+        string folderFullPath, uint uid, string destDir, CancellationToken ct = default);
+
+    /// <summary>Add or remove a <see cref="MailMark"/> (\Flagged or the Priority keyword).</summary>
+    Task<Result<bool>> SetMarkAsync(Account account, string password,
+        string folderFullPath, uint uid, MailMark mark, bool on, CancellationToken ct = default);
+
+    /// <summary>
+    /// Add or remove a mark on many messages over ONE connection (grouped by
+    /// folder). Returns how many messages were changed. Backs "Unflag all" /
+    /// "Clear all priority".
+    /// </summary>
+    Task<Result<int>> SetMarkBulkAsync(Account account, string password,
+        IReadOnlyList<(string FolderFullPath, uint Uid)> messages, MailMark mark, bool on,
+        CancellationToken ct = default);
+
     /// <summary>Move a message to a destination folder by full path.</summary>
     Task<Result<bool>> MoveToFolderAsync(Account account, string password,
         string srcFolderFullPath, uint uid, string dstFolderFullPath,
@@ -107,4 +128,13 @@ public interface IImapService
     /// </summary>
     Task<Result<List<Message>>> SearchAccountAsync(Account account, string password,
         string query, int limit = 200, CancellationToken ct = default);
+
+    /// <summary>
+    /// Every message carrying <paramref name="mark"/> in every selectable folder
+    /// of the account (Trash and Junk skipped), newest first, at most
+    /// <paramref name="limit"/>. Backs the sidebar's "Flagged" and "Priority"
+    /// views, which show marks from all folders and accounts at once.
+    /// </summary>
+    Task<Result<List<Message>>> SearchMarkedAsync(Account account, string password,
+        MailMark mark, int limit = 500, CancellationToken ct = default);
 }

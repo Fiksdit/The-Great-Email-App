@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Spam/SpamFilterEngine.cs
-// Created: 2026-05-15 | Revised: 2026-11-25 | Rev: 5
+// Created: 2026-05-15 | Revised: 2026-11-27 | Rev: 6
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Orchestrates the spam filter. Wiring mirrors RulesEngine exactly: subscribe
@@ -168,6 +168,37 @@ public sealed class SpamFilterEngine : ISpamFilterEngine
         // Filed history: at least 10 kept messages, and good outnumbers spam 10 to 1.
         var (spam, good) = model.DomainCounts(domain);
         return good >= 10 && good >= spam * 10;
+    }
+
+    /// <summary>
+    /// What each layer of the filter made of <paramref name="msg"/> right now,
+    /// in plain words: used when the user marks spam by hand, so every miss
+    /// leaves a record of WHY it got through (keyword score below threshold,
+    /// learned score below threshold, trusted sender, known company domain,
+    /// learning not ready, filter off).
+    /// </summary>
+    public SpamExplanation Explain(Message msg)
+    {
+        var config = _configStore.Load();
+        var own = OwnDomains();
+        var verdict = _filter.Classify(msg, config);
+        var learned = _model.Score(msg, own);
+        var trusted = SpamFilter.IsTrustedSender(msg.SenderEmail, config);
+        var known = IsKnownCorrespondentDomain(msg.SenderEmail, config, own, _model);
+
+        var why = new List<string>();
+        if (!config.Enabled) why.Add("spam filter is turned off");
+        if (trusted) why.Add("sender is on the trusted list");
+        if (known) why.Add("sender's domain counts as a known company (trusted contact there, or 10+ filed messages)");
+        if (verdict.Kind != SpamKind.Spam)
+            why.Add($"keyword score {verdict.Score} is below the spam threshold");
+        if (!config.LearningEnabled) why.Add("learning filter is turned off");
+        else if (learned is null) why.Add("learning filter isn't trained yet");
+        else if (learned <= config.LearningThreshold)
+            why.Add($"learned score {learned:0.0} is at or below the threshold {config.LearningThreshold}");
+
+        return new SpamExplanation(verdict.Kind.ToString(), verdict.Score, verdict.Reasons.ToList(),
+            learned, config.LearningThreshold, trusted, known, why);
     }
 
     public void Learn(Message message, bool isSpam)

@@ -142,7 +142,8 @@ public sealed class RuleSummaryConverter : IValueConverter
             {
                 GreatEmailApp.Core.Models.RuleAction.MoveToFolder => $"Move to {a.Value}",
                 GreatEmailApp.Core.Models.RuleAction.MarkRead => "Mark as read",
-                GreatEmailApp.Core.Models.RuleAction.Flag => "Flag",
+                GreatEmailApp.Core.Models.RuleAction.Flag when a.IsPriority => "Mark priority",
+                GreatEmailApp.Core.Models.RuleAction.Flag => "Flag for review",
                 GreatEmailApp.Core.Models.RuleAction.Delete when a.IsPermanentDelete => "Delete permanently",
                 GreatEmailApp.Core.Models.RuleAction.Delete => "Move to Trash",
                 _ => a.Type.ToString(),

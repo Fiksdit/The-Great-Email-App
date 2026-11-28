@@ -67,6 +67,10 @@ public static class AppPaths
     /// each PC trains from the same server folders.</summary>
     public static string SpamModelJson => Path.Combine(Root, "spam-model.json");
 
+    /// <summary>Last known Flagged / Priority messages per account, so those views
+    /// open instantly. Local-only cache, rebuilt from the server in the background.</summary>
+    public static string MarkedMailJson => Path.Combine(Root, "marked-mail.json");
+
     /// <summary>Ensures the root folder exists. Safe to call repeatedly.</summary>
     public static void EnsureRoot()
     {

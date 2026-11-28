@@ -40,6 +40,13 @@ public sealed class Message
 
     public bool Unread { get; set; }
     public bool Flagged { get; set; }
+
+    /// <summary>
+    /// Set by "Mark priority" rules via the IMAP keyword
+    /// <see cref="MailMarks.PriorityKeyword"/>. Separate from <see cref="Flagged"/>,
+    /// which is the user's own "review later" flag (and Outlook's flag).
+    /// </summary>
+    public bool Priority { get; set; }
     public bool Important { get; set; }
 
     public string To { get; set; } = "";

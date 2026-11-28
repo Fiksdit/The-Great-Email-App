@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/Sidebar.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 5
+// Created: 2026-04-29 | Revised: 2026-11-27 | Rev: 6
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Windows;
@@ -21,6 +21,24 @@ public partial class Sidebar : UserControl
         if (sender is FrameworkElement fe && fe.Tag is AccountViewModel acc)
         {
             acc.IsExpanded = !acc.IsExpanded;
+            e.Handled = true;
+        }
+    }
+
+    private void Priority_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            vm.ShowPriorityCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    private void Flagged_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            vm.ShowFlaggedCommand.Execute(null);
             e.Handled = true;
         }
     }

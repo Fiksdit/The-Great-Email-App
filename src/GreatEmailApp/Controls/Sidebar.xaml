@@ -121,6 +121,59 @@
             </Border>
 
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                <!-- "Priority": mail marked by "Mark priority" rules (e.g.
+                     Federated), from all folders and accounts. -->
+                <Border x:Name="PriorityRow" Margin="6,8,6,0" Padding="8,6" CornerRadius="6"
+                        Cursor="Hand" MouseLeftButtonDown="Priority_Click"
+                        Visibility="{Binding HasAccounts, Converter={StaticResource BoolVis}}"
+                        ToolTip="Priority mail (marked by your rules) from every folder and account"
+                        AutomationProperties.Name="Priority messages, all folders">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsPriorityViewActive}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{StaticResource IconImportant}" Style="{StaticResource IconGlyph}"
+                                   FontSize="13" Foreground="{DynamicResource AmberBrush}" Margin="2,0,10,0" />
+                        <TextBlock Text="Priority" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <TextBlock Text="all folders" FontSize="11" VerticalAlignment="Center" Margin="6,1,0,0"
+                                   Foreground="{DynamicResource TertiaryTextBrush}" />
+                    </StackPanel>
+                </Border>
+                <!-- "Flagged": every flagged message from all folders and
+                     accounts in one list. Highlighted while that view is open. -->
+                <Border x:Name="FlaggedRow" Margin="6,2,6,0" Padding="8,6" CornerRadius="6"
+                        Cursor="Hand" MouseLeftButtonDown="Flagged_Click"
+                        Visibility="{Binding HasAccounts, Converter={StaticResource BoolVis}}"
+                        ToolTip="Flagged messages from every folder and account"
+                        AutomationProperties.Name="Flagged messages, all folders">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsFlaggedViewActive}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{StaticResource IconFlagFilled}" Style="{StaticResource IconGlyph}"
+                                   FontSize="13" Foreground="{DynamicResource RoseBrush}" Margin="2,0,10,0" />
+                        <TextBlock Text="Flagged" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource PrimaryTextBrush}" />
+                        <TextBlock Text="all folders" FontSize="11" VerticalAlignment="Center" Margin="6,1,0,0"
+                                   Foreground="{DynamicResource TertiaryTextBrush}" />
+                    </StackPanel>
+                </Border>
                 <ItemsControl ItemsSource="{Binding Accounts}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:AccountViewModel}">
@@ -201,6 +254,7 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+                </StackPanel>
             </ScrollViewer>
         </DockPanel>
     </Border>

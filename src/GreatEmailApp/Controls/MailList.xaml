@@ -102,7 +102,15 @@
                         </Grid>
                     </Border>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <DockPanel Margin="0,8,0,0">
+                    <!-- "Unflag all" / "Clear all priority" — only in the sidebar's
+                         all-folders Flagged / Priority views. Asks before acting. -->
+                    <Button DockPanel.Dock="Right" Style="{StaticResource SubtleButton}"
+                            Padding="8,3" FontSize="11"
+                            Content="{Binding ClearAllMarksLabel}"
+                            Command="{Binding ClearAllMarksCommand}"
+                            Visibility="{Binding CanClearAllMarks, Converter={StaticResource BoolVis}}" />
+                    <StackPanel Orientation="Horizontal">
                         <ToggleButton Style="{StaticResource FilterPill}" Content="All"
                                       IsChecked="{Binding Filter, Converter={StaticResource StrEqBool}, ConverterParameter=All, Mode=OneWay}"
                                       Click="Pill_Click" Tag="All" />
@@ -116,6 +124,7 @@
                              pass-through (showed everything). Re-add with a real
                              @-mention predicate if that feature is ever built. -->
                     </StackPanel>
+                    </DockPanel>
                 </StackPanel>
             </Border>
 
@@ -137,7 +146,27 @@
                 </TextBlock>
             </Border>
 
-            <!-- List -->
+            <!-- List, with an "empty list" explanation on top when nothing shows -->
+            <Grid>
+            <StackPanel Panel.ZIndex="1" VerticalAlignment="Top" Margin="20,40,20,0">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ListEmptyText}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock Text="{Binding ListEmptyText}" TextWrapping="Wrap" TextAlignment="Center"
+                           FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" />
+                <TextBlock HorizontalAlignment="Center" Margin="0,8,0,0" FontSize="12"
+                           Visibility="{Binding ShowAllFlaggedLink, Converter={StaticResource BoolVis}}">
+                    <Hyperlink Command="{Binding ShowFlaggedCommand}" Foreground="{DynamicResource AccentBrush}">
+                        <Run Text="Show flagged from all folders" />
+                    </Hyperlink>
+                </TextBlock>
+            </StackPanel>
             <ScrollViewer x:Name="MessageScroll"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl ItemsSource="{Binding Messages}">
@@ -181,6 +210,7 @@
                                             <Separator Style="{StaticResource MenuSeparatorStyle}" />
                                             <MenuItem Header="Mark Read / Unread" Click="ToggleRead_Click" />
                                             <MenuItem Header="Flag / Unflag" Click="ToggleFlag_Click" />
+                                            <MenuItem Header="Mark / Clear priority" Click="TogglePriority_Click" />
                                             <Separator Style="{StaticResource MenuSeparatorStyle}" />
                                             <MenuItem Header="Archive" Click="Archive_Click" />
                                             <MenuItem x:Name="MoveToMenu" Header="Move to…" />
@@ -269,20 +299,73 @@
                                                        Foreground="{DynamicResource TertiaryTextBrush}"
                                                        Margin="0,0,4,0"
                                                        Visibility="{Binding HasAttachments, Converter={StaticResource BoolVis}}" />
-                                            <TextBlock Text="{StaticResource IconFlagFilled}" Style="{StaticResource IconGlyph}"
-                                                       FontSize="12"
-                                                       Foreground="{DynamicResource RoseBrush}"
-                                                       Margin="0,0,4,0"
-                                                       Visibility="{Binding Flagged, Converter={StaticResource BoolVis}}" />
-                                            <TextBlock Text="{StaticResource IconImportant}" Style="{StaticResource IconGlyph}"
-                                                       FontSize="12"
-                                                       Foreground="{DynamicResource AmberBrush}"
-                                                       Visibility="{Binding Important, Converter={StaticResource BoolVis}}" />
+                                            <!-- Flag toggle: filled rose flag when flagged; an
+                                                 outline flag appears on row hover so an unflagged
+                                                 message can be flagged in one click. The Button
+                                                 handles the mouse-down, so clicking it doesn't
+                                                 also open the message. -->
+                                            <Button x:Name="FlagButton" Click="FlagButton_Click" Tag="{Binding}"
+                                                    Cursor="Hand" Focusable="False" Margin="0,-2,2,0" Padding="2"
+                                                    AutomationProperties.Name="Flag or unflag">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter />
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Setter Property="Opacity" Value="0" />
+                                                        <Setter Property="ToolTip" Value="Flag" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Flagged}" Value="True">
+                                                                <Setter Property="Opacity" Value="1" />
+                                                                <Setter Property="ToolTip" Value="Unflag" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                                <TextBlock FontSize="12">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource IconGlyph}">
+                                                            <Setter Property="Text" Value="{StaticResource IconFlag}" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource TertiaryTextBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Flagged}" Value="True">
+                                                                    <Setter Property="Text" Value="{StaticResource IconFlagFilled}" />
+                                                                    <Setter Property="Foreground" Value="{DynamicResource RoseBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Button>
+                                            <!-- Priority (set by "Mark priority" rules): amber "!"
+                                                 shown only when set; one click clears it. -->
+                                            <Button Click="PriorityButton_Click" Tag="{Binding}"
+                                                    Cursor="Hand" Focusable="False" Margin="0,-2,2,0" Padding="2"
+                                                    ToolTip="Priority — click to clear"
+                                                    AutomationProperties.Name="Clear priority"
+                                                    Visibility="{Binding Priority, Converter={StaticResource BoolVis}}">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter />
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                                <TextBlock Text="{StaticResource IconImportant}" Style="{StaticResource IconGlyph}"
+                                                           FontSize="12" Foreground="{DynamicResource AmberBrush}" />
+                                            </Button>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
                             </StackPanel>
                             <DataTemplate.Triggers>
+                                <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="FlagButton" Property="Opacity" Value="1" />
+                                </Trigger>
                                 <!-- Selected row: keep the AccentSoftBrush tint (so it looks
                                      consistent with unread when both apply) AND add a 1.5px
                                      accent border so selection is visually distinct from a
@@ -299,6 +382,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
+            </Grid>
         </DockPanel>
     </Border>
 </UserControl>

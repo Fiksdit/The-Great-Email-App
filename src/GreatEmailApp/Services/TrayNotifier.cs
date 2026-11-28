@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Services/TrayNotifier.cs
-// Created: 2026-04-30 | Revised: 2026-05-15 | Rev: 5
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-11-27 | Rev: 6
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Wraps an H.NotifyIcon.Wpf TaskbarIcon (purpose-built WPF tray library;
 // chosen over <UseWindowsForms> to avoid namespace ambiguity with WPF/Drawing).
@@ -97,6 +97,41 @@ public sealed class TrayNotifier : IDisposable
     // --------------------------------------------------------------------- //
     // Coalescing
     // --------------------------------------------------------------------- //
+
+    // --------------------------------------------------------------------- //
+    // Priority alerts
+    // --------------------------------------------------------------------- //
+
+    /// <summary>
+    /// Hook "Mark priority" rule hits. Each one gets its own alert, right away
+    /// (no coalescing) and even when ordinary new-mail notifications are
+    /// turned off — priority mail is exactly what must not be missed. A
+    /// still-pending ordinary balloon for the same message is dropped.
+    /// </summary>
+    public void AttachPriorityAlerts(GreatEmailApp.Core.Rules.IRulesEngine rules) =>
+        rules.PriorityMailArrived += OnPriorityMail;
+
+    private void OnPriorityMail(object? sender, GreatEmailApp.Core.Rules.PriorityMailEvent e)
+    {
+        lock (_bufferLock)
+            _buffered.RemoveAll(b => b.Account.Id == e.Account.Id && b.Message.Id == e.Message.Id);
+
+        var from = string.IsNullOrWhiteSpace(e.Message.Sender) ? e.Message.SenderEmail : e.Message.Sender;
+        var subject = string.IsNullOrWhiteSpace(e.Message.Subject) ? "(no subject)" : e.Message.Subject;
+        Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                _icon.ShowNotification(
+                    title: Truncate($"Priority: {from}", 63),
+                    message: Truncate(subject, 255),
+                    icon: NotificationIcon.Warning,
+                    largeIcon: false,
+                    sound: true);
+            }
+            catch (Exception) { /* tray flake — never crash on a balloon */ }
+        }));
+    }
 
     private void OnNewMail(object? sender, NewMailEvent e)
     {

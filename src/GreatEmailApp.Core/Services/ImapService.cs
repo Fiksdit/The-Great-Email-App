@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Services/ImapService.cs
-// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 5
+// Created: 2026-04-29 | Revised: 2026-11-27 | Rev: 7
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 // MailKit-backed IMAP. Single-shot operations: open → do → close. We do NOT
 // hold a long-lived connection in Phase 2 — IDLE / push lands in Phase 5.
@@ -147,8 +147,13 @@ public sealed class ImapService : IImapService
         catch (Exception ex) { return Result.Fail<bool>(SanitizeError(ex), ex); }
     }
 
-    public async Task<Result<bool>> SetFlaggedAsync(
+    public Task<Result<bool>> SetFlaggedAsync(
         Account account, string password, string folderFullPath, uint uid, bool flagged,
+        CancellationToken ct = default)
+        => SetMarkAsync(account, password, folderFullPath, uid, MailMark.Flagged, flagged, ct);
+
+    public async Task<Result<List<string>>> SaveAttachmentsAsync(
+        Account account, string password, string folderFullPath, uint uid, string destDir,
         CancellationToken ct = default)
     {
         try
@@ -156,19 +161,89 @@ public sealed class ImapService : IImapService
             using var client = new ImapClient();
             await ConnectAndAuthenticateAsync(client, account, password, ct);
             var folder = await GetFolderByPathAsync(client, folderFullPath, ct);
-            if (folder is null) return Result.Fail<bool>($"Folder not found: {folderFullPath}");
-            await folder.OpenAsync(FolderAccess.ReadWrite, ct);
+            if (folder is null) return Result.Fail<List<string>>($"Folder not found: {folderFullPath}");
+            await folder.OpenAsync(FolderAccess.ReadOnly, ct);
+            var msg = await folder.GetMessageAsync(new UniqueId(uid), ct);
+            await client.DisconnectAsync(true, ct);
 
-            var ids = new[] { new UniqueId(uid) };
-            if (flagged)
-                await folder.AddFlagsAsync(ids, MessageFlags.Flagged, silent: true, ct);
-            else
-                await folder.RemoveFlagsAsync(ids, MessageFlags.Flagged, silent: true, ct);
+            Directory.CreateDirectory(destDir);
+            var saved = new List<string>();
+            int n = 0;
+            foreach (var part in msg.Attachments)
+            {
+                n++;
+                var name = part.ContentDisposition?.FileName ?? part.ContentType?.Name;
+                if (string.IsNullOrWhiteSpace(name))
+                    name = part is MessagePart ? $"attached-message-{n}.eml" : $"attachment-{n}";
+                foreach (var bad in Path.GetInvalidFileNameChars()) name = name.Replace(bad, '_');
+
+                // Same name twice in one message → "name (2).ext".
+                var path = Path.Combine(destDir, name);
+                for (int i = 2; File.Exists(path); i++)
+                    path = Path.Combine(destDir, $"{Path.GetFileNameWithoutExtension(name)} ({i}){Path.GetExtension(name)}");
+
+                await using (var fs = File.Create(path))
+                {
+                    if (part is MessagePart mp) await mp.Message.WriteToAsync(fs, ct);
+                    else if (part is MimePart p && p.Content is not null) await p.Content.DecodeToAsync(fs, ct);
+                }
+                saved.Add(path);
+            }
+            return Result.Ok(saved);
+        }
+        catch (Exception ex) { return Result.Fail<List<string>>(SanitizeError(ex), ex); }
+    }
+
+    public async Task<Result<bool>> SetMarkAsync(
+        Account account, string password, string folderFullPath, uint uid, MailMark mark, bool on,
+        CancellationToken ct = default)
+    {
+        var res = await SetMarkBulkAsync(account, password, new[] { (folderFullPath, uid) }, mark, on, ct);
+        return res switch
+        {
+            Result<int>.Ok => Result.Ok(true),
+            Result<int>.Fail f => Result.Fail<bool>(f.Error, f.Inner),
+            _ => Result.Fail<bool>("unknown result"),
+        };
+    }
+
+    public async Task<Result<int>> SetMarkBulkAsync(
+        Account account, string password, IReadOnlyList<(string FolderFullPath, uint Uid)> messages,
+        MailMark mark, bool on, CancellationToken ct = default)
+    {
+        if (messages.Count == 0) return Result.Ok(0);
+        try
+        {
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+
+            int changed = 0;
+            foreach (var group in messages.GroupBy(m => m.FolderFullPath))
+            {
+                var folder = await GetFolderByPathAsync(client, group.Key, ct);
+                if (folder is null) return Result.Fail<int>($"Folder not found: {group.Key}");
+                await folder.OpenAsync(FolderAccess.ReadWrite, ct);
+
+                var ids = group.Select(m => new UniqueId(m.Uid)).ToList();
+                if (mark == MailMark.Flagged)
+                {
+                    if (on) await folder.AddFlagsAsync(ids, MessageFlags.Flagged, silent: true, ct);
+                    else await folder.RemoveFlagsAsync(ids, MessageFlags.Flagged, silent: true, ct);
+                }
+                else
+                {
+                    var req = new StoreFlagsRequest(on ? StoreAction.Add : StoreAction.Remove,
+                        new[] { MailMarks.PriorityKeyword }) { Silent = true };
+                    await folder.StoreAsync(ids, req, ct);
+                }
+                changed += ids.Count;
+                await folder.CloseAsync(false, ct);
+            }
 
             await client.DisconnectAsync(true, ct);
-            return Result.Ok(true);
+            return Result.Ok(changed);
         }
-        catch (Exception ex) { return Result.Fail<bool>(SanitizeError(ex), ex); }
+        catch (Exception ex) { return Result.Fail<int>(SanitizeError(ex), ex); }
     }
 
     public async Task<Result<bool>> MoveToFolderAsync(
@@ -232,6 +307,7 @@ public sealed class ImapService : IImapService
 
             // isMessageFolder: true → child can hold messages (vs container-only).
             var created = await parent.CreateAsync(name, isMessageFolder: true, ct);
+            await SubscribeQuietlyAsync(created, ct); // FIX-2026-11-25-002
             await client.DisconnectAsync(true, ct);
             return Result.Ok(created.FullName);
         }
@@ -257,7 +333,9 @@ public sealed class ImapService : IImapService
             if (parent is null)
                 return Result.Fail<string>("Cannot rename a root namespace folder.");
 
+            await UnsubscribeQuietlyAsync(folder, ct);
             await folder.RenameAsync(parent, newName, ct);
+            await SubscribeQuietlyAsync(folder, ct); // FIX-2026-11-25-002
             var newPath = folder.FullName; // MailKit updates this on success
             await client.DisconnectAsync(true, ct);
             return Result.Ok(newPath);
@@ -280,6 +358,7 @@ public sealed class ImapService : IImapService
             // already shows a confirm prompt, and silent recursive deletion would
             // be a footgun.
             if (folder.IsOpen) await folder.CloseAsync(expunge: false, ct);
+            await UnsubscribeQuietlyAsync(folder, ct); // no dangling subscription
             await folder.DeleteAsync(ct);
             await client.DisconnectAsync(true, ct);
             return Result.Ok(true);
@@ -366,10 +445,14 @@ public sealed class ImapService : IImapService
                     if (!createIfMissing)
                         return Result.Fail<string>($"Folder not found: {string.Join("/", pathSegments)}");
                     next = await current.CreateAsync(seg, isMessageFolder: true, ct);
-                    try { await next.SubscribeAsync(ct); } catch { /* subscription is cosmetic */ }
+                    await SubscribeQuietlyAsync(next, ct);
                 }
                 current = next;
             }
+            // FIX-2026-11-25-002: re-subscribe the destination on every move, so
+            // a folder left unsubscribed (jreed@'s TGEA was) heals itself and
+            // shows in Outlook / webmail, which list only subscribed folders.
+            await SubscribeQuietlyAsync(current, ct);
 
             var src = await GetFolderByPathAsync(client, srcFolderFullPath, ct);
             if (src is null) return Result.Fail<string>($"Source folder not found: {srcFolderFullPath}");
@@ -406,6 +489,26 @@ public sealed class ImapService : IImapService
             return Result.Ok(dstFolder.FullName);
         }
         catch (Exception ex) { return Result.Fail<string>(SanitizeError(ex), ex); }
+    }
+
+    /// <summary>
+    /// FIX-2026-11-25-002: Outlook and webmail (Roundcube) show only SUBSCRIBED
+    /// folders, so a folder this app creates must be subscribed or it exists on
+    /// the server but is invisible everywhere except this app. Best-effort: a
+    /// refused SUBSCRIBE must not fail the create/move that called it.
+    /// </summary>
+    private static async Task SubscribeQuietlyAsync(IMailFolder folder, CancellationToken ct)
+    {
+        try { await folder.SubscribeAsync(ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        { Console.Error.WriteLine($"[ImapService.Subscribe] {folder.FullName}: {ex.Message}"); }
+    }
+
+    private static async Task UnsubscribeQuietlyAsync(IMailFolder folder, CancellationToken ct)
+    {
+        try { await folder.UnsubscribeAsync(ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        { Console.Error.WriteLine($"[ImapService.Unsubscribe] {folder.FullName}: {ex.Message}"); }
     }
 
     private static IMailFolder? TryGetSpecial(ImapClient client, Models.SpecialFolder s)
@@ -498,7 +601,44 @@ public sealed class ImapService : IImapService
             // SUBJECT terms; servers handle the heavy lifting.
             var imapQuery = SearchQuery.FromContains(query)
                 .Or(SearchQuery.SubjectContains(query));
+            return Result.Ok(await SearchAllFoldersAsync(client, account, imapQuery,
+                perFolderCap: 50, limit, skipTrashAndJunk: false, ct));
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<List<Message>>(SanitizeError(ex), ex);
+        }
+    }
 
+    public async Task<Result<List<Message>>> SearchMarkedAsync(
+        Account account, string password, MailMark mark, int limit = 500, CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new ImapClient();
+            await ConnectAndAuthenticateAsync(client, account, password, ct);
+            // Marked mail is a short list by nature, so no per-folder cap;
+            // a marked message that was later deleted or junked stays out.
+            var query = mark == MailMark.Flagged
+                ? SearchQuery.Flagged
+                : SearchQuery.HasKeyword(MailMarks.PriorityKeyword);
+            return Result.Ok(await SearchAllFoldersAsync(client, account, query,
+                perFolderCap: limit, limit, skipTrashAndJunk: true, ct));
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<List<Message>>(SanitizeError(ex), ex);
+        }
+    }
+
+    /// <summary>
+    /// Run one IMAP SEARCH in every selectable folder of a connected client and
+    /// return the hits newest-first. Disconnects the client when done.
+    /// </summary>
+    private async Task<List<Message>> SearchAllFoldersAsync(ImapClient client, Account account,
+        SearchQuery imapQuery, int perFolderCap, int limit, bool skipTrashAndJunk, CancellationToken ct)
+    {
+        {
             // Gather every selectable folder. INBOX sits outside the personal
             // namespace on many servers (Dovecot, fiksdit.com) — include it
             // explicitly. Skip non-selectable container folders.
@@ -516,6 +656,8 @@ public sealed class ImapService : IImapService
             foreach (var folder in foldersToSearch)
             {
                 ct.ThrowIfCancellationRequested();
+                if (skipTrashAndJunk && (folder.Attributes & (FolderAttributes.Trash | FolderAttributes.Junk)) != 0)
+                    continue;
                 try
                 {
                     await folder.OpenAsync(FolderAccess.ReadOnly, ct);
@@ -524,7 +666,7 @@ public sealed class ImapService : IImapService
                     {
                         // Cap per-folder so one noisy folder (newsletters etc.)
                         // can't dominate the result set. Take newest UIDs.
-                        var top = uids.OrderByDescending(u => u.Id).Take(50).ToList();
+                        var top = uids.OrderByDescending(u => u.Id).Take(perFolderCap).ToList();
                         var summaries = await folder.FetchAsync(top,
                             MessageSummaryItems.Envelope | MessageSummaryItems.Flags |
                             MessageSummaryItems.UniqueId | MessageSummaryItems.PreviewText,
@@ -543,7 +685,7 @@ public sealed class ImapService : IImapService
                     if (folder.IsOpen)
                         await folder.CloseAsync(false, ct);
                 }
-                catch
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     // Folder may be unopenable (\NoSelect that slipped through,
                     // permission denied, etc.). Skip — never let one bad folder
@@ -555,14 +697,10 @@ public sealed class ImapService : IImapService
 
             await client.DisconnectAsync(true, ct);
 
-            return Result.Ok(results
+            return results
                 .OrderByDescending(m => m.SentAt ?? DateTimeOffset.MinValue)
                 .Take(limit)
-                .ToList());
-        }
-        catch (Exception ex)
-        {
-            return Result.Fail<List<Message>>(SanitizeError(ex), ex);
+                .ToList();
         }
     }
 
@@ -725,6 +863,7 @@ public sealed class ImapService : IImapService
             SentAt = s.Date != default ? s.Date : null,
             Unread = unread,
             Flagged = flagged,
+            Priority = s.Keywords?.Any(k => string.Equals(k, MailMarks.PriorityKeyword, StringComparison.OrdinalIgnoreCase)) == true,
             Important = false,
             To = to,
             Cc = string.Join(", ", env?.Cc?.Mailboxes?.Select(m => m.Address) ?? Array.Empty<string>()),

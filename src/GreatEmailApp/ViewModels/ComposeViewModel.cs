@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/ViewModels/ComposeViewModel.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-11-27 | Rev: 2
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -67,6 +67,7 @@ public partial class ComposeViewModel : ObservableObject
     [ObservableProperty] private string bodyText = "";
 
     public ObservableCollection<ComposeAttachment> Attachments { get; } = new();
+    public bool HasAttachments => Attachments.Count > 0;
 
     [ObservableProperty] private bool isSending;
     [ObservableProperty] private string statusMessage = "";
@@ -108,6 +109,10 @@ public partial class ComposeViewModel : ObservableObject
             ?? AvailableAccounts.FirstOrDefault();
 
         SendCommand = new AsyncRelayCommand(SendAsync, CanSend);
+        // The attachment strip binds HasAttachments: binding the collection itself
+        // never re-evaluated, so files added after open (Attach, Forward) were
+        // attached but invisible.
+        Attachments.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasAttachments));
         AddAttachmentCommand = new RelayCommand(AddAttachment);
         RemoveAttachmentCommand = new RelayCommand<ComposeAttachment>(RemoveAttachment);
         ToggleCcBccCommand = new RelayCommand(() => CcBccVisible = !CcBccVisible);
@@ -121,8 +126,63 @@ public partial class ComposeViewModel : ObservableObject
     partial void OnBodyTextChanged(string value)      => HasUnsavedChanges = true;
     partial void OnIsSendingChanged(bool value)       => SendCommand.NotifyCanExecuteChanged();
 
+    /// <summary>True while Forward is still downloading the original's attachments.</summary>
+    [ObservableProperty] private bool isLoadingAttachments;
+    partial void OnIsLoadingAttachmentsChanged(bool value) => SendCommand.NotifyCanExecuteChanged();
+
+    // Send waits for forwarded attachments — otherwise a quick Send would go
+    // out without them (FIX-2026-11-27-006).
     private bool CanSend() =>
-        !IsSending && FromAccount is not null && !string.IsNullOrWhiteSpace(ToAddresses);
+        !IsSending && !IsLoadingAttachments && FromAccount is not null && !string.IsNullOrWhiteSpace(ToAddresses);
+
+    /// <summary>
+    /// Forward: download the original message's attachments from the server
+    /// into a per-forward folder under %LOCALAPPDATA%\GreatEmailApp\forwarded
+    /// and add them to this message. They stay removable like any attachment.
+    /// Folders older than 30 days are cleaned up here.
+    /// </summary>
+    public async Task LoadForwardAttachmentsAsync(Message original)
+    {
+        // No early-out on original.Attachments: list rows loaded from a cache
+        // may not carry attachment metadata. The server knows.
+        var account = AvailableAccounts.FirstOrDefault(a => a.Id == original.AccountId);
+        var creds = account is null ? null : _creds.Read(account.Id);
+        if (account is null || creds is null || !uint.TryParse(original.Id, out var uid))
+        {
+            StatusMessage = "Couldn't add the original attachments (no saved password for that account).";
+            return;
+        }
+
+        IsLoadingAttachments = true;
+        StatusMessage = "Adding the original attachments…";
+        try
+        {
+            var root = System.IO.Path.Combine(GreatEmailApp.Core.Storage.AppPaths.Root, "forwarded");
+            CleanOldForwardFolders(root);
+            var dir = System.IO.Path.Combine(root, Guid.NewGuid().ToString("N"));
+            var res = await _imap.SaveAttachmentsAsync(account, creds.Value.Password, original.FolderId, uid, dir);
+            if (res is Result<List<string>>.Ok ok)
+            {
+                foreach (var path in ok.Value)
+                    Attachments.Add(new ComposeAttachment { FilePath = path, SizeBytes = new System.IO.FileInfo(path).Length });
+                StatusMessage = ok.Value.Count == 0 ? "" : $"{ok.Value.Count} attachment(s) added from the original.";
+            }
+            else StatusMessage = $"Couldn't add the original attachments: {res.AsError}";
+        }
+        finally { IsLoadingAttachments = false; }
+    }
+
+    private static void CleanOldForwardFolders(string root)
+    {
+        try
+        {
+            if (!System.IO.Directory.Exists(root)) return;
+            foreach (var d in System.IO.Directory.GetDirectories(root))
+                if (System.IO.Directory.GetCreationTimeUtc(d) < DateTime.UtcNow.AddDays(-30))
+                    System.IO.Directory.Delete(d, recursive: true);
+        }
+        catch { /* best-effort housekeeping */ }
+    }
 
     // --------------------------------------------------------------------- //
     // Pre-populate factories — call after construction.
@@ -242,6 +302,7 @@ public partial class ComposeViewModel : ObservableObject
             try { _drafts.Delete(DraftId); } catch { /* best-effort */ }
 
             StatusMessage = "Sent.";
+            HasUnsavedChanges = false; // nothing left to save — no draft prompt on close
             Sent?.Invoke(this, EventArgs.Empty);
         }
         finally { IsSending = false; }

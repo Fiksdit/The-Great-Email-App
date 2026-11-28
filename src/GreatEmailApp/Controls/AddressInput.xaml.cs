@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Controls/AddressInput.xaml.cs
-// Created: 2026-05-01 | Revised: 2026-05-01 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-05-01 | Revised: 2026-11-27 | Rev: 2
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Address-list textbox with contact autocomplete.
 //
@@ -25,6 +25,14 @@ public partial class AddressInput : UserControl
     public AddressInput()
     {
         InitializeComponent();
+    }
+
+    /// <summary>Put the caret in the address box (after any existing text).</summary>
+    public void FocusBox()
+    {
+        Box.Focus();
+        Keyboard.Focus(Box);
+        Box.CaretIndex = Box.Text.Length;
     }
 
     // --- Bindable Text (two-way) ---------------------------------------- //

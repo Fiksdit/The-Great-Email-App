@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Rules/RulesEngine.cs
-// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 3
+// Created: 2026-05-01 | Revised: 2026-11-27 | Rev: 4
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Manual mail-rules engine. v1 — conditions on From/To/Subject/Body, actions
@@ -25,6 +25,22 @@ public sealed class RulesEngine : IRulesEngine
     private readonly IImapService _imap;
     private readonly INewMailPoller _poller;
     private bool _running;
+
+    /// <summary>
+    /// A "Mark priority" rule just marked a NEWLY ARRIVED message (never the
+    /// re-scanned backlog or a manual run). The tray shows its own alert for
+    /// these. Raised on a worker thread.
+    /// </summary>
+    public event EventHandler<PriorityMailEvent>? PriorityMailArrived;
+
+    /// <summary>Raised after a run in which any Flag / Mark priority action succeeded.</summary>
+    public event EventHandler? MarksApplied;
+
+    private void RaisePriority(Account account, Message msg, MailRule rule)
+    {
+        try { PriorityMailArrived?.Invoke(this, new PriorityMailEvent(account, msg, rule.Name)); }
+        catch { /* a UI handler must never break rule processing */ }
+    }
 
     public RulesEngine(
         IRulesStore rules,
@@ -83,6 +99,7 @@ public sealed class RulesEngine : IRulesEngine
 
         var msgList = messages.ToList();
         int matched = 0, actionsRun = 0;
+        bool anyMarked = false;
         var errors = new List<string>();
 
         foreach (var msg in msgList)
@@ -113,7 +130,13 @@ public sealed class RulesEngine : IRulesEngine
                 {
                     var ran = await ExecuteAsync(account, creds.Value.Password, folderPath, uid,
                         msg, action, ct).ConfigureAwait(false);
+                    if (ran is Result<bool>.Ok && action.IsPriority && newUids is not null && newUids.Contains(uid))
+                        RaisePriority(account, msg, rule);
                     if (ran is Result<bool>.Ok) actionsRun++;
+                    // Only new arrivals or a manual run — the per-poll re-scan of
+                    // recent inbox mail would otherwise re-fire this every cycle.
+                    if (ran is Result<bool>.Ok && action.Type == RuleAction.Flag
+                        && (newUids is null || newUids.Contains(uid))) anyMarked = true;
                     else if (ran is Result<bool>.Fail f) errors.Add($"[{rule.Name}] {f.Error}");
 
                     // A move makes the original UID invalid for subsequent actions
@@ -126,6 +149,10 @@ public sealed class RulesEngine : IRulesEngine
             }
         }
 
+        if (anyMarked)
+        {
+            try { MarksApplied?.Invoke(this, EventArgs.Empty); } catch { /* UI handler only */ }
+        }
         return Result.Ok(new RuleApplyResult(msgList.Count, matched, actionsRun, errors));
     }
 
@@ -219,6 +246,9 @@ public sealed class RulesEngine : IRulesEngine
         {
             case RuleAction.MarkRead:
                 return await _imap.SetSeenAsync(account, password, folderPath, uid, true, ct).ConfigureAwait(false);
+
+            case RuleAction.Flag when action.IsPriority:
+                return await _imap.SetMarkAsync(account, password, folderPath, uid, MailMark.Priority, true, ct).ConfigureAwait(false);
 
             case RuleAction.Flag:
                 return await _imap.SetFlaggedAsync(account, password, folderPath, uid, true, ct).ConfigureAwait(false);

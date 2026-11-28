@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/Views/ComposeWindow.xaml.cs
-// Created: 2026-04-30 | Revised: 2026-05-01 | Rev: 2
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-11-27 | Rev: 3
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System;
 using System.Threading.Tasks;
@@ -20,7 +20,9 @@ public partial class ComposeWindow : Window
         InitializeComponent();
         _vm = vm;
         DataContext = vm;
-        vm.Sent += (_, _) => Dispatcher.BeginInvoke(new Action(Close));
+        // Sent: close without the "save as draft?" prompt — the message is gone,
+        // there is nothing to save (FIX-2026-11-27-005).
+        vm.Sent += (_, _) => Dispatcher.BeginInvoke(new Action(CloseForReal));
 
         // Wire address-input autocomplete to the VM's contact suggester.
         Func<string, System.Collections.Generic.IReadOnlyList<Core.Models.Contact>> sugg = q => vm.SuggestContacts(q);
@@ -98,6 +100,17 @@ public partial class ComposeWindow : Window
                 _ => "New message",
             },
         };
+        // New and Forward need recipients first, so start in To. Reply /
+        // Reply all already have them — focus stays with the body editor.
+        // ContentRendered: after the WebView2 editor's own load, which would
+        // otherwise steal focus back.
+        if (mode is ComposeMode.New or ComposeMode.Forward)
+            win.ContentRendered += (_, _) => win.Dispatcher.BeginInvoke(
+                new Action(win.ToInput.FocusBox), System.Windows.Threading.DispatcherPriority.Input);
+        // Forward carries the original's attachments (downloaded from the
+        // server; Send is disabled until they're in).
+        if (mode == ComposeMode.Forward && original is not null)
+            _ = vm.LoadForwardAttachmentsAsync(original);
         return win;
     }
 

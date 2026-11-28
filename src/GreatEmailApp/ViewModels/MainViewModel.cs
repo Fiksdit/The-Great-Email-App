@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/ViewModels/MainViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 16
+// Created: 2026-04-29 | Revised: 2026-11-27 | Rev: 17
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Collections.ObjectModel;
@@ -98,15 +98,103 @@ public partial class MainViewModel : ObservableObject
     // restore the normal local view).
     private bool _serverSearchActive;
 
+    /// <summary>
+    /// Which sidebar all-folders view is in Messages: Flagged (the user's
+    /// review flags) or Priority (rule-marked mail). Null = a normal folder.
+    /// No folder is selected while one is open; picking a folder ends it.
+    /// </summary>
+    [ObservableProperty] private MailMark? markedView;
+    public bool IsMarkedViewActive => MarkedView is not null;
+    public bool IsFlaggedViewActive => MarkedView == MailMark.Flagged;
+    public bool IsPriorityViewActive => MarkedView == MailMark.Priority;
+    /// <summary>Label of the bulk-clear button over the list.</summary>
+    public string ClearAllMarksLabel => MarkedView == MailMark.Priority ? "Clear all priority" : "Unflag all";
+    /// <summary>Bulk-clear button shows in a marked view that has rows.</summary>
+    public bool CanClearAllMarks => IsMarkedViewActive && Messages.Count > 0;
+    private CancellationTokenSource? _flaggedLoadCts;
+
+    partial void OnMarkedViewChanged(MailMark? value)
+    {
+        OnPropertyChanged(nameof(IsMarkedViewActive));
+        OnPropertyChanged(nameof(IsFlaggedViewActive));
+        OnPropertyChanged(nameof(IsPriorityViewActive));
+        OnPropertyChanged(nameof(ClearAllMarksLabel));
+        OnPropertyChanged(nameof(CanClearAllMarks));
+        UpdateListEmptyState();
+    }
+
+    private static string MarkNoun(MailMark m) => m == MailMark.Priority ? "priority" : "flagged";
+
     // Filter pill + search-box plumbing. Both refresh the same default
     // ICollectionView; the predicate combines pill-state AND search-text.
-    partial void OnFilterChanged(string value) =>
+    partial void OnFilterChanged(string value)
+    {
         System.Windows.Data.CollectionViewSource.GetDefaultView(Messages)?.Refresh();
+        UpdateListEmptyState();
+    }
+
+    partial void OnIsBusyChanged(bool value) => UpdateListEmptyState();
+
+    /// <summary>Text shown in the middle of an empty mail list ("" = hidden).</summary>
+    [ObservableProperty] private string listEmptyText = "";
+    /// <summary>Show the "Show flagged from all folders" link under the empty text.</summary>
+    [ObservableProperty] private bool showAllFlaggedLink;
+    // Why the last Flagged-view search came back short (no password, server error).
+    private string _flaggedProblem = "";
+    // True while the Flagged-view search runs. Separate from IsBusy, which a
+    // folder load finishing at startup clears mid-search (that showed "No
+    // flagged messages" before the results arrived).
+    private bool _flaggedLoading;
+
+    /// <summary>
+    /// Explain an empty list instead of leaving a blank pane: nothing flagged
+    /// anywhere vs. accounts that could not be searched, or a folder whose
+    /// Flagged pill is empty (flagged mail is usually filed by rules into
+    /// other folders, so offer the all-folders view).
+    /// </summary>
+    private void UpdateListEmptyState()
+    {
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(Messages);
+        var empty = view?.IsEmpty ?? Messages.Count == 0;
+        OnPropertyChanged(nameof(CanClearAllMarks));
+        if (empty && _flaggedLoading && MarkedView is { } loading)
+        {
+            // The all-folders search takes 10–15 s; a blank list looked like
+            // "nothing flagged".
+            ListEmptyText = $"Searching every folder for {MarkNoun(loading)} messages…";
+            ShowAllFlaggedLink = false;
+            return;
+        }
+        if (!empty || IsBusy || !HasAccounts)
+        {
+            ListEmptyText = "";
+            ShowAllFlaggedLink = false;
+            return;
+        }
+        if (MarkedView is { } mark)
+        {
+            ListEmptyText = string.IsNullOrEmpty(_flaggedProblem)
+                ? $"No {MarkNoun(mark)} messages in any folder."
+                : $"No {MarkNoun(mark)} messages found. " + _flaggedProblem;
+            ShowAllFlaggedLink = false;
+        }
+        else if (Filter == "Flagged" && !HasSearchText)
+        {
+            ListEmptyText = "No flagged messages in this folder.";
+            ShowAllFlaggedLink = true;
+        }
+        else
+        {
+            ListEmptyText = HasSearchText ? "No matches in this folder." : "";
+            ShowAllFlaggedLink = false;
+        }
+    }
 
     partial void OnSearchTextChanged(string value)
     {
         System.Windows.Data.CollectionViewSource.GetDefaultView(Messages)?.Refresh();
         OnPropertyChanged(nameof(HasSearchText));
+        UpdateListEmptyState();
 
         // If the user cleared the box AND we had server-search results in
         // the list (which include other folders), reload the current folder
@@ -115,7 +203,8 @@ public partial class MainViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(value) && _serverSearchActive)
         {
             _serverSearchActive = false;
-            _ = SelectFolderAsync(SelectedFolder);
+            if (MarkedView is { } mark) _ = ShowMarkedAsync(mark);
+            else _ = SelectFolderAsync(SelectedFolder);
         }
     }
 
@@ -166,6 +255,22 @@ public partial class MainViewModel : ObservableObject
         // toggled state but never hid anything.
         var view = System.Windows.Data.CollectionViewSource.GetDefaultView(Messages);
         if (view is not null) view.Filter = MessageMatchesFilter;
+        Messages.CollectionChanged += (_, e) =>
+        {
+            UpdateListEmptyState();
+            // A message moved or deleted out of the list: drop it from the
+            // Flagged / Priority cache now; if it was marked, a quick background
+            // check finds it again in its new folder.
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Remove && e.OldItems is not null && App.MarkedMail is not null)
+                foreach (MessageViewModel gone in e.OldItems)
+                {
+                    App.MarkedMail.Remove(gone.Model);
+                    if (gone.Flagged || gone.Priority) App.MarkedMail.ScheduleRefresh(TimeSpan.FromSeconds(5));
+                }
+        };
+        if (App.MarkedMail is not null)
+            App.MarkedMail.Refreshed += (_, mark) =>
+                Application.Current?.Dispatcher.BeginInvoke(new Action(() => OnMarkedMailRefreshed(mark)));
 
         // Subscribe once for the lifetime of the VM (App.Drafts is a singleton).
         if (!_draftSubscribed && App.Drafts is not null)
@@ -515,7 +620,9 @@ public partial class MainViewModel : ObservableObject
                 // Auto-select inbox only when this load was tagged as primary AND
                 // nothing else is selected yet. Non-primary accounts no longer win
                 // the race based on IMAP response speed.
-                if (autoSelectInbox && SelectedFolder is null)
+                // Not while the Flagged view is open (it has no SelectedFolder
+                // either) — a late folder load used to yank the user to INBOX.
+                if (autoSelectInbox && SelectedFolder is null && !IsMarkedViewActive)
                 {
                     var inbox = accountVm.Folders.FirstOrDefault(x => x.Model.Special == SpecialFolder.Inbox)
                               ?? accountVm.Folders.FirstOrDefault();
@@ -638,10 +745,165 @@ public partial class MainViewModel : ObservableObject
         _ = LoadFoldersAsync(vm, autoSelectInbox: true);
     }
 
+    /// <summary>
+    /// Sidebar "Flagged" / "Priority" views: every message carrying that mark
+    /// in every folder of every account (with a saved password), newest
+    /// first. Accounts are searched in parallel. Rows keep their own
+    /// account/folder, so reading, (un)marking, moving and deleting work
+    /// exactly as in a folder.
+    /// </summary>
+    [RelayCommand]
+    private Task ShowFlaggedAsync() => ShowMarkedAsync(MailMark.Flagged);
+
+    [RelayCommand]
+    private Task ShowPriorityAsync() => ShowMarkedAsync(MailMark.Priority);
+
+    private async Task ShowMarkedAsync(MailMark mark)
+    {
+        if (!HasAccounts) return;
+
+        _messageLoadCts?.Cancel();
+        if (SelectedFolder is not null) SelectedFolder.IsSelected = false;
+        SelectedFolder = null;
+        MarkedView = mark;
+        _serverSearchActive = false;
+
+        // Instant: paint the last known list (memory / marked-mail.json).
+        var cache = App.MarkedMail;
+        var hadCache = cache.HasData(mark);
+        _flaggedLoading = !hadCache;
+        RenderMarkedFromCache(mark, keepSelection: false);
+        var label = mark == MailMark.Priority ? "Priority" : "Flagged";
+        StatusMessage = hadCache
+            ? $"{label}: {Messages.Count} messages · checking the server for changes…"
+            : $"Finding {MarkNoun(mark)} messages in all folders…";
+
+        // Then confirm against the server in the background. Refreshed →
+        // OnMarkedMailRefreshed re-renders if this view is still open.
+        try { await cache.RefreshAsync(mark); }
+        catch (Exception ex) { StatusMessage = $"Couldn't check {MarkNoun(mark)} messages: {ex.Message}"; }
+    }
+
+    /// <summary>
+    /// Fill Messages from the marked-mail cache. keepSelection: a background
+    /// refresh is replacing the list under the user — keep the open message
+    /// (and its loaded body) and skip the rebuild entirely when nothing changed.
+    /// </summary>
+    private void RenderMarkedFromCache(MailMark mark, bool keepSelection)
+    {
+        var list = App.MarkedMail.Get(mark);
+        _flaggedProblem = App.MarkedMail.Problems(mark);
+
+        static string KeyOf(Message m) => $"{m.AccountId}|{m.FolderId}|{m.Id}|{m.Flagged}|{m.Priority}";
+        if (keepSelection && list.Select(KeyOf).SequenceEqual(Messages.Select(v => KeyOf(v.Model))))
+        {
+            UpdateListEmptyState();
+            return;
+        }
+
+        var sel = SelectedMessage?.Model;
+        Messages.Clear();
+        foreach (var m in list) Messages.Add(new MessageViewModel(m));
+        MarkGroupTransitions();
+
+        if (keepSelection && sel is not null)
+        {
+            var again = Messages.FirstOrDefault(v => v.Model.AccountId == sel.AccountId
+                && v.Model.FolderId == sel.FolderId && v.Model.Id == sel.Id);
+            if (again is not null)
+            {
+                again.Model.BodyHtml = sel.BodyHtml;
+                again.Model.BodyPlain = sel.BodyPlain;
+                again.OnBodyLoaded();
+                again.IsSelected = true;
+                SelectedMessage = again;
+            }
+            else SelectedMessage = null;
+        }
+        else
+        {
+            SelectedMessage = null;
+            FolderLoaded?.Invoke(this, EventArgs.Empty);
+            var first = Messages.FirstOrDefault();
+            if (first is not null) _ = SelectMessageAsync(first);
+        }
+        UpdateListEmptyState();
+    }
+
+    /// <summary>Background refresh finished (worker thread) → re-render if that view is open.</summary>
+    private void OnMarkedMailRefreshed(MailMark mark)
+    {
+        if (MarkedView != mark) return;
+        var firstLoad = _flaggedLoading;
+        _flaggedLoading = false;
+        RenderMarkedFromCache(mark, keepSelection: !firstLoad);
+        var label = mark == MailMark.Priority ? "Priority" : "Flagged";
+        StatusMessage = (Messages.Count == 0 ? $"No {MarkNoun(mark)} messages." : $"{label}: {Messages.Count} messages in all folders.")
+            + (_flaggedProblem.Length > 0 ? " " + _flaggedProblem : "");
+    }
+
+    /// <summary>
+    /// "Unflag all" / "Clear all priority" over the current marked view.
+    /// Asks first (the user's review flags are easy to lose), then clears
+    /// the mark on the server in one connection per account. Rows stay in
+    /// the list, shown unmarked, until the view is reloaded.
+    /// </summary>
+    [RelayCommand]
+    private async Task ClearAllMarksAsync()
+    {
+        if (MarkedView is not { } mark) return;
+        var targets = Messages.Where(m => mark == MailMark.Priority ? m.Priority : m.Flagged).ToList();
+        if (targets.Count == 0) return;
+
+        var what = mark == MailMark.Priority
+            ? $"Clear priority from all {targets.Count} messages?"
+            : $"Unflag all {targets.Count} messages?\n\nFlags are your review/follow-up list — this can't be undone in one step.";
+        if (MessageBox.Show(Application.Current?.MainWindow!, what, ClearAllMarksLabel,
+                MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
+            return;
+
+        // Optimistic: clear the icons now, put back any account that failed.
+        foreach (var m in targets) SetMarkLocally(m, mark, false);
+        int done = 0;
+        var errors = new System.Collections.Generic.List<string>();
+        foreach (var byAccount in targets.GroupBy(m => m.Model.AccountId))
+        {
+            var account = Accounts.FirstOrDefault(a => a.Model.Id == byAccount.Key)?.Model;
+            var creds = account is null ? null : _creds.Read(account.Id);
+            var items = byAccount
+                .Where(m => uint.TryParse(m.Model.Id, out _))
+                .Select(m => (m.Model.FolderId, uint.Parse(m.Model.Id)))
+                .ToList();
+            var res = account is null || creds is null
+                ? Result.Fail<int>("no saved password")
+                : await _imap.SetMarkBulkAsync(account, creds.Value.Password, items, mark, false);
+            if (res is Result<int>.Ok ok) done += ok.Value;
+            else
+            {
+                foreach (var m in byAccount) SetMarkLocally(m, mark, true);
+                errors.Add($"{account?.EmailAddress ?? "account"}: {res.AsError}");
+            }
+        }
+        StatusMessage = errors.Count == 0
+            ? $"Cleared {MarkNoun(mark)} from {done} messages."
+            : $"Cleared {done}; failed for {string.Join("; ", errors)}";
+    }
+
     [RelayCommand]
     private async Task SelectFolderAsync(FolderViewModel? folder)
     {
-        if (folder is null) return;
+        if (folder is null)
+        {
+            // The ribbon's Refresh passes SelectedFolder, which is null in
+            // the Flagged/Priority views — reload that view instead.
+            if (MarkedView is { } mark) await ShowMarkedAsync(mark);
+            return;
+        }
+        if (IsMarkedViewActive)
+        {
+            MarkedView = null;
+            _flaggedLoadCts?.Cancel();
+        }
         if (SelectedFolder is not null) SelectedFolder.IsSelected = false;
         folder.IsSelected = true;
         SelectedFolder = folder;
@@ -851,7 +1113,7 @@ public partial class MainViewModel : ObservableObject
         return null;
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)] // rapid clicks on several rows must all register
     private async Task ToggleReadAsync(MessageViewModel? message)
     {
         var m = message ?? SelectedMessage;
@@ -859,7 +1121,7 @@ public partial class MainViewModel : ObservableObject
         await SetReadStateAsync(m, seen: m.Unread, silent: false);
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)] // rapid clicks on several rows must all register
     private async Task ToggleFlagAsync(MessageViewModel? message)
     {
         var m = message ?? SelectedMessage;
@@ -869,18 +1131,52 @@ public partial class MainViewModel : ObservableObject
         var creds = _creds.Read(account.Id);
         if (creds is null) return;
         if (!uint.TryParse(m.Model.Id, out var uid)) return;
+        await ToggleMarkAsync(m, account, creds.Value.Password, uid, MailMark.Flagged);
+    }
 
-        var newFlagged = !m.Flagged;
-        var res = await _imap.SetFlaggedAsync(account, creds.Value.Password, m.Model.FolderId, uid, newFlagged);
-        if (res.IsOk)
+    [RelayCommand(AllowConcurrentExecutions = true)] // rapid clicks on several rows must all register
+    private async Task TogglePriorityAsync(MessageViewModel? message)
+    {
+        var m = message ?? SelectedMessage;
+        if (m is null) return;
+        var account = Accounts.FirstOrDefault(a => a.Model.Id == m.Model.AccountId)?.Model;
+        if (account is null) return;
+        var creds = _creds.Read(account.Id);
+        if (creds is null) return;
+        if (!uint.TryParse(m.Model.Id, out var uid)) return;
+        await ToggleMarkAsync(m, account, creds.Value.Password, uid, MailMark.Priority);
+    }
+
+    /// <summary>
+    /// Flip a mark instantly in the list, then tell the server (a fresh IMAP
+    /// connection takes 1–2 s, which made the flag feel unresponsive). If the
+    /// server refuses, the icon flips back and the status bar says why.
+    /// </summary>
+    private async Task ToggleMarkAsync(MessageViewModel m, Account account, string password, uint uid, MailMark mark)
+    {
+        var on = mark == MailMark.Priority ? !m.Priority : !m.Flagged;
+        SetMarkLocally(m, mark, on);
+        // Server writes run one at a time, in click order, so a quick
+        // flag-unflag can't land on the server as unflag-flag.
+        Result<bool> res;
+        await _markGate.WaitAsync();
+        try { res = await _imap.SetMarkAsync(account, password, m.Model.FolderId, uid, mark, on); }
+        finally { _markGate.Release(); }
+        if (!res.IsOk)
         {
-            m.Model.Flagged = newFlagged;
-            m.OnFlagStateChanged();
+            SetMarkLocally(m, mark, !on);
+            StatusMessage = $"Couldn't {(on ? "set" : "clear")} {MarkNoun(mark)}: {res.AsError}";
         }
-        else
-        {
-            StatusMessage = $"Failed: {res.AsError}";
-        }
+    }
+
+    private readonly SemaphoreSlim _markGate = new(1, 1);
+
+    private static void SetMarkLocally(MessageViewModel m, MailMark mark, bool on)
+    {
+        if (mark == MailMark.Priority) m.Model.Priority = on;
+        else m.Model.Flagged = on;
+        m.OnFlagStateChanged();
+        App.MarkedMail?.SetMarked(m.Model, mark, on);
     }
 
     [RelayCommand]
@@ -907,6 +1203,18 @@ public partial class MainViewModel : ObservableObject
     {
         var m = message ?? SelectedMessage;
         if (m is null) return;
+
+        // Record the miss BEFORE learning from it, so the log shows what the
+        // filter thought when it let this through (spam-review.jsonl).
+        try
+        {
+            if (App.SpamFilterEngine is not null)
+            {
+                var acct = Accounts.FirstOrDefault(a => a.Model.Id == m.Model.AccountId)?.Model.EmailAddress ?? "";
+                GreatEmailApp.Core.Spam.SpamReviewLog.Append(m.Model, acct, App.SpamFilterEngine.Explain(m.Model));
+            }
+        }
+        catch { /* the log must never block marking spam */ }
 
         var sender = (m.SenderEmail ?? "").Trim();
         if (!string.IsNullOrEmpty(sender))

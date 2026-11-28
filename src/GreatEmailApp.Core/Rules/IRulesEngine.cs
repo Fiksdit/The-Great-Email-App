@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Rules/IRulesEngine.cs
-// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 3
+// Created: 2026-05-01 | Revised: 2026-11-27 | Rev: 4
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using GreatEmailApp.Core.Models;
@@ -9,8 +9,21 @@ namespace GreatEmailApp.Core.Rules;
 
 public sealed record RuleApplyResult(int Considered, int Matched, int ActionsRun, List<string> Errors);
 
+/// <summary>A "Mark priority" rule matched a message that just arrived.</summary>
+public sealed record PriorityMailEvent(Account Account, Message Message, string RuleName);
+
 public interface IRulesEngine
 {
+    /// <summary>
+    /// Raised (on a worker thread) when a "Mark priority" rule marks newly
+    /// arrived mail — drives the priority alert. Not raised for re-scans or
+    /// "Run rules now".
+    /// </summary>
+    event EventHandler<PriorityMailEvent>? PriorityMailArrived;
+
+    /// <summary>Raised after a rules run that flagged or marked priority on any message.</summary>
+    event EventHandler? MarksApplied;
+
     /// <summary>Subscribe to NewMailPoller.MessagesPolled at startup so rules
     /// run on every freshly-arrived inbox listing. Idempotent.</summary>
     void Start();

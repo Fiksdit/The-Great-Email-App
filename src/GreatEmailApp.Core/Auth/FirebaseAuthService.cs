@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Auth/FirebaseAuthService.cs
-// Created: 2026-04-30 | Revised: 2026-04-30 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-11-27 | Rev: 2
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // Hand-rolled OAuth desktop loopback flow + Firebase token exchange.
 // Avoids dragging Google.Apis.Auth + dependencies into the desktop bundle.
@@ -65,32 +65,64 @@ public sealed class FirebaseAuthService : IAuthService
         var refresh = _vault.Read();
         if (string.IsNullOrEmpty(refresh)) return Result.Ok<AuthSession?>(null);
 
-        var refreshed = await ExchangeRefreshTokenAsync(refresh, ct).ConfigureAwait(false);
-        if (refreshed is Result<RefreshResponse>.Fail f)
+        // The saved sign-in is only thrown away when Google actually rejects
+        // it. A network that isn't up yet (startup after sleep/crash), a
+        // timeout or a 5xx is retried, and the saved token is kept either way
+        // so the next start can restore it (FIX-2026-11-27-002).
+        string lastError = "";
+        foreach (var delay in RestoreRetryDelays)
         {
-            _vault.Clear();
-            return Result.Fail<AuthSession?>($"Restore failed: {f.Error}");
-        }
-        var ok = (Result<RefreshResponse>.Ok)refreshed;
+            if (delay > TimeSpan.Zero) await Task.Delay(delay, ct).ConfigureAwait(false);
 
-        // We don't have email/uid from the refresh endpoint alone — call accounts:lookup.
-        var lookup = await LookupAccountAsync(ok.Value.IdToken, ct).ConfigureAwait(false);
-        if (lookup is Result<AccountInfo>.Fail lf)
-        {
-            _vault.Clear();
-            return Result.Fail<AuthSession?>($"Account lookup failed: {lf.Error}");
-        }
-        var info = ((Result<AccountInfo>.Ok)lookup).Value;
+            var (refreshed, rejected) = await ExchangeRefreshTokenAsync(refresh, ct).ConfigureAwait(false);
+            if (refreshed is Result<RefreshResponse>.Fail f)
+            {
+                if (rejected)
+                {
+                    _vault.Clear();
+                    return Result.Fail<AuthSession?>($"Restore failed: {f.Error}");
+                }
+                lastError = f.Error;
+                continue;
+            }
+            var ok = (Result<RefreshResponse>.Ok)refreshed;
 
+            // We don't have email/uid from the refresh endpoint alone — call accounts:lookup.
+            var (lookup, lookupRejected) = await LookupAccountAsync(ok.Value.IdToken, ct).ConfigureAwait(false);
+            if (lookup is Result<AccountInfo>.Fail lf)
+            {
+                if (lookupRejected)
+                {
+                    _vault.Clear();
+                    return Result.Fail<AuthSession?>($"Account lookup failed: {lf.Error}");
+                }
+                lastError = lf.Error;
+                continue;
+            }
+            return Result.Ok<AuthSession?>(CompleteRestore(ok.Value, ((Result<AccountInfo>.Ok)lookup).Value));
+        }
+        Console.Error.WriteLine($"[Auth.TryRestore] gave up for now, saved sign-in kept: {lastError}");
+        return Result.Fail<AuthSession?>($"Couldn't reach Google to restore sign-in: {lastError}");
+    }
+
+    /// <summary>Waits before each restore attempt: ~2 minutes in all.</summary>
+    private static readonly TimeSpan[] RestoreRetryDelays =
+    {
+        TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(10),
+        TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60),
+    };
+
+    private AuthSession CompleteRestore(RefreshResponse refreshed, AccountInfo info)
+    {
         var session = new AuthSession(
             info.LocalId, info.Email, info.DisplayName, info.PhotoUrl,
-            ok.Value.IdToken,
-            DateTimeOffset.UtcNow.AddSeconds(ok.Value.ExpiresIn),
-            ok.Value.RefreshToken);
+            refreshed.IdToken,
+            DateTimeOffset.UtcNow.AddSeconds(refreshed.ExpiresIn),
+            refreshed.RefreshToken);
 
         _vault.Write(session.RefreshToken);
         SetSession(session);
-        return Result.Ok<AuthSession?>(session);
+        return session;
     }
 
     public async Task<Result<AuthSession>> SignInWithGoogleAsync(CancellationToken ct = default)
@@ -215,12 +247,13 @@ public sealed class FirebaseAuthService : IAuthService
         if (current is null) return Result.Fail<string>("Not signed in.");
         if (!current.IsIdTokenStale) return Result.Ok(current.IdToken);
 
-        var refreshed = await ExchangeRefreshTokenAsync(current.RefreshToken, ct).ConfigureAwait(false);
+        var (refreshed, rejected) = await ExchangeRefreshTokenAsync(current.RefreshToken, ct).ConfigureAwait(false);
         if (refreshed is Result<RefreshResponse>.Fail f)
         {
-            // Refresh failure = token revoked or network. Sign the user out so the
-            // UI prompts re-auth instead of silently looping.
-            await SignOutAsync(ct).ConfigureAwait(false);
+            // Revoked/expired token → sign out so the UI prompts re-auth. A
+            // network blip or Google outage just fails this call; the next
+            // sync retries with the same session (FIX-2026-11-27-002).
+            if (rejected) await SignOutAsync(ct).ConfigureAwait(false);
             return Result.Fail<string>(f.Error);
         }
         var r = ((Result<RefreshResponse>.Ok)refreshed).Value;
@@ -285,39 +318,69 @@ public sealed class FirebaseAuthService : IAuthService
         return Result.Ok(parsed);
     }
 
-    private async Task<Result<RefreshResponse>> ExchangeRefreshTokenAsync(string refreshToken, CancellationToken ct)
+    /// <summary>
+    /// Google answered "this token/user is no good" (400 INVALID_REFRESH_TOKEN,
+    /// TOKEN_EXPIRED, USER_DISABLED, USER_NOT_FOUND; 401; 403). Only these
+    /// end a saved sign-in. 5xx, 429, timeouts and network errors don't.
+    /// </summary>
+    private static bool IsRejection(HttpStatusCode code) =>
+        code is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
+
+    /// <returns>The result, plus Rejected = true when Google refused the token.</returns>
+    private async Task<(Result<RefreshResponse> Result, bool Rejected)> ExchangeRefreshTokenAsync(
+        string refreshToken, CancellationToken ct)
     {
-        var url = $"https://securetoken.googleapis.com/v1/token?key={_firebase.ApiKey}";
-        var form = new FormUrlEncodedContent(new[]
+        try
         {
-            new KeyValuePair<string, string>("grant_type", "refresh_token"),
-            new KeyValuePair<string, string>("refresh_token", refreshToken),
-        });
-        var resp = await _http.PostAsync(url, form, ct).ConfigureAwait(false);
-        if (!resp.IsSuccessStatusCode)
-        {
-            var body = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            return Result.Fail<RefreshResponse>($"Token refresh failed ({(int)resp.StatusCode}): {body}");
+            var url = $"https://securetoken.googleapis.com/v1/token?key={_firebase.ApiKey}";
+            var form = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("grant_type", "refresh_token"),
+                new KeyValuePair<string, string>("refresh_token", refreshToken),
+            });
+            var resp = await _http.PostAsync(url, form, ct).ConfigureAwait(false);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var body = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                return (Result.Fail<RefreshResponse>($"Token refresh failed ({(int)resp.StatusCode}): {body}"),
+                        IsRejection(resp.StatusCode));
+            }
+            var parsed = await resp.Content.ReadFromJsonAsync<RefreshResponse>(JsonOpts, ct).ConfigureAwait(false);
+            if (parsed is null || string.IsNullOrEmpty(parsed.IdToken))
+                return (Result.Fail<RefreshResponse>("Refresh response malformed."), false);
+            return (Result.Ok(parsed), false);
         }
-        var parsed = await resp.Content.ReadFromJsonAsync<RefreshResponse>(JsonOpts, ct).ConfigureAwait(false);
-        if (parsed is null || string.IsNullOrEmpty(parsed.IdToken))
-            return Result.Fail<RefreshResponse>("Refresh response malformed.");
-        return Result.Ok(parsed);
+        catch (Exception ex) when (ex is HttpRequestException or JsonException
+                                   || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+        {
+            return (Result.Fail<RefreshResponse>($"Token refresh failed: {ex.Message}", ex), false);
+        }
     }
 
-    private async Task<Result<AccountInfo>> LookupAccountAsync(string idToken, CancellationToken ct)
+    private async Task<(Result<AccountInfo> Result, bool Rejected)> LookupAccountAsync(
+        string idToken, CancellationToken ct)
     {
-        var url = $"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={_firebase.ApiKey}";
-        var resp = await _http.PostAsJsonAsync(url, new { idToken }, JsonOpts, ct).ConfigureAwait(false);
-        if (!resp.IsSuccessStatusCode)
+        try
         {
-            var body = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            return Result.Fail<AccountInfo>($"accounts:lookup failed ({(int)resp.StatusCode}): {body}");
+            var url = $"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={_firebase.ApiKey}";
+            var resp = await _http.PostAsJsonAsync(url, new { idToken }, JsonOpts, ct).ConfigureAwait(false);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var body = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                return (Result.Fail<AccountInfo>($"accounts:lookup failed ({(int)resp.StatusCode}): {body}"),
+                        IsRejection(resp.StatusCode));
+            }
+            var parsed = await resp.Content.ReadFromJsonAsync<AccountLookupResponse>(JsonOpts, ct).ConfigureAwait(false);
+            var first = parsed?.Users is { Count: > 0 } ? parsed.Users[0] : null;
+            // A valid token whose user no longer exists is a real rejection.
+            if (first is null) return (Result.Fail<AccountInfo>("accounts:lookup returned no users."), true);
+            return (Result.Ok(first), false);
         }
-        var parsed = await resp.Content.ReadFromJsonAsync<AccountLookupResponse>(JsonOpts, ct).ConfigureAwait(false);
-        var first = parsed?.Users is { Count: > 0 } ? parsed.Users[0] : null;
-        if (first is null) return Result.Fail<AccountInfo>("accounts:lookup returned no users.");
-        return Result.Ok(first);
+        catch (Exception ex) when (ex is HttpRequestException or JsonException
+                                   || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+        {
+            return (Result.Fail<AccountInfo>($"accounts:lookup failed: {ex.Message}", ex), false);
+        }
     }
 
     // --------------------------------------------------------------------- //

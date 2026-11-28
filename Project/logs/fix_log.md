@@ -4,6 +4,316 @@ Permanent record of bug-class changes per rulebook §16. Newest first.
 
 ---
 
+## FIX-2026-11-27-006 — Reading-pane Forward/Reply did nothing; Forward dropped attachments; added attachments invisible
+
+**Area:** UI / ReadingPane, ComposeWindow · Core / ImapService.SaveAttachmentsAsync (new)
+**Status:** ✅ Fixed
+**Priority:** P1 (a forward to Pam went out without Travis's attachments)
+
+**Symptom**
+- Forward / Reply / Reply all in the reading pane did nothing. The ribbon and right-click versions worked.
+- A forwarded message arrived without the original's attachments.
+- Files added with Attach never appeared in the compose window (they were still sent).
+
+**Replicate**
+1. Open a message, click Forward above the message body → nothing happens.
+2. Forward from the ribbon a message with attachments → the attachment list is empty.
+
+**Root cause**
+- `ReadingPane.OpenCompose` checked the UserControl's DataContext (MainViewModel). The buttons sit in a DockPanel bound to SelectedMessage, so the check always failed. Broken since the compose commit (98da3d7).
+- `PrepareForward` only quoted the body; nothing downloaded the original's attachments.
+- The attachment strip's Visibility bound to the collection object, which never raises a change when items are added.
+
+**Tried**
+- Nothing. Each was found by reproducing in the app.
+
+**Fix**
+- ReadingPane reads the clicked button's DataContext.
+- New `IImapService.SaveAttachmentsAsync` downloads MIME attachments (attached .eml included) to `%LOCALAPPDATA%\GreatEmailApp\forwarded\<guid>` (folders older than 30 days pruned). Forward adds them as normal removable attachments. Send stays disabled until they're in (`IsLoadingAttachments`).
+- The attachment strip binds `HasAttachments`, refreshed on CollectionChanged.
+- Verified: reading-pane Forward on Travis's "Re: Petfolk docs" showed all 5 attachments (3 PDFs, PNG, XLSX); discarded without sending.
+
+**Files changed**
+- `src/GreatEmailApp/Controls/ReadingPane.xaml.cs` (Rev 3)
+- `src/GreatEmailApp.Core/Services/IImapService.cs`, `ImapService.cs`
+- `src/GreatEmailApp/ViewModels/ComposeViewModel.cs`, `Views/ComposeWindow.xaml(.cs)`
+
+**Rulebook**
+- Buttons inside a sub-tree bound to a different DataContext must read `(sender as FrameworkElement).DataContext`, not the UserControl's.
+
+**Session:** 2026-11-27
+**Commit:** _pending_
+
+---
+
+## FIX-2026-11-27-005 — Send asked "save as draft / discard" after sending; Forward didn't focus To; empty address book
+
+**Area:** UI / ComposeWindow, ComposeViewModel, AddressInput · data / contacts.json
+**Status:** ✅ Fixed (Send close path not exercised with a real send)
+**Priority:** P1 (looked like Send was broken)
+
+**Symptom**
+- Clicking Send showed only "Save this message as a draft? / discard". The forward had in fact been sent (INBOX.Sent Messages, 14:17, to preed@).
+- Forward opened with the caret in the body, not To.
+- No address suggestions: contacts.json was empty.
+
+**Replicate**
+1. Forward a message, add a recipient, click Send → the draft prompt appears.
+
+**Root cause**
+- After a successful send, `Sent` → `Close()` → `OnClosing`. `HasUnsavedChanges` was still true, so the close prompt ran as if unsent.
+- No initial focus was set; the WebView2 editor took it.
+- Contacts only auto-collect on send from this app, which had effectively never sent.
+
+**Tried**
+- Confirmed via the Sent folder that the send succeeded before changing anything.
+
+**Fix**
+- Send success clears `HasUnsavedChanges`, and the window closes through `CloseForReal` (no prompt).
+- New and Forward focus the To box after render (`AddressInput.FocusBox`); Reply keeps body focus.
+- Seeded the address book with 962 contacts (AutoCollected) from every To/Cc in all Sent folders: jreed@ (4,063 messages), james@fiksdit.com (113). Backup: scratchpad contacts-backup-2026-11-27.json. Synced 20:24Z.
+- Verified: Forward and New open with typing landing in To; "mich" suggests Michael Dixon, Michelle Hanson, etc.
+
+**Files changed**
+- `src/GreatEmailApp/Views/ComposeWindow.xaml.cs` (Rev 3), `ViewModels/ComposeViewModel.cs` (Rev 2), `Controls/AddressInput.xaml.cs` (Rev 2)
+
+**Rulebook**
+- none. Watch: contacts.json is now ~300 KB inside the synced settings doc (Firestore's limit is 1 MB per doc).
+
+**Session:** 2026-11-27
+**Commit:** _pending_
+
+---
+
+## FIX-2026-11-27-004 — Flagged / Priority views waited 10–15 s for a full search every time
+
+**Area:** Core / MarkedMailCache (new) · UI / MainViewModel marked views
+**Status:** ✅ Fixed
+**Priority:** P2
+
+**Symptom**
+- Every open of Flagged or Priority re-ran an IMAP search of ~150 folders before anything showed.
+
+**Replicate**
+1. Click Flagged in the sidebar: the list is empty for 10–15 s.
+
+**Root cause**
+- No memory of previous results; the search was the only source.
+
+**Tried**
+- Nothing. Built the cache on the first attempt. One test showed "Searching…" instead of the cached list. Two app instances were running at the time (the user had opened a second copy); not reproduced with a single instance.
+
+**Fix**
+- `MarkedMailCache`: per-account Flagged / Priority lists in memory plus `marked-mail.json` (local-only, bodies stripped). Views paint from it instantly, then `RefreshAsync` re-checks the server and re-renders only if something changed, keeping the open message and its body.
+- Background refreshes: 20 s after startup and every 15 min (marks changed in Outlook, webmail or the other PC); 10 s after rules flag or mark new arrivals (`RulesEngine.MarksApplied`, only new UIDs or a manual run); 5 s after a marked message is moved or deleted.
+- Local flag/priority toggles patch the cache at once. Edits made during a refresh (10 s margin) are replayed over its result, so an in-flight search can't undo a click.
+- Verified: fresh start, Priority (9) and Flagged (17) appeared in under 1 s with "checking the server for changes…".
+
+**Files changed**
+- `src/GreatEmailApp.Core/Services/MarkedMailCache.cs` (new), `Storage/AppPaths.cs`
+- `src/GreatEmailApp.Core/Rules/IRulesEngine.cs`, `RulesEngine.cs`
+- `src/GreatEmailApp/App.xaml.cs`, `ViewModels/MainViewModel.cs`
+
+**Rulebook**
+- none
+
+**Session:** 2026-11-27
+**Commit:** _pending_
+
+---
+
+## FIX-2026-11-27-003 — Flag clicks slow and sometimes ignored; rule flags mixed with the user's own review flags
+
+**Area:** UI / MainViewModel mark commands · Core / IMAP marks, RulesEngine, MailRule
+**Status:** ✅ Fixed
+**Priority:** P2
+
+**Symptom**
+- Clicking the flag reacted slowly. A second click within ~2 s (another row, or the menu) did nothing.
+- Rules flagged Federated mail with the same flag the user uses for "review later", so clearing rule flags would also wipe the user's own.
+
+**Replicate**
+1. Click a row's flag, then quickly click another row's flag: the second click is dropped.
+
+**Root cause**
+- `ToggleFlagAsync` waited for a fresh IMAP connect + STORE (1–2 s) before changing the icon.
+- CommunityToolkit `[RelayCommand]` async commands refuse to run again while the previous run is still in progress, so clicks during that window were silently ignored.
+
+**Tried**
+- What looked like a second bug (icon not reappearing after re-marking from the menu) was a screenshot taken before the closing menu redrew. Confirmed with a trace that the same row object was updated and the server got the change.
+
+**Fix**
+- Optimistic toggle: the icon flips immediately and reverts with a status message if the server refuses. Mark commands allow concurrent runs. Server writes are serialized through `_markGate` so they land in click order.
+- New **Priority** mark: IMAP keyword `Priority` (`MailMarks`), separate from \Flagged. Rule action "Mark priority (alert)" is stored as Flag + Value "priority" (sync-compat: older clients degrade to a plain Flag). A new arrival marked by such a rule raises `PriorityMailArrived` → its own tray alert, shown even when ordinary new-mail notifications are off.
+- Sidebar "Priority · all folders" view, an amber "!" on rows (click to clear), and a "Mark / Clear priority" menu item. "Unflag all" / "Clear all priority" button in the marked views, with a confirmation and one connection per account (`SetMarkBulkAsync`).
+- Migration: the 4 rule Flag actions (3 Federated + Missouri DOR) switched to Mark priority; 9 November Federated messages moved from \Flagged to Priority. Older DOR flags (2014, June 2026) left alone as the user's own. Backup: scratchpad rules-backup-2026-11-27.json.
+- Verified: two rows unflagged then re-flagged in quick succession, each instant; menu clear/mark checked against the server; Priority view lists 9; Clear-all confirmation, then Cancel, changed nothing. The priority tray alert was not tested live (it needs new Federated mail to arrive).
+
+**Files changed**
+- `src/GreatEmailApp.Core/Models/MailMarks.cs` (new), `Message.cs`, `MailRule.cs` (Rev 4)
+- `src/GreatEmailApp.Core/Services/IImapService.cs`, `ImapService.cs`
+- `src/GreatEmailApp.Core/Rules/IRulesEngine.cs`, `RulesEngine.cs` (Rev 4)
+- `src/GreatEmailApp/ViewModels/MainViewModel.cs`, `MessageViewModel.cs` (Rev 2)
+- `src/GreatEmailApp/Controls/MailList.xaml(.cs)`, `Sidebar.xaml(.cs)`
+- `src/GreatEmailApp/Services/TrayNotifier.cs` (Rev 6), `App.xaml.cs`
+- `src/GreatEmailApp/Views/Dialogs/RuleEditorDialog.xaml.cs`, `Converters/Converters.cs`
+
+**Rulebook**
+- Per-row toggle commands that hit IMAP must be optimistic and use `AllowConcurrentExecutions = true`, or fast clicks get dropped.
+
+**Session:** 2026-11-27
+**Commit:** _pending_
+
+---
+
+## FIX-2026-11-27-002 — Sync sign-in lost after a restart; empty Flagged list gave no explanation
+
+**Area:** Core / FirebaseAuthService · UI / MailList empty state
+**Status:** ✅ Fixed (sign-in cause inferred, not reproduced)
+**Priority:** P1 (losing sign-in means re-doing Google sign-in; sync stops until then)
+
+**Symptom**
+- After closing and reopening the app, the user had to sign in to Google again and unlock passwords.
+- "Flagged" showed nothing.
+
+**Replicate**
+- Not reproduced: two later restarts restored the sign-in silently. The code path below causes it whenever Google can't be reached at the moment of the check.
+- Flagged (reproduced): click sidebar "Flagged · all folders" right after startup. The startup folder load finishes mid-search and clears IsBusy, so the list read "No flagged messages" (previously just blank) for the 10–15 s before results arrived. A late folder load could also auto-select INBOX over the Flagged view.
+
+**Root cause**
+- `TryRestoreAsync` deleted auth.dat on ANY failed refresh, including 5xx and malformed replies. A network exception threw out of it, so startup gave up, leaving the user signed out until they signed in again.
+- `GetValidIdTokenAsync` signed the user out on any failed hourly refresh.
+- At the time, the status bar also showed "Could not reach the server" for another account, which points to a shaky network.
+
+**Tried**
+- Checked file times: vault.dat unchanged since 11/21; auth.dat kept. Two relaunches restored fine.
+
+**Fix**
+- Only 400/401/403, or a lookup with no user, count as a real rejection and clear the saved sign-in. Network errors, timeouts and 5xx are retried at startup (0/3/10/30/60 s) and never delete auth.dat. The hourly refresh no longer signs out on those.
+- Mail list shows an explanation when empty. In the Flagged view: "No flagged messages in any folder", or which account couldn't be searched or has no saved password. On a folder's Flagged pill: "No flagged messages in this folder" plus a "Show flagged from all folders" link.
+- Flagged view has its own loading flag (not IsBusy) and shows "Searching every folder for flagged messages…" until results arrive. LoadFoldersAsync no longer auto-selects INBOX while the Flagged view is open.
+- Verified: relaunch restored sign-in (auth.dat rewritten); empty Inbox Flagged pill showed the text and link; the link opened 29 flagged. Clicking Flagged 4 s after launch showed "Searching…" at 2 s and 6 s, then 29 messages, staying on the Flagged view.
+
+**Files changed**
+- `src/GreatEmailApp.Core/Auth/FirebaseAuthService.cs` (Rev 2)
+- `src/GreatEmailApp/ViewModels/MainViewModel.cs` (Rev 17)
+- `src/GreatEmailApp/Controls/MailList.xaml`
+
+**Rulebook**
+- Only a definite server rejection may delete a saved credential or token. Network or 5xx failures retry and keep it.
+
+**Session:** 2026-11-27
+**Commit:** _pending_
+
+---
+
+## FIX-2026-11-27-001 — Clicking the flag in the message list did nothing; no way to see all flagged mail
+
+**Area:** UI / MailList · Sidebar · MainViewModel; Core / ImapService search
+**Status:** ✅ Fixed
+**Priority:** P2 (flagged priority mail, e.g. Federated, is the user's main triage list)
+
+**Symptom**
+- The flag icon in a list row was a plain TextBlock, so clicking it did nothing. Unflagging needed the right-click menu.
+- The "Flagged" pill only filters the current folder. Rule-flagged mail is filed into many folders, so there was no single place to see it.
+
+**Replicate**
+1. Click the red flag on a flagged row: nothing happens.
+2. Pick the Flagged pill in INBOX: Federated mail filed to subfolders doesn't show.
+
+**Root cause**
+- The row icon had no click handling. There was no cross-folder flagged view.
+
+**Tried**
+- Nothing. Fixed on the first attempt.
+
+**Fix**
+- The row flag is now a Button: a filled flag when flagged, an outline flag on row hover when not; one click toggles (server first, then icon).
+- New sidebar "Flagged · all folders" entry: IMAP SEARCH FLAGGED in every selectable folder of every account (Trash/Junk skipped), accounts in parallel, newest first. Ribbon Refresh reloads it; picking a folder leaves it.
+- SearchAccountAsync and SearchFlaggedAsync share one SearchAllFoldersAsync loop.
+- Verified in the app: 29 flagged messages across folders; unflag/re-flag from the list worked.
+
+**Files changed**
+- `src/GreatEmailApp.Core/Services/IImapService.cs`, `ImapService.cs` (Rev 7)
+- `src/GreatEmailApp/ViewModels/MainViewModel.cs` (Rev 17)
+- `src/GreatEmailApp/Controls/MailList.xaml`, `MailList.xaml.cs` (Rev 11)
+- `src/GreatEmailApp/Controls/Sidebar.xaml`, `Sidebar.xaml.cs` (Rev 6)
+
+**Rulebook**
+- none
+
+**Session:** 2026-11-27
+**Commit:** _pending_
+
+---
+
+## FIX-2026-11-25-003 — Rules, spam settings and contacts saved while the app was closed never synced
+
+**Area:** Core / SyncMetadata · HasUnpushedLocalChanges
+**Status:** ✅ Fixed
+**Priority:** P1 (changes silently stay on one PC)
+
+**Symptom**
+- Five rules added to rules.json (app closed) were still missing from the cloud after relaunch. sync-meta LastSyncedAt stayed at 2026-11-22.
+
+**Replicate**
+1. Change rules.json, spam-filter.json or contacts.json while the app is closed, or have the debounced push fail.
+2. Start the app: startup pull sees the cloud UpdatedAt ≤ LastSyncedAt, so it counts as "already applied" and returns. No push.
+
+**Root cause**
+- `NewestLocalDataMtime` only checked accounts.json and settings.json (written before rules, spam and contacts sync existed). Newer files in the other synced stores never counted as unpushed.
+
+**Tried**
+- Read-only pull with the app's own sign-in: auth and Firestore were fine; the cloud just had 1 rule.
+
+**Fix**
+- Count contacts.json, rules.json, rules-deleted.json and spam-filter.json too. Verified: on relaunch the app pushed; cloud now lists all 6 rules (2026-11-25 21:35Z).
+
+**Files changed**
+- `src/GreatEmailApp.Core/Sync/SyncMetadata.cs` (Rev 3)
+
+**Rulebook**
+- A new synced store must be added to SyncMetadata's mtime list, as well as to the snapshot and the updateMask.
+
+**Session:** 2026-11-25
+**Commit:** _pending_
+
+---
+
+## FIX-2026-11-25-002 — Folders created in the app didn't appear in Outlook or webmail
+
+**Area:** Core / ImapService · CreateFolderAsync, RenameFolderAsync, DeleteFolderAsync, MoveToNamedPathAsync
+**Status:** ✅ Fixed
+**Priority:** P2
+
+**Symptom**
+- A folder made in the app showed in every copy of the app, but not in Outlook or the host's webmail.
+
+**Replicate**
+1. Right-click a folder → New subfolder.
+2. Open Outlook or webmail: the folder is missing.
+
+**Root cause**
+- The folder WAS created on the server (the app lists all folders). Outlook and webmail list only SUBSCRIBED folders, and `CreateFolderAsync` never sent SUBSCRIBE. Read-only check found INBOX.All Spam.TGEA, INBOX.test and Credit Cards.Capital One on jreed@ unsubscribed.
+
+**Tried**
+- Nothing — LIST vs LSUB comparison showed it directly.
+
+**Fix**
+- Create and rename now subscribe the folder; rename and delete unsubscribe the old name. Moves into the spam destination re-subscribe it on every move, so it self-heals. Best-effort helpers that log and never fail the operation.
+- One-off: subscribed the 3 folders on the server 2026-11-25. Left james@fixlogic.co INBOX.Junk unsubscribed (server folder, likely deliberate).
+
+**Files changed**
+- `src/GreatEmailApp.Core/Services/ImapService.cs` (Rev 6)
+
+**Rulebook**
+- Every IMAP folder create/rename must SUBSCRIBE, or other clients won't show it.
+
+**Session:** 2026-11-25
+**Commit:** _pending_
+
+---
+
 ## FIX-2026-11-25-001 — Learning spam filter flagged a client's reply; would learn good mail from "All Spam" as spam
 
 **Area:** Core / SpamFilterEngine · learning layer and training folder selection

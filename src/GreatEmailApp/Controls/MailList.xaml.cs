@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp/Controls/MailList.xaml.cs
-// Created: 2026-04-29 | Revised: 2026-11-21 | Rev: 10
+// Created: 2026-04-29 | Revised: 2026-11-27 | Rev: 11
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Collections.Generic;
@@ -167,6 +167,30 @@ public partial class MailList : UserControl
     {
         if (DataContext is MainViewModel vm && TargetOf(sender) is MessageViewModel m)
             vm.ToggleReadCommand.Execute(m);
+    }
+
+    /// <summary>The flag icon in a list row: one click flags / unflags.</summary>
+    private void FlagButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.Tag is MessageViewModel m
+            && DataContext is MainViewModel vm)
+            vm.ToggleFlagCommand.Execute(m);
+        e.Handled = true;
+    }
+
+    /// <summary>The priority icon in a list row: one click clears priority.</summary>
+    private void PriorityButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.Tag is MessageViewModel m
+            && DataContext is MainViewModel vm)
+            vm.TogglePriorityCommand.Execute(m);
+        e.Handled = true;
+    }
+
+    private void TogglePriority_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && TargetOf(sender) is MessageViewModel m)
+            vm.TogglePriorityCommand.Execute(m);
     }
 
     private void ToggleFlag_Click(object sender, RoutedEventArgs e)

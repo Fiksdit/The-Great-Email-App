@@ -271,7 +271,7 @@ public partial class RuleEditorDialog : Window
             {
                 ItemsSource = ActionChoices,
                 DisplayMemberPath = nameof(ActionChoice.Label),
-                SelectedItem = ActionChoices.First(c => c.Type == seed.Type && c.Permanent == seed.IsPermanentDelete),
+                SelectedItem = ActionChoices.First(c => c.Type == seed.Type && c.Marker == MarkerOf(seed)),
             };
             // Editable ComboBox: dropdown shows known folder paths for the rule's
             // account scope, but the user can also type a custom path (lets you
@@ -332,7 +332,7 @@ public partial class RuleEditorDialog : Window
             return new RuleActionItem
             {
                 Type = c.Type,
-                Value = c.Permanent ? RuleActionItem.PermanentDeleteValue
+                Value = c.Marker != "" ? c.Marker
                       : c.Type == RuleAction.MoveToFolder ? FolderCb.Text ?? ""
                       : "",
             };
@@ -346,7 +346,14 @@ public partial class RuleEditorDialog : Window
 
     private sealed record Choice<T>(T Value, string Label) where T : struct, Enum;
 
-    private sealed record ActionChoice(RuleAction Type, bool Permanent, string Label);
+    // Marker: the special Value stored for variants of one enum (Delete +
+    // "permanent", Flag + "priority"); "" for the plain action.
+    private sealed record ActionChoice(RuleAction Type, string Marker, string Label);
+
+    private static string MarkerOf(RuleActionItem a) =>
+        a.IsPermanentDelete ? RuleActionItem.PermanentDeleteValue
+        : a.IsPriority ? RuleActionItem.PriorityValue
+        : "";
 
     private static readonly Choice<RuleField>[] FieldChoices =
     {
@@ -366,11 +373,12 @@ public partial class RuleEditorDialog : Window
 
     private static readonly ActionChoice[] ActionChoices =
     {
-        new(RuleAction.MoveToFolder, false, "Move to folder"),
-        new(RuleAction.MarkRead, false, "Mark as read"),
-        new(RuleAction.Flag, false, "Flag"),
-        new(RuleAction.Delete, false, "Move to Trash"),
-        new(RuleAction.Delete, true, "Delete permanently (skip Trash)"),
+        new(RuleAction.MoveToFolder, "", "Move to folder"),
+        new(RuleAction.MarkRead, "", "Mark as read"),
+        new(RuleAction.Flag, RuleActionItem.PriorityValue, "Mark priority (alert)"),
+        new(RuleAction.Flag, "", "Flag for review"),
+        new(RuleAction.Delete, "", "Move to Trash"),
+        new(RuleAction.Delete, RuleActionItem.PermanentDeleteValue, "Delete permanently (skip Trash)"),
     };
 
     private static ComboBox LabeledCombo<T>(Choice<T>[] choices, T initial) where T : struct, Enum => new()

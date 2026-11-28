@@ -1,5 +1,5 @@
 // FILE: src/GreatEmailApp.Core/Models/MailRule.cs
-// Created: 2026-05-01 | Revised: 2026-11-21 | Rev: 3
+// Created: 2026-05-01 | Revised: 2026-11-27 | Rev: 4
 // Changed by: Claude Opus 5.5 on behalf of James Reed
 //
 // SYNC COMPAT: rules travel to other PCs via Firestore (rules_json) and are
@@ -45,6 +45,19 @@ public sealed class RuleActionItem
     public bool IsPermanentDelete =>
         Type == RuleAction.Delete
         && string.Equals(Value?.Trim(), PermanentDeleteValue, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Flag + this Value = "Mark priority": sets the Priority keyword (its own
+    /// marker, separate from the user's \Flagged review flag) and raises a
+    /// priority notification for new mail. Older clients that don't know the
+    /// marker fall back to a plain Flag, which is the safe degrade.
+    /// </summary>
+    public const string PriorityValue = "priority";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsPriority =>
+        Type == RuleAction.Flag
+        && string.Equals(Value?.Trim(), PriorityValue, StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed class MailRule

@@ -35,6 +35,9 @@ public interface ISpamFilterEngine
     /// <summary>Teach the model from a user decision (Mark as spam / Not spam).</summary>
     void Learn(Message message, bool isSpam);
 
+    /// <summary>What each filter layer makes of this message right now (for the spam review log).</summary>
+    SpamExplanation Explain(Message message);
+
     /// <summary>Discard the model and rebuild it from the accounts' spam and filed folders.</summary>
     Task<Result<SpamModelStatus>> RetrainAsync(CancellationToken ct = default);
 }

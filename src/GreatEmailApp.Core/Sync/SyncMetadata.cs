@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp.Core/Sync/SyncMetadata.cs
-// Created: 2026-04-30 | Revised: 2026-05-10 | Rev: 2
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-30 | Revised: 2026-11-25 | Rev: 3
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Text.Json;
 using GreatEmailApp.Core.Storage;
@@ -64,7 +64,12 @@ public sealed class SyncMetadata
     private static DateTime? NewestLocalDataMtime()
     {
         DateTime? newest = null;
-        foreach (var p in new[] { AppPaths.AccountsJson, AppPaths.SettingsJson })
+        // FIX-2026-11-25-003: every synced file counts. Only accounts + settings
+        // were checked, so rules / spam / contacts saved while the app was closed
+        // (or while a push failed) never uploaded: startup saw the cloud as
+        // "already applied" and stopped.
+        foreach (var p in new[] { AppPaths.AccountsJson, AppPaths.SettingsJson, AppPaths.ContactsJson,
+                                  AppPaths.RulesJson, AppPaths.RulesDeletedJson, AppPaths.SpamConfigJson })
         {
             if (!File.Exists(p)) continue;
             var t = File.GetLastWriteTimeUtc(p);

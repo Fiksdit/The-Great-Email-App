@@ -1,6 +1,6 @@
 // FILE: src/GreatEmailApp/ViewModels/MessageViewModel.cs
-// Created: 2026-04-29 | Revised: 2026-04-29 | Rev: 1
-// Changed by: Claude Opus 4.7 on behalf of James Reed
+// Created: 2026-04-29 | Revised: 2026-11-27 | Rev: 2
+// Changed by: Claude Opus 5.5 on behalf of James Reed
 
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -29,6 +29,7 @@ public partial class MessageViewModel : ObservableObject
 
     public bool Unread => Model.Unread;
     public bool Flagged => Model.Flagged;
+    public bool Priority => Model.Priority;
     public bool Important => Model.Important;
     public bool HasAttachments => Model.Attachments.Count > 0;
     public System.Collections.Generic.IReadOnlyList<Attachment> Attachments => Model.Attachments;
@@ -58,10 +59,11 @@ public partial class MessageViewModel : ObservableObject
         OnPropertyChanged(nameof(Unread));
     }
 
-    /// <summary>Re-emit Flagged so the flag icon updates.</summary>
+    /// <summary>Re-emit Flagged / Priority so the row icons update.</summary>
     public void OnFlagStateChanged()
     {
         OnPropertyChanged(nameof(Flagged));
+        OnPropertyChanged(nameof(Priority));
     }
 
     public MessageViewModel(Message model)

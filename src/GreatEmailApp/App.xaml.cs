@@ -32,6 +32,7 @@ public partial class App : Application
     public static IContactsStore Contacts { get; private set; } = null!;
     public static IRulesStore Rules { get; private set; } = null!;
     public static IRulesEngine RulesEngine { get; private set; } = null!;
+    public static MarkedMailCache MarkedMail { get; private set; } = null!;
     public static IRuleSuggestionEngine RuleSuggestions { get; private set; } = null!;
     public static ISpamConfigStore SpamConfig { get; private set; } = null!;
     public static ISpamFilter SpamFilter { get; private set; } = null!;
@@ -132,6 +133,15 @@ public partial class App : Application
         // pulls fresh inbox state runs enabled rules against the new mail.
         RulesEngine = new RulesEngine(Rules, Accounts, Credentials, Imap, MailPoller);
         RulesEngine.Start();
+        _tray.AttachPriorityAlerts(RulesEngine);
+
+        // Flagged / Priority views open from this cache instantly; it re-checks
+        // the server 20 s after startup (after the first folder loads), every
+        // 15 min (marks changed in Outlook / webmail / the other PC), and soon
+        // after rules mark new mail.
+        MarkedMail = new MarkedMailCache(Imap, Accounts, Credentials);
+        RulesEngine.MarksApplied += (_, _) => MarkedMail.ScheduleRefresh(TimeSpan.FromSeconds(10));
+        MarkedMail.StartBackgroundRefresh(TimeSpan.FromSeconds(20), TimeSpan.FromMinutes(15));
         RuleSuggestions = new RuleSuggestionEngine(MessageCache, Rules);
 
         // Spam filter: keyword + heuristic classifier. Same wire-in shape as
